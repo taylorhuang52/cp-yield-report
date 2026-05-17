@@ -1,0 +1,3714 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLD ULLD CP Strip Weekly/Monthly Report</title>
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#00827f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="CP Report">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  :root {
+    --bg: #e8f5f3;
+    --panel: #ffffff;
+    --panel2: #d0ede8;
+    --border: #a8d8d0;
+    --accent: #00827f;
+    --accent2: #e07b54;
+    --accent3: #00a896;
+    --text: #1a3a38;
+    --text2: #4a7a75;
+    --red: #d94f4f;
+    --yellow: #c07a00;
+    --tab-active: #00827f;
+    --shadow: 0 2px 12px rgba(0,130,127,0.10);
+    --header-bg: #b2ddd8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+    min-height: 100vh;
+  }
+  .app-header {
+    background: var(--header-bg);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .app-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a5c1a;
+    letter-spacing: 0.02em;
+  }
+  .app-title span { color: var(--text2); font-weight: 400; font-size: 13px; margin-left: 10px; }
+  .import-area {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .import-btn {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 7px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  /* DailyRpt / WAT_CP — light green */
+  .import-btn { background: #e8f8e8; border-color: #7ac87a; color: #2a6a2a; }
+  .import-btn:hover { background: #c8ecc8; border-color: #4a9a4a; color: #1a4a1a; }
+  .import-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .import-btn.primary:hover { background: #006b68; }
+  /* ULLD — light blue */
+  .import-btn.ulld-import-btn { background: #e8f2ff; border-color: #7aaae8; color: #1a4a8a; }
+  .import-btn.ulld-import-btn:hover { background: #c8dcf8; border-color: #3a72c0; color: #0a2a6a; }
+  .file-status { font-size: 12px; color: var(--text2); }
+  .file-status.ok { color: #007a6e; font-weight: 600; }
+  .file-status.err { color: var(--red); }
+
+  .tabs-bar {
+    background: var(--panel);
+    border-bottom: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 0 0 24px;
+    gap: 2px;
+  }
+  .tab {
+    padding: 12px 22px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text2);
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .tab:hover { color: var(--accent); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); background: #f0faf9; }
+
+  /* ULLD tab – blue accent */
+  .tab-ulld { color: #2a6ab0; }
+  .tab-ulld:hover { color: #1a4a8a; }
+  .tab-ulld.active { color: #1a4a8a; border-bottom-color: #2a6ab0; background: #eef5ff; }
+
+  /* ULLD page – light blue theme */
+  #page4 .chart-card { background: #f4f9ff; border-color: #b0d0f0; }
+  #page4 .chart-card-title { color: #1a4a8a; border-bottom-color: #b0d0f0; }
+  #page4 .section-title { color: #1a4a8a; }
+  #page4 .section-title::before { background: #2a6ab0; }
+  #page4 .stat-card { background: #e8f2ff; border-color: #b0d0f0; }
+  #page4 .target-note { color: #c03030; }
+  #page4 .stat-label { color: #3a6a9a; }
+  #page4 .stat-value { color: #1a3a6a; }
+
+  /* Strip tab – amber accent */
+  .tab-strip { color: #a07000; }
+  .tab-strip:hover { color: #7a5200; }
+  .tab-strip.active { color: #7a5200; border-bottom-color: #c09000; background: #fffbe8; }
+
+  /* Strip AC page – light yellow theme */
+  #page5 { background: transparent; }
+  #page5 .chart-card { background: #fffdf0; border-color: #e8d880; }
+  #page5 .chart-card-title { color: #7a5a00; border-bottom-color: #e8d880; }
+  #page5 .section-title { color: #7a5a00; }
+  #page5 .section-title::before { background: #c09000; }
+  #page5 .stat-card { background: #fff8d0; border-color: #e8d880; }
+  #page5 .target-note { color: #c03030; }
+  #page5 .stat-label { color: #9a7a00; }
+  #page5 .stat-value { color: #5a3a00; }
+
+  /* Strip CC page – light yellow theme */
+  #page6 { background: transparent; }
+  #page6 .chart-card { background: #fffdf0; border-color: #e8d880; }
+  #page6 .chart-card-title { color: #7a5a00; border-bottom-color: #e8d880; }
+  #page6 .section-title { color: #7a5a00; }
+  #page6 .section-title::before { background: #c09000; }
+  #page6 .stat-card { background: #fff8d0; border-color: #e8d880; }
+  #page6 .target-note { color: #c03030; }
+  #page6 .stat-label { color: #9a7a00; }
+  #page6 .stat-value { color: #5a3a00; }
+
+  /* Strip sub-tab bar */
+  .strip-subtabs {
+    display: flex; gap: 4px; margin-bottom: 16px;
+    border-bottom: 2px solid #e8d880; padding-bottom: 0;
+  }
+  .strip-subtab {
+    padding: 8px 20px; cursor: pointer; font-size: 13px; font-weight: 600;
+    color: #9a7a00; border-bottom: 3px solid transparent; margin-bottom: -2px;
+    transition: all 0.2s; border-radius: 4px 4px 0 0;
+  }
+  .strip-subtab:hover { color: #7a5200; background: #fff8d0; }
+  .strip-subtab.active { color: #5a3a00; border-bottom-color: #c09000; background: #fff8d0; }
+  .strip-subpage { display: none; }
+  .strip-subpage.active { display: block; }
+
+  /* Strip status/info bar */
+  .strip-info-bar {
+    background: #fff8d0; border: 1px solid #e8d880; border-radius: 8px;
+    padding: 10px 16px; margin-bottom: 16px; font-size: 12px; color: #7a5a00;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .strip-info-bar strong { font-weight: 700; color: #5a3a00; }
+
+  .strip-import-btn {
+    background: #fff8d0; border: 1.5px solid #c09000; color: #7a5200;
+    padding: 7px 18px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    font-weight: 600; transition: all 0.2s; white-space: nowrap;
+  }
+  .strip-import-btn:hover { background: #c09000; color: #fff; }
+
+  .content {
+    padding: 20px 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .tab-page { display: none; }
+  .tab-page.active { display: block; }
+
+  .section-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title::before {
+    content: '';
+    width: 4px; height: 16px;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+
+  .chart-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  .chart-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    box-shadow: var(--shadow);
+  }
+  .chart-card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    text-align: center;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .chart-wrap { position: relative; height: 260px; }
+
+  .pareto-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 800px) {
+    .pareto-row { grid-template-columns: 1fr; }
+  }
+
+  /* Target line label */
+  .target-note {
+    font-size: 11px;
+    color: var(--red);
+    text-align: right;
+    margin-top: 4px;
+  }
+
+  /* Loading */
+  .loading-overlay {
+    position: fixed; inset: 0;
+    background: rgba(180,220,215,0.75);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9999;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .loading-overlay.hidden { display: none; }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,80,75,0.35);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 32px;
+    max-width: 520px;
+    width: 90%;
+    box-shadow: 0 12px 40px rgba(0,130,127,0.18);
+  }
+  .modal h3 { color: var(--yellow); margin-bottom: 12px; font-size: 16px; }
+  .modal p { color: var(--text2); font-size: 13px; margin-bottom: 18px; line-height: 1.6; }
+  .modal-table {
+    width: 100%; border-collapse: collapse; font-size: 12px;
+    margin-bottom: 20px;
+  }
+  .modal-table th {
+    background: var(--panel2); color: var(--text2);
+    padding: 8px 12px; text-align: left;
+  }
+  .modal-table td { padding: 7px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+  .modal-table tr:hover td { background: #f0faf9; }
+  .low-yield-badge {
+    background: rgba(217,79,79,0.12);
+    color: var(--red);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .modal-btns {
+    display: flex; gap: 12px; justify-content: flex-end;
+  }
+  .btn-include { background: var(--accent); color: #fff; border: none; padding: 9px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .btn-exclude { background: transparent; color: var(--text2); border: 1px solid var(--border); padding: 9px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .btn-include:hover { background: #006b68; }
+  .btn-exclude:hover { border-color: var(--accent); color: var(--accent); }
+
+  .no-data {
+    text-align: center; color: var(--text2); padding: 60px 20px; font-size: 14px;
+  }
+  .no-data .hint { font-size: 12px; margin-top: 8px; }
+  .export-png-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+    cursor: pointer; border: 1px solid #7aaae8;
+    background: #e8f0ff; color: #1a4a8a;
+    margin-bottom: 10px; float: right;
+    transition: background 0.15s;
+  }
+  .export-png-btn:hover { background: #c8dcf8; }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .stat-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+  }
+  .stat-label { font-size: 11px; color: var(--text2); margin-bottom: 4px; }
+  .stat-value { font-size: 20px; font-weight: 700; color: var(--text); }
+  .stat-value.good { color: var(--accent3); }
+  .stat-value.warn { color: var(--yellow); }
+  .stat-value.bad { color: var(--red); }
+
+  input[type="file"] { display: none; }
+
+  /* ── Low Yield Threshold Slider ───────────────────────────────────────────── */
+  .threshold-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 16px 0 0;
+    border-right: 1px solid #e8d880;
+    margin-right: 4px;
+  }
+  .threshold-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #7a5a00;
+    white-space: nowrap;
+  }
+  .threshold-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 110px;
+    height: 5px;
+    border-radius: 3px;
+    background: linear-gradient(to right, #d94f4f 0%, #d94f4f var(--pct, 50%), #e8d880 var(--pct, 50%), #e8d880 100%);
+    outline: none;
+    cursor: pointer;
+  }
+  .threshold-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: #d94f4f;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+    cursor: pointer;
+  }
+  .threshold-slider::-moz-range-thumb {
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: #d94f4f;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+    cursor: pointer;
+  }
+  .threshold-value {
+    font-size: 13px;
+    font-weight: 700;
+    color: #d94f4f;
+    min-width: 36px;
+    text-align: right;
+  }
+
+  /* ── Report Mode Toggle (Weekly / Monthly) ─────────────────────────────── */
+  .report-mode-bar {
+    display: none; /* hidden by default, shown only on Strip tabs */
+    align-items: center;
+    gap: 12px;
+    padding: 10px 24px;
+    background: #fffbe8;
+    border-bottom: 1px solid #e8d880;
+  }
+  .report-mode-bar.visible { display: flex; }
+  .report-mode-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #7a5a00;
+  }
+  .toggle-switch-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    user-select: none;
+  }
+  .toggle-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #9a7a00;
+    transition: color 0.2s;
+    cursor: pointer;
+  }
+  .toggle-label.active { color: #5a3a00; }
+  .toggle-switch {
+    position: relative;
+    width: 52px;
+    height: 26px;
+    cursor: pointer;
+  }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: #c09000;
+    border-radius: 26px;
+    transition: background 0.25s;
+  }
+  .toggle-slider::before {
+    content: '';
+    position: absolute;
+    height: 20px; width: 20px;
+    left: 3px; bottom: 3px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.25s;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  }
+  .toggle-switch input:checked + .toggle-slider { background: #2a6ab0; }
+  .toggle-switch input:checked + .toggle-slider::before { transform: translateX(26px); }
+  .toggle-mode-hint {
+    font-size: 11px;
+    color: #9a7a00;
+    background: #fff8d0;
+    border: 1px solid #e8d880;
+    border-radius: 4px;
+    padding: 2px 8px;
+  }
+
+  /* ── RWD Mobile ─────────────────────────────────────────────────────────── */
+  @media (max-width: 768px) {
+    .app-header { padding: 10px 12px; gap: 8px; flex-direction: column; align-items: flex-start; }
+    .app-title { font-size: 14px; }
+    .app-title span { display: block; margin-left: 0; font-size: 11px; }
+    .import-area { width: 100%; gap: 6px; }
+    .mobile-hide { display: none !important; }
+    .mobile-json-label { display: block; width: 100%; text-align: center; font-size: 15px; padding: 11px; border-radius: 8px; }
+    .mobile-status { font-size: 11px; width: 100%; }
+    .tabs-bar { display: none !important; }
+    #reportModeBar { display: none !important; }
+    .content { padding: 12px 10px 80px 10px; }
+    .stats-row { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat-card { padding: 10px 12px; }
+    .stat-value { font-size: 18px; }
+    .chart-wrap { height: 200px; }
+    .pareto-row { grid-template-columns: 1fr; }
+    .export-png-btn { display: none !important; }
+  }
+
+  /* ── 底部導航列（只在手機顯示）──────────────────────────────────────────── */
+  #mobile-nav { display: none; }
+  @media (max-width: 768px) {
+    #mobile-nav {
+      display: flex;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 9000;
+      background: #ffffff;
+      border-top: 1.5px solid #a8d8d0;
+      box-shadow: 0 -2px 12px rgba(0,130,127,0.12);
+      height: 62px;
+      align-items: stretch;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    #mobile-nav::-webkit-scrollbar { display: none; }
+    .mob-tab {
+      display: -webkit-flex; display: flex;
+      -webkit-flex-direction: column; flex-direction: column;
+      -webkit-align-items: center; align-items: center;
+      -webkit-justify-content: center; justify-content: center;
+      -webkit-flex: 0 0 auto; flex: 0 0 auto;
+      min-width: 68px;
+      padding: 4px 6px;
+      cursor: pointer;
+      font-size: 10px;
+      font-weight: 600;
+      color: #7a9a98;
+      gap: 3px;
+      border-top: 3px solid transparent;
+      -webkit-transition: color 0.15s, background 0.15s; transition: color 0.15s, background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .mob-tab .mob-icon { font-size: 17px; line-height: 1; }
+    .mob-tab.active       { color: #00827f; border-top-color: #00827f; background: #f0faf9; }
+    .mob-tab.active-ulld  { color: #1a4a8a; border-top-color: #2a6ab0; background: #eef5ff; }
+    .mob-tab.active-strip { color: #7a5200; border-top-color: #c09000; background: #fffbe8; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 密碼保護遮罩 -->
+<div id="pw-overlay" style="
+  position:fixed; top:0; left:0; right:0; bottom:0; z-index:99999;
+  background:#e8f5f3;
+  display:-webkit-flex; display:flex;
+  -webkit-align-items:center; align-items:center;
+  -webkit-justify-content:center; justify-content:center;
+">
+  <div style="
+    background:#fff;
+    border:1.5px solid #a8d8d0;
+    border-radius:16px;
+    padding:40px 48px;
+    box-shadow:0 4px 32px rgba(0,130,127,0.13);
+    text-align:center;
+    min-width:320px;
+  ">
+    <div style="font-size:36px; margin-bottom:12px;">🔒</div>
+    <div style="font-size:20px; font-weight:700; color:#1a3a38; margin-bottom:6px;">CP Yield Report</div>
+    <div style="font-size:13px; color:#4a7a75; margin-bottom:24px;">請輸入密碼以繼續</div>
+    <input id="pw-input" type="password" placeholder="Password" style="
+      width:100%; padding:10px 14px; font-size:15px;
+      border:1.5px solid #a8d8d0; border-radius:8px;
+      outline:none; color:#1a3a38; margin-bottom:12px;
+      text-align:center; letter-spacing:0.1em;
+    " onkeydown="if(event.key==='Enter') checkPW()" />
+    <br>
+    <button onclick="checkPW()" style="
+      width:100%; padding:10px; font-size:15px; font-weight:600;
+      background:#00827f; color:#fff; border:none; border-radius:8px;
+      cursor:pointer; margin-top:4px;
+    ">進入</button>
+    <div id="pw-error" style="color:#d94f4f; font-size:13px; margin-top:10px; min-height:18px;"></div>
+  </div>
+</div>
+
+<script>
+  // ⬇️ 在這裡設定你的密碼
+  const CORRECT_PASSWORD = "cp2026";
+
+  function checkPW() {
+    const input = document.getElementById('pw-input').value;
+    if (input === CORRECT_PASSWORD) {
+      document.getElementById('pw-overlay').style.display = 'none';
+    } else {
+      document.getElementById('pw-error').textContent = '密碼錯誤，請再試一次';
+      document.getElementById('pw-input').value = '';
+      document.getElementById('pw-input').focus();
+    }
+  }
+</script>
+<!-- 密碼保護結束 -->
+
+<div class="loading-overlay hidden" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div style="color:var(--text2);font-size:14px;">Processing data...</div>
+</div>
+
+<div id="watWarning" style="display:none;position:fixed;top:0;left:0;right:0;z-index:999;background:#fff3cd;border-bottom:2px solid #f0ad4e;padding:8px 20px;font-size:12px;color:#856404;align-items:center;gap:10px;">
+  <span>⚠️</span>
+  <strong>WAT/CP Summary 未載入：</strong>
+  50A 550mV_27V (SEG) 和 35A 570mV_27V (Valeo) 無法與一般批次區分。50A (550+530+580mV) 將包含 SEG 批次，35A (570mV) 將包含 Valeo 批次。請先匯入 WAT_CP_Summary_*.xlsx。
+  <button onclick="document.getElementById('watWarning').style.display='none'" style="margin-left:auto;background:none;border:1px solid #856404;border-radius:4px;padding:2px 8px;cursor:pointer;color:#856404;font-size:11px;">✕ 關閉</button>
+</div>
+
+<div class="modal-overlay hidden" id="modalOverlay">
+  <div class="modal">
+    <h3>⚠️ Low Yield Lots Detected</h3>
+    <p>The following lots have Final Yield [With AOI] &lt; <span id="modalThresholdVal">60</span>%. Please confirm whether to include them in yield calculations:</p>
+    <table class="modal-table" id="lowYieldTable">
+      <thead><tr><th>Lot Num</th><th>Type</th><th>Input (pcs)</th><th>Yield (%)</th><th>Date</th></tr></thead>
+      <tbody id="lowYieldBody"></tbody>
+    </table>
+    <div class="modal-btns">
+      <button class="btn-exclude" onclick="decideLowYield(false)">Exclude All</button>
+      <button class="btn-include" onclick="decideLowYield(true)">Include All</button>
+    </div>
+  </div>
+</div>
+
+<div class="app-header">
+  <div>
+    <div class="app-title">LLD/ULLD CP Strip Weekly/Monthly Report <span>CP Test Yield Dashboard</span></div>
+  </div>
+  <div class="import-area">
+    <div class="mobile-hide">
+      <label class="import-btn" for="inputDailyReport">📂 DailyRpt</label>
+      <input type="file" id="inputDailyReport" accept=".xls,.xlsx" onchange="handleDailyReport(event)">
+    </div>
+    <div class="mobile-hide">
+      <label class="import-btn" for="inputWAT">📂 WAT_CP</label>
+      <input type="file" id="inputWAT" accept=".csv,.xlsx" onchange="handleWAT(event)">
+    </div>
+    <div class="mobile-hide">
+      <label class="import-btn ulld-import-btn" for="inputULLD">📂 ULLD</label>
+      <input type="file" id="inputULLD" accept=".xls,.xlsx" onchange="handleULLD(event)">
+    </div>
+    <div class="mobile-hide">
+      <label class="import-btn" for="inputStrip">📂 Strip</label>
+      <input type="file" id="inputStrip" accept=".xls,.xlsx" onchange="handleStrip(event)" style="display:none">
+    </div>
+    <div class="mobile-hide" style="display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;">
+      <span style="font-size:12px;color:var(--text2);white-space:nowrap;">📅 Date:</span>
+      <input type="date" id="filterFrom" style="background:transparent;border:none;color:var(--text);font-size:12px;outline:none;" title="From date">
+      <span style="color:var(--text2);">~</span>
+      <input type="date" id="filterTo" style="background:transparent;border:none;color:var(--text);font-size:12px;outline:none;" title="To date">
+      <button onclick="clearDateFilter()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:12px;padding:0 2px;" title="Clear filter">✕</button>
+    </div>
+    <button class="import-btn primary mobile-hide" onclick="generateReport()">▶ Generate Report</button>
+    <button class="import-btn mobile-hide" style="background:#e8f0ff;border-color:#7aaae8;color:#1a4a8a;" onclick="saveToJSON()" title="Download all data as .json file for cross-device sharing">💾 Save JSON</button>
+    <label class="import-btn mobile-json-label" for="inputJSON" style="background:#e8f8e8;border-color:#7ac87a;color:#1a5a1a;cursor:pointer;" title="Import a previously saved .json file and merge with current data">📥 Import JSON</label>
+    <input type="file" id="inputJSON" accept=".json" onchange="handleImportJSON(event)" style="display:none">
+    <button class="import-btn mobile-hide" style="background:#fff0e8;border-color:#e8a060;color:#8a3a00;" onclick="exportExcel()" title="Export 7-sheet Excel matching HTML tabs">📤 Export Excel</button>
+    <button class="import-btn mobile-hide" style="background:#fff0f0;border-color:#e08080;color:#8a0000;" onclick="clearStorage()" title="Clear browser saved storage">🗑 Clear</button>
+    <div class="mobile-status" style="display:flex;flex-direction:column;gap:3px;">
+      <span class="file-status" id="statusDaily">DailyReport: not loaded</span>
+      <span class="file-status" id="statusWAT">WAT/CP Summary: not loaded</span>
+      <span class="file-status" id="statusULLD">ULLD DB: not loaded</span>
+      <span class="file-status" id="statusStrip">Strip: not loaded</span>
+      <span class="file-status" id="statusJSON" style="display:none"></span>
+    </div>
+  </div>
+</div>
+
+<div class="tabs-bar">
+  <div class="tab active" onclick="switchTab(0)">35A (570mV)</div>
+  <div class="tab" onclick="switchTab(1)">35A 570mV_27V (Valeo)</div>
+  <div class="tab" onclick="switchTab(2)">50A (550+530+580mV)</div>
+  <div class="tab" onclick="switchTab(3)">50A 550mV_27V (SEG)</div>
+  <div class="tab tab-ulld" onclick="switchTab(4)">ULLD</div>
+  <div class="tab tab-strip" onclick="switchTab(5)">Strip AC</div>
+  <div class="tab tab-strip" onclick="switchTab(6)">Strip CC</div>
+  <!-- Report mode toggle — embedded right side of tabs bar -->
+  <div id="reportModeBar" style="margin-left:auto;display:flex;align-items:center;gap:8px;padding:0 16px;">
+    <!-- Low Yield Threshold Slider -->
+    <div class="threshold-wrap">
+      <span class="threshold-label">排除低良率 &lt;</span>
+      <input type="range" class="threshold-slider" id="thresholdSlider"
+             min="0" max="100" step="1" value="60"
+             oninput="onThresholdChange(this.value)"
+             title="調整低良率排除門檻">
+      <span class="threshold-value" id="thresholdValue">60%</span>
+    </div>
+    <div class="toggle-switch-wrap">
+      <span class="toggle-label active" id="labelWeekly" onclick="setReportMode('weekly')" style="cursor:pointer;">周報</span>
+      <label class="toggle-switch" title="切換周報/月報">
+        <input type="checkbox" id="reportModeToggle" onchange="onReportModeChange(this.checked)">
+        <span class="toggle-slider"></span>
+      </label>
+      <span class="toggle-label" id="labelMonthly" onclick="setReportMode('monthly')" style="cursor:pointer;">月報</span>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+  <div class="tab-page active" id="page0"></div>
+  <div class="tab-page" id="page1"></div>
+  <div class="tab-page" id="page2"></div>
+  <div class="tab-page" id="page3"></div>
+  <div class="tab-page" id="page4"></div>
+  <div class="tab-page" id="page5"></div>
+  <div class="tab-page" id="page6"></div>
+</div>
+
+<!-- 手機底部導航列 -->
+<nav id="mobile-nav">
+  <div class="mob-tab active" onclick="mobSwitchTab(0)" id="mob0">
+    <span class="mob-icon">⚡</span><span>35A</span>
+  </div>
+  <div class="mob-tab" onclick="mobSwitchTab(1)" id="mob1">
+    <span class="mob-icon">🔋</span><span>35AG2</span>
+  </div>
+  <div class="mob-tab" onclick="mobSwitchTab(2)" id="mob2">
+    <span class="mob-icon">⚡</span><span>50A</span>
+  </div>
+  <div class="mob-tab" onclick="mobSwitchTab(3)" id="mob3">
+    <span class="mob-icon">🔋</span><span>50AG2</span>
+  </div>
+  <div class="mob-tab" onclick="mobSwitchTab(4)" id="mob4">
+    <span class="mob-icon">📊</span><span>ULLD</span>
+  </div>
+  <div class="mob-tab" onclick="mobSwitchTab(5)" id="mob5">
+    <span class="mob-icon">📈</span><span>Stp AC</span>
+  </div>
+  <div class="mob-tab" onclick="mobSwitchTab(6)" id="mob6">
+    <span class="mob-icon">📉</span><span>Stp CC</span>
+  </div>
+</nav>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+let lowYieldThreshold = 60; // user-adjustable via slider
+let dailyData = null;
+let watData = null;
+let ulldData = null;   // { yieldRows, detailRows }
+let stripData = null;  // parsed Strip rows
+let processedTabs = null;
+let pendingLowYieldLots = [];
+let lowYieldCallback = null;
+let chartInstances = {};
+
+const TAB_CONFIG = [
+  { key: '35A',        label: '35A CP Test Yield',          target: 97.0, devices: ['35A570mV'] },
+  { key: '35A_Valeo',  label: '35A 570mV_27V (Valeo) Yield', target: 97.0, devices: ['35A570mV_27V_Valeo'] },
+  { key: '50A',        label: '50A CP Test Yield',           target: 95.0, devices: ['50A550mV','50A530mV','50A580mV'] },
+  { key: '50A_SEG',    label: '50A 550mV_27V (SEG) Yield',   target: 95.0, devices: ['50A550mV_27V_SEG'] },
+];
+
+// ─── Tab switching ────────────────────────────────────────────────────────────
+function switchTab(idx) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  document.querySelectorAll('.tab-page').forEach((p,i) => p.classList.toggle('active', i===idx));
+}
+
+// ─── Mobile Tab switching ─────────────────────────────────────────────────────
+function mobSwitchTab(idx) {
+  // 同步電腦版 tab
+  switchTab(idx);
+  // 更新底部導航 active 樣式
+  const ulldIdx = 4;
+  const stripIdxs = [5, 6];
+  for (let i = 0; i < 7; i++) {
+    const el = document.getElementById('mob' + i);
+    if (!el) continue;
+    el.classList.remove('active', 'active-ulld', 'active-strip');
+    if (i === idx) {
+      if (i === ulldIdx) el.classList.add('active-ulld');
+      else if (stripIdxs.includes(i)) el.classList.add('active-strip');
+      else el.classList.add('active');
+    }
+  }
+}
+
+// ─── File Handlers ────────────────────────────────────────────────────────────
+function handleDailyReport(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const st = document.getElementById('statusDaily');
+  st.textContent = `Loading ${file.name}...`;
+  st.className = 'file-status';
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const wb = XLSX.read(ev.target.result, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      // Header is in row 2 (index 1)
+      const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:null});
+      // Normalize headers: strip \n and extra spaces so lookups work reliably
+      const headers = raw[1].map(h => h == null ? null : String(h).replace(/\n/g,' ').trim());
+      dailyData = raw.slice(2).map(row => {
+        const obj = {};
+        headers.forEach((h,i) => { if (h) obj[h] = row[i]; });
+        return obj;
+      }).filter(r => r['Lot Num'] && r['Test Date']);
+
+      // Merge: new import rows override stored rows with same Lot Num
+      mergeNewDailyData(dailyData);
+
+      // Auto-detect date range and populate filter hints
+      let minYMD = null, maxYMD = null;
+      dailyData.forEach(r => {
+        const ymd = toYMD(r['Test Date']);
+        if (!ymd) return;
+        if (!minYMD || ymd < minYMD) minYMD = ymd;
+        if (!maxYMD || ymd > maxYMD) maxYMD = ymd;
+      });
+      if (minYMD && maxYMD) {
+        document.getElementById('filterFrom').min = minYMD;
+        document.getElementById('filterFrom').max = maxYMD;
+        document.getElementById('filterTo').min   = minYMD;
+        document.getElementById('filterTo').max   = maxYMD;
+        document.getElementById('filterFrom').placeholder = minYMD;
+        document.getElementById('filterTo').placeholder   = maxYMD;
+      }
+
+      st.textContent = `✓ ${file.name} (${dailyData.length} rows, ${minYMD||''} ~ ${maxYMD||''})`;
+      st.className = 'file-status ok';
+    } catch(err) {
+      st.textContent = `✗ Error: ${err.message}`;
+      st.className = 'file-status err';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function handleWAT(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const st = document.getElementById('statusWAT');
+  st.textContent = `Loading ${file.name}...`;
+  st.className = 'file-status';
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      let rows;
+      if (file.name.endsWith('.csv')) {
+        const text = new TextDecoder('utf-8').decode(ev.target.result);
+        const wb = XLSX.read(text, {type:'string'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(ws);
+      } else {
+        const wb = XLSX.read(ev.target.result, {type:'array'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(ws);
+      }
+      watData = {};
+      rows.forEach(r => {
+        const lot = r['Lot no.'] || r['Lot No'] || r['Lot'];
+        const dev = r['Device Mapping'] || r['device_mapping'];
+        if (lot && dev) watData[String(lot).trim()] = String(dev).trim();
+      });
+      st.textContent = `✓ ${file.name} (${Object.keys(watData).length} lots mapped)`;
+      st.className = 'file-status ok';
+    } catch(err) {
+      st.textContent = `✗ Error: ${err.message}`;
+      st.className = 'file-status err';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ─── ULLD File Handler ────────────────────────────────────────────────────────
+function handleULLD(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const st = document.getElementById('statusULLD');
+  st.textContent = `Loading ${file.name}...`;
+  st.className = 'file-status';
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const wb = XLSX.read(ev.target.result, { type: 'array', cellDates: true });
+
+      // ── 驗證是否為正確檔案 (需含 Yield Summary 分頁) ──
+      const sheetNames = wb.SheetNames.map(n => n.trim());
+      const hasYield  = sheetNames.some(n => n.toLowerCase() === 'yield summary');
+      const hasDetail = sheetNames.some(n => n.toLowerCase() === 'detail yield summary');
+      if (!hasYield || !hasDetail) {
+        throw new Error(
+          `請上傳 ULLD_DataBase_xxxx.xls，而非 "${file.name}"。` +
+          `\n此檔分頁: [${wb.SheetNames.join(', ')}]`
+        );
+      }
+
+      // Helper: find sheet by trimmed name (case-insensitive)
+      function getSheet(nameHint) {
+        const key = wb.SheetNames.find(n => n.trim().toLowerCase() === nameHint.toLowerCase());
+        return wb.Sheets[key];
+      }
+
+      // ── Yield Summary (header on row index 2) ──
+      const wsY  = getSheet('Yield Summary');
+      const rawY = XLSX.utils.sheet_to_json(wsY, { header: 1, defval: null });
+      const hdrsY = rawY[2];
+      const yieldRows = rawY.slice(3).map(row => {
+        const obj = {};
+        hdrsY.forEach((h, i) => { if (h != null) obj[String(h).trim()] = row[i]; });
+        return obj;
+      }).filter(r => r['Lot Num #']);
+
+      // ── Detail Yield Summary (header on row index 2) ──
+      const wsD  = getSheet('Detail Yield Summary');
+      const rawD = XLSX.utils.sheet_to_json(wsD, { header: 1, defval: null });
+      const hdrsD = rawD[2];
+      const detailRows = rawD.slice(3).map(row => {
+        const obj = {};
+        hdrsD.forEach((h, i) => { if (h != null) obj[String(h).trim()] = row[i]; });
+        return obj;
+      }).filter(r => r['Lot Num #']);
+
+      ulldData = { yieldRows, detailRows };
+
+      st.textContent = `✓ ${file.name}  (Yield: ${yieldRows.length} lots, Detail: ${detailRows.length} lots)`;
+      st.className = 'file-status ok';
+      // Auto-render ULLD tab immediately
+      renderULLDTab();
+    } catch (err) {
+      st.textContent = `✗ ${err.message}`;
+      st.className = 'file-status err';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+
+function parseDateVal(dateVal) {
+  // Returns a Date object (for getYW week/month calculation)
+  if (!dateVal) return null;
+  let d;
+  if (typeof dateVal === 'number') {
+    d = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
+    // Reconstruct from UTC components to avoid timezone drift
+    d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  } else if (dateVal instanceof Date) {
+    // Use local components (XLSX gives local-time Date)
+    d = new Date(Date.UTC(dateVal.getFullYear(), dateVal.getMonth(), dateVal.getDate()));
+  } else {
+    const s = String(dateVal).slice(0, 10);
+    d = new Date(s + 'T00:00:00Z');
+  }
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function getYW(dateVal) {
+  const d = parseDateVal(dateVal);
+  if (!d) return null;
+  // ISO week
+  const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayOfWeek = tmp.getUTCDay() || 7;
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - dayOfWeek);
+  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+  const weekNum = Math.ceil((((tmp - yearStart) / 86400000) + 1) / 7);
+  return { year: d.getFullYear(), week: weekNum, month: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`, dateObj: d };
+}
+
+function getMonthLabel(m) {
+  const [y,mo] = m.split('-');
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${y.slice(2)}'${months[parseInt(mo)-1]}`;
+}
+
+function assignDevice(row, watLookup) {
+  const lot = String(row['Lot Num']||'').trim();
+  if (watLookup && watLookup[lot]) return watLookup[lot];
+  const a = String(row['Type(A)']||'').toUpperCase();
+  const mv = String(row['Type(mV)']||'').toUpperCase();
+  if (a.includes('35A') && mv.includes('570')) return '35A570mV';
+  if (a.includes('50A') && mv.includes('550')) return '50A550mV';
+  if (a.includes('50A') && mv.includes('530')) return '50A530mV';
+  if (a.includes('50A') && mv.includes('580')) return '50A580mV';
+  return 'Other';
+}
+
+function getFinalYieldCol(row) {
+  // Try multiple column name variants
+  for (const k of Object.keys(row)) {
+    if (k && k.toLowerCase().includes('final yield') && k.toLowerCase().includes('aoi')) {
+      return k;
+    }
+  }
+  return null;
+}
+
+function getInputCol(row) {
+  for (const k of Object.keys(row)) {
+    if (k && k.toLowerCase().includes('input') && k.toLowerCase().includes('pcs')) return k;
+    if (k === 'Input(pcs)') return k;
+  }
+  return null;
+}
+
+function clearDateFilter() {
+  document.getElementById('filterFrom').value = '';
+  document.getElementById('filterTo').value = '';
+}
+
+function getDateFilter() {
+  const from = document.getElementById('filterFrom').value; // "YYYY-MM-DD" or ""
+  const to   = document.getElementById('filterTo').value;
+  return { from: from || null, to: to || null }; // keep as strings
+}
+
+// Return local YYYY-MM-DD string from any date value (Excel serial, Date object, or string)
+function toYMD(dateVal) {
+  if (!dateVal) return null;
+  let d;
+  if (typeof dateVal === 'number') {
+    // Excel serial number → UTC date
+    d = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
+    // Use UTC components to avoid timezone shift
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth()+1).padStart(2,'0');
+    const day = String(d.getUTCDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  } else if (dateVal instanceof Date) {
+    // XLSX.js returns local-time Date objects — use LOCAL components
+    const y = dateVal.getFullYear();
+    const m = String(dateVal.getMonth()+1).padStart(2,'0');
+    const day = String(dateVal.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  } else {
+    // String like "2026-01-06" or "2026-01-06T00:00:00"
+    const s = String(dateVal).slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+  }
+}
+
+async function processData(includeLow) {
+  const inputKey = getInputCol(dailyData[0]);
+  const fyKey = getFinalYieldCol(dailyData[0]);
+
+  if (!fyKey) throw new Error('Cannot find "Final yield [With AOI] (%)" column');
+  if (!inputKey) throw new Error('Cannot find "Input (pcs)" column');
+
+  // Apply date filter (string comparison — timezone-safe)
+  const dateFilter = getDateFilter();
+  let sourceData = dailyData;
+  if (dateFilter.from || dateFilter.to) {
+    sourceData = dailyData.filter(row => {
+      const ymd = toYMD(row['Test Date']);
+      if (!ymd) return false;
+      if (dateFilter.from && ymd < dateFilter.from) return false;
+      if (dateFilter.to   && ymd > dateFilter.to)   return false;
+      return true;
+    });
+    if (sourceData.length === 0) throw new Error(`No data in selected date range (${dateFilter.from||'start'} ~ ${dateFilter.to||'end'})`);
+  }
+
+  // Dedup by Lot Num: keep row with max Input
+  const lotMap = {};
+  sourceData.forEach(row => {
+    const lot = String(row['Lot Num']||'').trim();
+    if (!lot) return;
+    const inp = parseFloat(row[inputKey]) || 0;
+    if (!lotMap[lot] || inp > (parseFloat(lotMap[lot][inputKey])||0)) {
+      lotMap[lot] = row;
+    }
+  });
+  let rows = Object.values(lotMap);
+
+  // Assign device
+  rows.forEach(r => { r._device = assignDevice(r, watData); });
+
+  // Filter low yield < threshold (user-adjustable)
+  const lowYield = rows.filter(r => {
+    const fy = parseFloat(r[fyKey]);
+    return !isNaN(fy) && fy < lowYieldThreshold;
+  });
+
+  if (lowYield.length > 0 && includeLow === undefined) {
+    // CRITICAL: hide loading spinner BEFORE showing modal
+    document.getElementById('loadingOverlay').classList.add('hidden');
+    return new Promise(resolve => {
+      showLowYieldModal(lowYield, fyKey, inputKey, decision => {
+        // Re-show spinner while computing after decision
+        document.getElementById('loadingOverlay').classList.remove('hidden');
+        setTimeout(() => {
+          try {
+            processAndResolve(rows, fyKey, inputKey, decision, resolve);
+          } catch(e) {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+            alert('Error: ' + e.message);
+          }
+        }, 50);
+      });
+    });
+  }
+
+  return computeTabs(rows, fyKey, inputKey, includeLow !== false ? null : lowYield);
+}
+
+function processAndResolve(rows, fyKey, inputKey, includeLow, resolve) {
+  const lowYieldLots = includeLow ? null : rows.filter(r => parseFloat(r[fyKey]) < lowYieldThreshold);
+  resolve(computeTabs(rows, fyKey, inputKey, lowYieldLots));
+}
+
+function computeTabs(rows, fyKey, inputKey, excludeLots) {
+  // Warn if WAT/CP not loaded — SEG and Valeo cannot be properly separated
+  if (!watData) {
+    const warn = document.getElementById('watWarning');
+    if (warn) { warn.style.display = 'flex'; }
+  } else {
+    const warn = document.getElementById('watWarning');
+    if (warn) { warn.style.display = 'none'; }
+  }
+  const excludeSet = new Set(excludeLots ? excludeLots.map(r=>String(r['Lot Num']).trim()) : []);
+  const filtered = rows.filter(r => !excludeSet.has(String(r['Lot Num']||'').trim()));
+
+  const result = {};
+  TAB_CONFIG.forEach(tab => {
+    const subset = filtered.filter(r => tab.devices.includes(r._device));
+    result[tab.key] = computeWeeklyMonthly(subset, fyKey, inputKey);
+  });
+  return result;
+}
+
+function computeWeeklyMonthly(rows, fyKey, inputKey) {
+  const weekMap = {}, monthMap = {};
+
+  rows.forEach(r => {
+    const yw = getYW(r['Test Date']);
+    if (!yw) return;
+    const inp = parseFloat(r[inputKey]) || 0;
+    const fy = parseFloat(r[fyKey]);
+    if (isNaN(fy) || inp <= 0) return;
+
+    // Gain die / edge die — filter out yield < 40 per lot
+    const gainDieYield = parseFloat(r['Gain Die Yield(%)'] || r['Gain Die Yield (%)'] || NaN);
+    const _edgeValid = !isNaN(gainDieYield) && gainDieYield >= 40 && gainDieYield > 0;
+    const gainDie = _edgeValid ? (parseFloat(r['Gain die(pcs)']) || 0) : 0;
+    // gainDiePossible = theoretical max edge die (if yield were 100%)
+    // = gainDie / gainDieYield * 100 — used for weighted yield calculation
+    const gainDiePossible = (_edgeValid && gainDieYield > 0) ? (gainDie / gainDieYield * 100) : 0;
+    const totalIn = 0;   // not used for edge yield calc anymore
+    const totalOut = 0;  // not used for edge yield calc anymore
+    const finalY = parseFloat(r['Final yield[With AOI] (%)'] || r['Final Yield'] || NaN);
+
+    // Fail bins — raw die counts from Fail Bin Statistics columns
+    // Keys are normalized at parse time: \n replaced with space, trimmed
+    const ir0  = parseFloat(r['IR0(8)'])         || 0;
+    const dir0 = parseFloat(r['DIR0(9)'])         || 0;
+    const vz0  = parseFloat(r['VZ0(7)'])          || 0;
+    const vf0  = parseFloat(r['VF0(10)'])         || 0;
+    const vf1  = parseFloat(r['VF1(17)'])         || 0;
+    const vz1  = parseFloat(r['VZ1(11)'])         || 0;
+    const vz2  = parseFloat(r['VZ2(12)'])         || 0;
+    const vz3  = parseFloat(r['VZ3(20)'])         || 0;
+    const dvz  = parseFloat(r['DVZ(13)'])         || 0;
+    const aoi  = parseFloat(r['AOI'])             || 0;
+    const gdbc = parseFloat(r['AEC-Q(DPAT,GDBC…etc)'] || 0) || 0;
+    const cont = parseFloat(r['contact(6)'])      || 0;
+    // total_die per lot = sum_all_fail / (1 - cpYield/100)
+    // This is the correct PPM denominator (actual die tested)
+    const _sumFail = ir0+dir0+vz0+vf0+vf1+vz1+vz2+vz3+dvz+aoi+gdbc+cont;
+    const _yFrac   = parseFloat(r['Initial CP yield (%)'] || NaN) / 100;
+    const totalDie = (!isNaN(_yFrac) && _yFrac > 0 && _yFrac < 0.9999 && _sumFail > 0)
+                     ? _sumFail / (1 - _yFrac) : 0;
+
+    // Weekly
+    const wkey = `${yw.year}-W${String(yw.week).padStart(2,'0')}`;
+    if (!weekMap[wkey]) weekMap[wkey] = { label: `${yw.year.toString().slice(2)}W${yw.week}`, year:yw.year, week:yw.week, inputSum:0, wYield:0, wFinalYield:0, finalYieldCnt:0, gainDie:0, gainDiePossible:0, totalDie:0, ir0:0, dir0:0, vz0:0, vf0:0, vf1:0, dvz:0, aoi:0, gdbc:0 };
+    weekMap[wkey].inputSum += inp;
+    weekMap[wkey].wYield   += inp * fy;
+    if (!isNaN(finalY)) { weekMap[wkey].wFinalYield += inp * finalY; weekMap[wkey].finalYieldCnt += inp; }
+    weekMap[wkey].gainDie         += gainDie;
+    weekMap[wkey].gainDiePossible += gainDiePossible;
+    weekMap[wkey].totalDie += totalDie;
+    weekMap[wkey].ir0  += ir0;
+    weekMap[wkey].dir0 += dir0;
+    weekMap[wkey].vz0  += vz0;
+    weekMap[wkey].vf0  += vf0;
+    weekMap[wkey].vf1  += vf1;
+    weekMap[wkey].dvz  += dvz;
+    weekMap[wkey].aoi  += aoi;
+    weekMap[wkey].gdbc += gdbc;
+
+    // Monthly
+    const mkey = yw.month;
+    if (!monthMap[mkey]) monthMap[mkey] = { label: getMonthLabel(yw.month), inputSum:0, wYield:0, wFinalYield:0, finalYieldCnt:0, gainDie:0, gainDiePossible:0, totalDie:0, ir0:0, dir0:0, vz0:0, vf0:0, vf1:0, dvz:0, aoi:0, gdbc:0 };
+    monthMap[mkey].inputSum += inp;
+    monthMap[mkey].wYield   += inp * fy;
+    if (!isNaN(finalY)) { monthMap[mkey].wFinalYield += inp * finalY; monthMap[mkey].finalYieldCnt += inp; }
+    monthMap[mkey].gainDie         += gainDie;
+    monthMap[mkey].gainDiePossible += gainDiePossible;
+    monthMap[mkey].totalDie += totalDie;
+    monthMap[mkey].ir0  += ir0;
+    monthMap[mkey].dir0 += dir0;
+    monthMap[mkey].vz0  += vz0;
+    monthMap[mkey].vf0  += vf0;
+    monthMap[mkey].vf1  += vf1;
+    monthMap[mkey].dvz  += dvz;
+    monthMap[mkey].aoi  += aoi;
+    monthMap[mkey].gdbc += gdbc;
+  });
+
+  const weeks = Object.keys(weekMap).sort().map(k => {
+    const w = weekMap[k];
+    return { ...w,
+      cpYield:    w.inputSum > 0 ? w.wYield/w.inputSum : null,
+      finalYield: w.finalYieldCnt > 0 ? w.wFinalYield/w.finalYieldCnt : null,
+      // edgeYield = weighted avg Gain Die Yield: sum(gainDie) / sum(gainDiePossible) * 100
+      edgeYield:  w.gainDiePossible > 0 ? (w.gainDie/w.gainDiePossible)*100 : null };
+  });
+
+  const months = Object.keys(monthMap).sort().map(k => {
+    const m = monthMap[k];
+    return { ...m, _monthKey: k,
+      cpYield:    m.inputSum > 0 ? m.wYield/m.inputSum : null,
+      finalYield: m.finalYieldCnt > 0 ? m.wFinalYield/m.finalYieldCnt : null,
+      edgeYield:  m.gainDiePossible > 0 ? (m.gainDie/m.gainDiePossible)*100 : null };
+  });
+
+  // ── Quarterly aggregation ──
+  const quarterMap = {};
+  months.forEach(m => {
+    const [yr, mo] = m._monthKey.split('-');
+    const q = Math.ceil(parseInt(mo) / 3);
+    const qk = `${yr}-Q${q}`;
+    if (!quarterMap[qk]) quarterMap[qk] = { label: `${yr.slice(2)}'Q${q}`, inputSum:0, wYield:0, wFinalYield:0, finalYieldCnt:0, gainDie:0, gainDiePossible:0, totalDie:0, ir0:0, dir0:0, vz0:0, vf0:0, vf1:0, dvz:0, aoi:0, gdbc:0 };
+    const q_ = quarterMap[qk];
+    q_.inputSum        += m.inputSum;
+    q_.wYield          += m.wYield;
+    q_.wFinalYield     += m.wFinalYield;
+    q_.finalYieldCnt   += m.finalYieldCnt;
+    q_.gainDie         += m.gainDie;
+    q_.gainDiePossible += m.gainDiePossible;
+    q_.totalDie        += m.totalDie;
+    q_.ir0  += m.ir0;  q_.dir0 += m.dir0; q_.vz0  += m.vz0;
+    q_.vf0  += m.vf0;  q_.vf1  += m.vf1;  q_.dvz  += m.dvz;
+    q_.aoi  += m.aoi;  q_.gdbc += m.gdbc;
+  });
+
+  const quarters = Object.keys(quarterMap).sort().map(k => {
+    const q = quarterMap[k];
+    return { ...q,
+      cpYield:    q.inputSum > 0 ? q.wYield/q.inputSum : null,
+      finalYield: q.finalYieldCnt > 0 ? q.wFinalYield/q.finalYieldCnt : null,
+      edgeYield:  q.gainDiePossible > 0 ? (q.gainDie/q.gainDiePossible)*100 : null };
+  });
+
+  // Combined timeline: last 5 months (left) + gap + last 5 weeks (right)
+  const monthlyPoints = months.slice(-5);
+  const recentWeeks   = weeks.slice(-5);
+
+  return { weeks, months, quarters, monthlyPoints, recentWeeks, rows };
+}
+
+// ─── Modal ────────────────────────────────────────────────────────────────────
+let _lowYieldFyKey, _lowYieldRows, _lowYieldCallback2;
+
+function showLowYieldModal(rows, fyKey, inputKey, callback) {
+  _lowYieldFyKey = fyKey;
+  _lowYieldRows = rows;
+  _lowYieldCallback2 = callback;
+  const tbody = document.getElementById('lowYieldBody');
+  tbody.innerHTML = '';
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    const fy = parseFloat(r[fyKey]).toFixed(2);
+    const d = r['Test Date'] ? String(r['Test Date']).slice(0,10) : '-';
+    const typeA = r['Type(A)'] || '';
+    const typeMV = r['Type(mV)'] || '';
+    tr.innerHTML = `<td>${r['Lot Num']}</td><td>${typeA} ${typeMV}</td><td>${r[inputKey]}</td><td><span class="low-yield-badge">${fy}%</span></td><td>${d}</td>`;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('modalOverlay').classList.remove('hidden');
+  lowYieldCallback = callback;
+}
+
+function decideLowYield(include) {
+  document.getElementById('modalOverlay').classList.add('hidden');
+  if (lowYieldCallback) lowYieldCallback(include);
+}
+
+// ─── Chart Rendering ──────────────────────────────────────────────────────────
+function destroyChart(id) {
+  if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+}
+
+function makeComboChart(canvasId, labels, barData, lineData, barLabel, lineLabel, target, barColor, lineColor, yBarMax, line2Data, line2Label, line2Color) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId).getContext('2d');
+
+  const datasets = [
+    {
+      type: 'bar',
+      label: barLabel,
+      data: barData,
+      backgroundColor: barColor || 'rgba(74,124,255,0.5)',
+      borderColor: barColor || 'rgba(74,124,255,0.8)',
+      borderWidth: 1,
+      yAxisID: 'yBar',
+      order: 3,
+    },
+    {
+      type: 'line',
+      label: lineLabel,
+      data: lineData,
+      borderColor: lineColor || '#00d4a0',
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      pointRadius: 4,
+      pointBackgroundColor: lineColor || '#00d4a0',
+      yAxisID: 'yLine',
+      order: 1,
+      tension: 0.1,
+      spanGaps: false,
+    }
+  ];
+
+  // Optional second yield line
+  if (line2Data && line2Data.some(v => v != null)) {
+    datasets.push({
+      type: 'line',
+      label: line2Label || 'Yield 2',
+      data: line2Data,
+      borderColor: line2Color || '#f9ca24',
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      borderDash: [5, 3],
+      pointRadius: 4,
+      pointStyle: 'triangle',
+      pointBackgroundColor: line2Color || '#f9ca24',
+      yAxisID: 'yLine',
+      order: 2,
+      tension: 0.1,
+      spanGaps: false,
+    });
+  }
+
+  // Target line
+  if (target !== null && target !== undefined) {
+    datasets.push({
+      type: 'line',
+      label: `Target ${target}%`,
+      data: labels.map(() => target),
+      borderColor: '#ff4757',
+      borderWidth: 1.5,
+      borderDash: [6,4],
+      pointRadius: 0,
+      yAxisID: 'yLine',
+      order: 0,
+    });
+  }
+
+  const allLine = [...(lineData||[]), ...(line2Data||[])].filter(v => v != null);
+  const maxBar = Math.max(...barData.filter(v=>v!=null), 1);
+  const minLine = Math.min(...allLine, target||97);
+  const maxLine = Math.max(...allLine, target||97);
+
+  chartInstances[canvasId] = new Chart(ctx, {
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#9ba3c0', font: { size: 11 }, boxWidth: 12 } },
+        tooltip: {
+          backgroundColor: '#1a1d27', borderColor: '#2e3350', borderWidth: 1,
+          titleColor: '#e8eaf0', bodyColor: '#9ba3c0',
+          callbacks: {
+            label: ctx2 => {
+              const v = ctx2.parsed.y;
+              if (v === null || v === undefined) return '';
+              const isYield = ctx2.dataset.yAxisID === 'yLine';
+              return `${ctx2.dataset.label}: ${isYield ? v.toFixed(2)+'%' : v.toLocaleString()}`;
+            }
+          }
+        },
+        datalabels: { display: false }
+      },
+      scales: {
+        x: { ticks: { color: '#9ba3c0', font: { size: 10 } }, grid: { color: 'rgba(200,200,210,0.5)' } },
+        yBar: {
+          position: 'right',
+          ticks: { color: '#9ba3c0', font: { size: 10 }, callback: v => v.toLocaleString() },
+          grid: { display: false },
+          min: 0,
+          title: { display: true, text: barLabel, color: '#9ba3c0', font: { size: 10 } }
+        },
+        yLine: {
+          position: 'left',
+          ticks: { color: '#9ba3c0', font: { size: 10 }, callback: v => v.toFixed(1)+'%' },
+          grid: { color: 'rgba(200,200,210,0.4)' },
+          min: Math.max(Math.floor(minLine - 5), 60),
+          max: 101,
+          title: { display: true, text: 'Yield (%)', color: '#9ba3c0', font: { size: 10 } }
+        }
+      }
+    }
+  });
+}
+
+function makeParetoChart(canvasId, labels, barData) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId).getContext('2d');
+
+  // Sort descending by PPM — proper Pareto order
+  const paired = labels.map((l,i) => ({ label: l, ppm: barData[i]||0 }))
+                       .filter(p => p.ppm > 0)
+                       .sort((a,b) => b.ppm - a.ppm);
+
+  if (paired.length === 0) {
+    ctx.canvas.parentElement.innerHTML = '<div class="no-data" style="padding:20px">No defect data for this period</div>';
+    return;
+  }
+
+  const sortedLabels = paired.map(p => p.label);
+  const sortedPPM    = paired.map(p => p.ppm);
+  const total        = sortedPPM.reduce((a,b) => a+b, 0);
+
+  // Cumulative %
+  let acc = 0;
+  const cumuls = sortedPPM.map(v => { acc += v; return total > 0 ? parseFloat((acc/total*100).toFixed(1)) : 0; });
+
+  chartInstances[canvasId] = new Chart(ctx, {
+    data: {
+      labels: sortedLabels,
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Defect rate (PPM)',
+          data: sortedPPM,
+          backgroundColor: 'rgba(205,133,90,0.75)',
+          borderColor: 'rgba(190,110,65,0.9)',
+          borderWidth: 1,
+          yAxisID: 'yBar',
+          order: 2,
+          datalabels: {
+            display: true,
+            anchor: 'end', align: 'top',
+            color: '#9ba3c0',
+            font: { size: 10, weight: '600' },
+            formatter: v => v > 0 ? v.toLocaleString() : ''
+          }
+        },
+        {
+          type: 'line',
+          label: 'Cumulative %',
+          data: cumuls,
+          borderColor: '#00d4a0',
+          backgroundColor: 'transparent',
+          borderWidth: 2.5,
+          pointRadius: 5,
+          pointStyle: 'diamond',
+          pointBackgroundColor: '#00d4a0',
+          yAxisID: 'yCumul',
+          order: 1,
+          tension: 0,
+          datalabels: {
+            display: true,
+            anchor: 'top', align: 'top', offset: 4,
+            color: '#00b890',
+            font: { size: 10, weight: '700' },
+            formatter: v => v != null ? v.toFixed(1)+'%' : ''
+          }
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: 28 } },
+      plugins: {
+        legend: { labels: { color: '#9ba3c0', font: { size: 11 }, boxWidth: 12 } },
+        tooltip: {
+          backgroundColor: '#1a1d27', borderColor: '#2e3350', borderWidth: 1,
+          titleColor: '#e8eaf0', bodyColor: '#9ba3c0',
+          callbacks: {
+            label: ctx2 => {
+              const v = ctx2.parsed.y;
+              return ctx2.dataset.yAxisID === 'yCumul'
+                ? `${ctx2.dataset.label}: ${v.toFixed(1)}%`
+                : `${ctx2.dataset.label}: ${v.toLocaleString()} PPM`;
+            }
+          }
+        },
+        datalabels: {}
+      },
+      scales: {
+        x: { ticks: { color: '#9ba3c0', font: { size: 11 }, maxRotation: 30 }, grid: { color: 'rgba(200,200,210,0.3)' } },
+        yBar: {
+          position: 'left',
+          ticks: { color: '#9ba3c0', font: { size: 10 }, callback: v => v.toLocaleString() },
+          grid: { color: 'rgba(200,200,210,0.4)' },
+          title: { display: true, text: 'Defect rate (PPM)', color: '#9ba3c0', font: { size: 10 } }
+        },
+        yCumul: {
+          position: 'right',
+          min: 0, max: 100,
+          ticks: { color: '#00b890', font: { size: 10 }, callback: v => v.toFixed(0)+'%' },
+          grid: { display: false },
+          title: { display: true, text: 'Cumulative %', color: '#00b890', font: { size: 10 } }
+        }
+      }
+    }
+  });
+}
+
+// ─── Page Rendering ────────────────────────────────────────────────────────────
+function renderTabPage(tabIdx, tabData, tabCfg) {
+  if (reportMode === 'monthly') {
+    renderTabPageMonthly(tabIdx, tabData, tabCfg);
+    return;
+  }
+  renderTabPageWeekly(tabIdx, tabData, tabCfg);
+}
+
+function renderTabPageWeekly(tabIdx, tabData, tabCfg) {
+  const page = document.getElementById(`page${tabIdx}`);
+  const { monthlyPoints, recentWeeks } = tabData;
+
+  // Build combined timeline: last 5 months + null gap + last 5 weeks (disconnected)
+  const GAP = { label: '', inputSum: null, cpYield: null, gainDie: null, edgeYield: null, finalYield: null, _gap: true };
+  const combined = [...monthlyPoints, GAP, ...recentWeeks];
+  const labels = combined.map(p => p.label);
+  const inputData = combined.map(p => p._gap ? null : p.inputSum);
+  const cpYieldData = combined.map(p => p.cpYield);
+  const gainData = combined.map(p => p._gap ? null : p.gainDie);
+  const edgeYieldData = combined.map(p => p.edgeYield);
+
+  // Last 2 weeks for pareto
+  const lastPeriods = recentWeeks.length >= 2 ? recentWeeks.slice(-2) : recentWeeks;
+  const prevP = lastPeriods.length >= 2 ? lastPeriods[lastPeriods.length-2] : null;
+  const lastP = lastPeriods.length >= 1 ? lastPeriods[lastPeriods.length-1] : null;
+
+  _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData, cpYieldData, gainData, edgeYieldData, prevP, lastP, '周報');
+}
+
+function renderTabPageMonthly(tabIdx, tabData, tabCfg) {
+  const page = document.getElementById(`page${tabIdx}`);
+  const { quarters, months } = tabData;
+
+  // Left side: last 5 quarters (pad with empty if fewer)
+  let last5Q = quarters.slice(-5);
+  const emptyQ = { label: '', inputSum: null, cpYield: null, gainDie: null, edgeYield: null, finalYield: null, _empty: true };
+  while (last5Q.length < 5) last5Q = [{ ...emptyQ }, ...last5Q];
+
+  // Right side: last 5 months
+  let last5M = months.slice(-5);
+  while (last5M.length < 5) last5M = [{ ...emptyQ }, ...last5M];
+
+  const GAP = { label: '', inputSum: null, cpYield: null, gainDie: null, edgeYield: null, finalYield: null, _gap: true };
+  const combined = [...last5Q, GAP, ...last5M];
+  const labels      = combined.map(p => p.label);
+  const inputData   = combined.map(p => (p._gap || p._empty) ? null : p.inputSum);
+  const cpYieldData = combined.map(p => (p._empty) ? null : p.cpYield);
+  const gainData    = combined.map(p => (p._gap || p._empty) ? null : p.gainDie);
+  const edgeYieldData = combined.map(p => (p._empty) ? null : p.edgeYield);
+
+  // Pareto: previous month vs current month
+  const now = new Date();
+  const curMK  = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const prevMK = `${now.getFullYear()}-${String(now.getMonth()).padStart(2,'0')}`.replace(/-00$/, `-${String(now.getMonth() === 0 ? 12 : now.getMonth()).padStart(2,'0')}`);
+  // Recalculate prevMK properly
+  const prevMDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevMKey  = `${prevMDate.getFullYear()}-${String(prevMDate.getMonth()+1).padStart(2,'0')}`;
+
+  const prevP = months.find(m => m._monthKey === prevMKey) || null;
+  const lastP = months.find(m => m._monthKey === curMK)   || months.slice(-1)[0] || null;
+
+  _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData, cpYieldData, gainData, edgeYieldData, prevP, lastP, '月報', true);
+}
+
+function _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData, cpYieldData, gainData, edgeYieldData, prevP, lastP, modeLabel, isMonthly) {
+  const page = document.getElementById(`page${tabIdx}`);
+
+  const paretoKeys   = ['dir0','vz0','ir0','dvz','aoi','gdbc','vf0','vf1'];
+  const paretoLabels = ['DIR0','VZ0','IR0','DVZ','AOI','GDBC+DPAT+MWS','VF0','VF1'];
+
+  function getParetoData(period) {
+    if (!period) return paretoKeys.map(() => 0);
+    const denom = period.totalDie || 1;
+    return paretoKeys.map(k => Math.round((period[k]||0) / denom * 1e6));
+  }
+
+  // Stats (use all non-null values from combined)
+  const latestYield = cpYieldData.filter(v=>v!=null).slice(-1)[0];
+  const avgYield = cpYieldData.filter(v=>v!=null).reduce((a,b)=>a+b,0) / (cpYieldData.filter(v=>v!=null).length || 1);
+  const totalInput = inputData.reduce((a,b)=>a+(b||0),0);
+  const yieldClass = latestYield >= tabCfg.target ? 'good' : latestYield >= tabCfg.target-1 ? 'warn' : 'bad';
+  const latestEdgeYield = edgeYieldData.filter(v=>v!=null).slice(-1)[0];
+
+  const cpChartId    = `cpChart_${tabIdx}`;
+  const edgeChartId  = `edgeChart_${tabIdx}`;
+  const paretoPrevId = `paretoPrev_${tabIdx}`;
+  const paretoLastId = `paretoLast_${tabIdx}`;
+
+  // Pareto header labels
+  function periodLabel(p, fallback) {
+    if (!p) return fallback;
+    return p.label || fallback;
+  }
+  const prevLabel = isMonthly ? periodLabel(prevP, '上個月') + ' (月)' : periodLabel(prevP, 'N/A');
+  const lastLabel = isMonthly ? periodLabel(lastP, '本月') + ' (月)'   : periodLabel(lastP, 'N/A');
+
+  const modeBadge = `<span style="font-size:11px;font-weight:600;background:${isMonthly?'#eef5ff':'#f0faf9'};color:${isMonthly?'#1a4a8a':'#007a6e'};border:1px solid ${isMonthly?'#b0d0f0':'#a8d8d0'};border-radius:4px;padding:2px 8px;margin-left:8px;">${modeLabel}</span>`;
+
+  const _cpPngName = tabCfg.label.replace(/[^a-zA-Z0-9]/g,'_') + '_' + (isMonthly?'Monthly_':'') + new Date().toISOString().slice(0,10) + '.png';
+
+  // Quarterly/Monthly divider hint for chart subtitle
+  const chartSubtitle = isMonthly
+    ? `<div style="display:flex;gap:8px;justify-content:center;margin-bottom:4px;">
+        <span style="font-size:11px;background:#fff8d0;color:#9a7a00;border:1px solid #e8d880;border-radius:4px;padding:1px 7px;">◀ 近5季</span>
+        <span style="font-size:11px;background:#eef5ff;color:#1a4a8a;border:1px solid #b0d0f0;border-radius:4px;padding:1px 7px;">近5月 ▶</span>
+      </div>`
+    : '';
+
+  page.innerHTML = `
+    <button class="export-png-btn" onclick="exportPagePNG('page${tabIdx}','${_cpPngName}')">📷 Export PNG</button>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Latest CP Yield</div><div class="stat-value ${yieldClass}">${latestYield ? latestYield.toFixed(2)+'%' : '-'}</div></div>
+      <div class="stat-card"><div class="stat-label">2026 Target</div><div class="stat-value">${tabCfg.target}%</div></div>
+      <div class="stat-card"><div class="stat-label">Period Avg Yield</div><div class="stat-value ${avgYield >= tabCfg.target ? 'good':'warn'}">${avgYield ? avgYield.toFixed(2)+'%' : '-'}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Input (pcs)</div><div class="stat-value">${totalInput.toLocaleString()}</div></div>
+      <div class="stat-card"><div class="stat-label">Latest Edge Die Yield</div><div class="stat-value ${latestEdgeYield >= 90 ? 'good' : latestEdgeYield >= 80 ? 'warn' : 'bad'}">${latestEdgeYield != null ? latestEdgeYield.toFixed(1)+'%' : '-'}</div></div>
+    </div>
+
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-card-title">${tabCfg.label} chart${modeBadge}</div>
+        ${chartSubtitle}
+        <div class="chart-wrap"><canvas id="${cpChartId}"></canvas></div>
+        <div class="target-note">— 2026 target ${tabCfg.target}%</div>
+      </div>
+    </div>
+
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-card-title">${tabCfg.label.replace('CP Test Yield','CP edge die yield')} chart${modeBadge} &nbsp;<span style="font-size:11px;font-weight:400;color:var(--text2)">(Yield &lt; 40% lots excluded)</span></div>
+        ${chartSubtitle}
+        <div class="chart-wrap"><canvas id="${edgeChartId}"></canvas></div>
+      </div>
+    </div>
+
+    <div class="pareto-row">
+      <div class="chart-card">
+        <div class="chart-card-title">${prevLabel} Defect Pareto</div>
+        <div class="chart-wrap"><canvas id="${paretoPrevId}"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-title">${lastLabel} Defect Pareto</div>
+        <div class="chart-wrap"><canvas id="${paretoLastId}"></canvas></div>
+      </div>
+    </div>
+  `;
+
+  // Render charts after DOM update
+  requestAnimationFrame(() => {
+    const finalYieldData = combined.map(p => (p._gap || p._empty) ? null : (p.finalYield != null ? p.finalYield : p.cpYield));
+    makeComboChart(cpChartId, labels, inputData, cpYieldData,
+      'Input (pcs)', 'CP Yield (%)', tabCfg.target,
+      'rgba(74,124,255,0.5)', '#4a7cff', null,
+      null, null, null);
+
+    makeEdgeDieChart(edgeChartId, labels, gainData, edgeYieldData, tabCfg);
+
+    if (prevP) makeParetoChart(paretoPrevId, paretoLabels, getParetoData(prevP));
+    if (lastP)  makeParetoChart(paretoLastId, paretoLabels, getParetoData(lastP));
+    if (!prevP) document.getElementById(paretoPrevId).parentElement.innerHTML = '<div class="no-data">No data for this period</div>';
+    if (!lastP)  document.getElementById(paretoLastId).parentElement.innerHTML = '<div class="no-data">No data for this period</div>';
+  });
+}
+
+// ─── ULLD Tab Renderer ────────────────────────────────────────────────────────
+function renderULLDTab() {
+  const page = document.getElementById('page4');
+  const { yieldRows, detailRows } = ulldData;
+
+  // ── Helper: parse date value (serial number or string) ──
+  function parseDate(v) {
+    if (!v) return null;
+    if (v instanceof Date) return v;
+    if (typeof v === 'number') {
+      // Excel serial date
+      const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+      return isNaN(d) ? null : d;
+    }
+    const d = new Date(v);
+    return isNaN(d) ? null : d;
+  }
+
+  function getISOWeek(d) {
+    const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+    return { year: tmp.getUTCFullYear(), week: Math.ceil(((tmp - yearStart) / 86400000 + 1) / 7) };
+  }
+
+  function getMonthKey(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  }
+
+  // ── Aggregate Yield Summary by month (Nov25–Apr26) then by week (recent 10w) ──
+  const MONTH_LABELS = {
+    '2025-11':"25'Nov",'2025-12':"25'Dec",
+    '2026-01':"26'Jan",'2026-02':"26'Feb",
+    '2026-03':"26'Mar",'2026-04':"26'Apr"
+  };
+  const TARGET_YIELD = 92.2;
+
+  // Group yield rows
+  const monthBuckets = {};
+  const weekBuckets  = {};
+
+  yieldRows.forEach(r => {
+    const d = parseDate(r['Test  Date'] || r['Test Date']);
+    if (!d) return;
+    const finalY = parseFloat(r['Final Yield']);
+    const cpY    = parseFloat(r['CP  Yield'] || r['CP  Yield '] || r['CP Yield']);
+    const input  = parseFloat(r['Input'] || 0);
+    // Extra Die
+    const dicePcs   = parseFloat(r['dice(pcs)'] || 0);
+    const diceYield = parseFloat(r['Yield(%)'] || NaN);
+    // Filter edge die with Yield < 40 per lot
+    const diceValid = !isNaN(diceYield) && diceYield >= 40;
+    const dicePcsFiltered = diceValid ? dicePcs : 0;
+    // For weighted yield: capacity = Input * 10 dice per wafer
+    const diceCapacity = diceValid ? (parseFloat(r['Input'] || 0) * 10) : 0;
+    if (isNaN(finalY)) return;
+
+    const mk = getMonthKey(d);
+    if (MONTH_LABELS[mk]) {
+      if (!monthBuckets[mk]) monthBuckets[mk] = { finalYields:[], cpYields:[], inputs:[], dicePcsSum:0, diceCapacitySum:0 };
+      monthBuckets[mk].finalYields.push(finalY);
+      monthBuckets[mk].cpYields.push(isNaN(cpY) ? null : cpY);
+      monthBuckets[mk].inputs.push(input);
+      monthBuckets[mk].dicePcsSum += dicePcsFiltered;
+      monthBuckets[mk].diceCapacitySum += diceCapacity;
+    }
+
+    const { year, week } = getISOWeek(d);
+    const wk = `${year}-W${String(week).padStart(2,'0')}`;
+    if (!weekBuckets[wk]) weekBuckets[wk] = { finalYields:[], cpYields:[], inputs:[], dicePcsSum:0, diceCapacitySum:0, year, week };
+    weekBuckets[wk].finalYields.push(finalY);
+    weekBuckets[wk].cpYields.push(isNaN(cpY) ? null : cpY);
+    weekBuckets[wk].inputs.push(input);
+    weekBuckets[wk].dicePcsSum += dicePcsFiltered;
+    weekBuckets[wk].diceCapacitySum += diceCapacity;
+  });
+
+  function avg(arr) {
+    const v = arr.filter(x => x != null && !isNaN(x));
+    return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null;
+  }
+  function sum(arr) { return arr.reduce((a,b)=>a+(b||0),0); }
+
+  // Monthly points – last 5 months with data
+  const monthlyPts = Object.keys(MONTH_LABELS).map(mk => {
+    const b = monthBuckets[mk];
+    const diceYld = (b && b.diceCapacitySum > 0) ? (b.dicePcsSum / b.diceCapacitySum * 100) : null;
+    return {
+      label:      MONTH_LABELS[mk],
+      finalYield: b ? avg(b.finalYields)  : null,
+      cpYield:    b ? avg(b.cpYields)     : null,
+      input:      b ? sum(b.inputs)       : 0,
+      dicePcs:    b ? b.dicePcsSum        : 0,
+      diceYield:  diceYld,
+    };
+  }).filter(p => p.input > 0 || p.finalYield != null).slice(-5);
+
+  // Weekly points – last 5 weeks
+  const sortedWeeks = Object.keys(weekBuckets).sort();
+  const recentWkKeys = sortedWeeks.slice(-5);
+  const weeklyPts = recentWkKeys.map(wk => {
+    const b = weekBuckets[wk];
+    const diceYld = b.diceCapacitySum > 0 ? (b.dicePcsSum / b.diceCapacitySum * 100) : null;
+    return {
+      label:      `26W${b.week}`,
+      wkKey:      wk,
+      finalYield: avg(b.finalYields),
+      cpYield:    avg(b.cpYields),
+      input:      sum(b.inputs),
+      dicePcs:    b.dicePcsSum,
+      diceYield:  diceYld,
+    };
+  });
+
+  // GAP point to disconnect months from weeks
+  const GAP_PT = { label: '', input: null, finalYield: null, cpYield: null, dicePcs: null, diceYield: null, _gap: true };
+
+  const combined   = [...monthlyPts, GAP_PT, ...weeklyPts];
+  const labels     = combined.map(p => p.label);
+  const inputData  = combined.map(p => p._gap ? null : p.input);
+  const cpYData    = combined.map(p => p.cpYield);
+  const finalYData = combined.map(p => p.finalYield);
+  const dicePcsData   = combined.map(p => p._gap ? null : p.dicePcs);
+  const diceYieldData = combined.map(p => p.diceYield);
+
+  // ── Defect Pareto – last 2 weeks from Detail Yield Summary ──
+  const FAIL_COLS   = ['nA_igss2f@15V','nA_idss2@18V','V_delta1(B-A)','nA_igss3@26V(SILC)','RIDSS2(nA)'];
+  const FAIL_LABELS = ['IGSS2F','IDSS2','Delta1','IGSS3','RIDSS2'];
+
+  const detailWeekBuckets = {};
+  detailRows.forEach(r => {
+    const d = parseDate(r['Test Date'] || r['Test  Date']);
+    if (!d) return;
+    const { year, week } = getISOWeek(d);
+    const wk = `${year}-W${String(week).padStart(2,'0')}`;
+    if (!detailWeekBuckets[wk]) detailWeekBuckets[wk] = { initInput:0, fails:{} };
+    const b = detailWeekBuckets[wk];
+    b.initInput += parseFloat(r['Init Input'] || 0);
+    FAIL_COLS.forEach(col => {
+      b.fails[col] = (b.fails[col]||0) + parseFloat(r[col]||0);
+    });
+  });
+
+  const dSorted = Object.keys(detailWeekBuckets).sort();
+  const last2wk = dSorted.slice(-2);
+
+  function getPPM(wk) {
+    const b = detailWeekBuckets[wk];
+    if (!b || !b.initInput) return FAIL_LABELS.map(() => 0);
+    return FAIL_COLS.map(col => Math.round((b.fails[col]||0) / b.initInput * 1e6));
+  }
+
+  function getWeekLabel(wkKey) {
+    if (!wkKey) return 'N/A';
+    const b = detailWeekBuckets[wkKey];
+    const wnum = parseInt(wkKey.split('-W')[1]);
+    return `26W${wnum}`;
+  }
+
+  const prevWk = last2wk.length >= 2 ? last2wk[last2wk.length-2] : null;
+  const lastWk = last2wk.length >= 1 ? last2wk[last2wk.length-1] : null;
+  const prevPPM = getPPM(prevWk);
+  const lastPPM = getPPM(lastWk);
+
+  // ── Stats ──
+  const latestFinal = finalYData.filter(v=>v!=null).slice(-1)[0];
+  const latestCP    = cpYData.filter(v=>v!=null).slice(-1)[0];
+  const avgFinal    = avg(finalYData.filter(v=>v!=null));
+  const totalInput  = sum(inputData);
+  const yieldClass  = latestFinal >= TARGET_YIELD ? 'good' : latestFinal >= TARGET_YIELD-1 ? 'warn' : 'bad';
+
+  // ── Edge die stats ──
+  const latestDiceYield = diceYieldData.filter(v=>v!=null).slice(-1)[0];
+  const latestDicePcs   = dicePcsData.filter(v=>v>0).slice(-1)[0];
+
+  // ── IDs ──
+  const cpId     = 'ulld_cpChart';
+  const edgeId   = 'ulld_edgeChart';
+  const p1Id     = 'ulld_pareto1';
+  const p2Id     = 'ulld_pareto2';
+
+  page.innerHTML = `
+    <button class="export-png-btn" onclick="exportPagePNG('page4','ULLD_${new Date().toISOString().slice(0,10)}.png')">📷 Export PNG</button>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Latest Final Yield</div><div class="stat-value ${yieldClass}">${latestFinal != null ? latestFinal.toFixed(2)+'%' : '-'}</div></div>
+      <div class="stat-card"><div class="stat-label">Latest CP Yield</div><div class="stat-value">${latestCP != null ? latestCP.toFixed(2)+'%' : '-'}</div></div>
+      <div class="stat-card"><div class="stat-label">2026 Target</div><div class="stat-value">${TARGET_YIELD}%</div></div>
+      <div class="stat-card"><div class="stat-label">Period Avg Final Yield</div><div class="stat-value ${avgFinal >= TARGET_YIELD ? 'good':'warn'}">${avgFinal != null ? avgFinal.toFixed(2)+'%' : '-'}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Input (pcs)</div><div class="stat-value">${totalInput.toLocaleString()}</div></div>
+      <div class="stat-card"><div class="stat-label">Latest Extra Die Yield</div><div class="stat-value ${latestDiceYield >= 80 ? 'good' : latestDiceYield >= 70 ? 'warn' : 'bad'}">${latestDiceYield != null ? latestDiceYield.toFixed(1)+'%' : '-'}</div></div>
+    </div>
+
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-card-title">ULLD CP test yield chart</div>
+        <div class="chart-wrap"><canvas id="${cpId}"></canvas></div>
+        <div class="target-note">— 2026 target ${TARGET_YIELD}%</div>
+      </div>
+    </div>
+
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-card-title">ULLD Extra Die (Edge Die) yield chart &nbsp;<span style="font-size:11px;font-weight:400;color:#3a6a9a">(Yield &lt; 40% lots excluded)</span></div>
+        <div class="chart-wrap"><canvas id="${edgeId}"></canvas></div>
+      </div>
+    </div>
+
+    <div class="pareto-row">
+      <div class="chart-card">
+        <div class="chart-card-title">${getWeekLabel(prevWk)} Defect Pareto</div>
+        <div class="chart-wrap"><canvas id="${p1Id}"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-title">${getWeekLabel(lastWk)} Defect Pareto</div>
+        <div class="chart-wrap"><canvas id="${p2Id}"></canvas></div>
+      </div>
+    </div>
+  `;
+
+  requestAnimationFrame(() => {
+    // Destroy old instances if exist
+    [cpId, edgeId, p1Id, p2Id].forEach(id => { if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; } });
+
+    // CP yield combo chart (Input bars + Final Yield line + CP Yield line)
+    chartInstances[cpId] = makeULLDComboChart(cpId, labels, inputData, finalYData, cpYData, TARGET_YIELD);
+
+    // Extra die (edge die) chart: dice(pcs) bars + dice Yield(%) line
+    chartInstances[edgeId] = makeULLDEdgeChart(edgeId, labels, dicePcsData, diceYieldData);
+
+    chartInstances[p1Id] = makeULLDParetoChart(p1Id, FAIL_LABELS, prevPPM);
+    chartInstances[p2Id] = makeULLDParetoChart(p2Id, FAIL_LABELS, lastPPM);
+  });
+}
+
+function makeULLDComboChart(id, labels, barData, finalYData, cpYData, target) {
+  const ctx = document.getElementById(id).getContext('2d');
+  return new Chart(ctx, {
+    data: {
+      labels,
+      datasets: [
+        {
+          type: 'bar', label: 'Input (pcs)', data: barData,
+          backgroundColor: 'rgba(100,160,230,0.55)', borderColor: 'rgba(100,160,230,0.8)',
+          borderWidth: 1, yAxisID: 'yBar', order: 3
+        },
+        {
+          type: 'line', label: 'Final Yield (%)', data: finalYData,
+          borderColor: '#2a6ab0', backgroundColor: 'rgba(42,106,176,0.10)',
+          borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#2a6ab0',
+          yAxisID: 'yYield', tension: 0.3, order: 1, spanGaps: false
+        },
+        {
+          type: 'line', label: 'CP Yield (%)', data: cpYData,
+          borderColor: '#e8a020', backgroundColor: 'transparent',
+          borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#e8a020',
+          borderDash: [5,3], yAxisID: 'yYield', tension: 0.3, order: 2, spanGaps: false
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 } } },
+        annotation: target ? {
+          annotations: {
+            targetLine: {
+              type: 'line', yMin: target, yMax: target, yScaleID: 'yYield',
+              borderColor: '#d94f4f', borderWidth: 1.5, borderDash: [6,3],
+              label: { content: `Target ${target}%`, enabled: true, position: 'end', font: { size: 10 }, color: '#d94f4f', backgroundColor: 'rgba(255,255,255,0.7)' }
+            }
+          }
+        } : {},
+        tooltip: { mode: 'index', intersect: false }
+      },
+      scales: {
+        x: { ticks: { font: { size: 10 }, maxRotation: 45 } },
+        yBar: {
+          type: 'linear', position: 'right', title: { display: true, text: 'Input (pcs)', font: { size: 10 } },
+          grid: { drawOnChartArea: false }, ticks: { font: { size: 10 } }
+        },
+        yYield: {
+          type: 'linear', position: 'left',
+          min: (() => {
+            const allVals = [...(finalYData||[]),...(cpYData||[])].filter(v=>v!=null);
+            if (!allVals.length) return 88;
+            return Math.floor((Math.min(...allVals) - 1.5) * 2) / 2;
+          })(),
+          max: (() => {
+            const allVals = [...(finalYData||[]),...(cpYData||[])].filter(v=>v!=null);
+            if (!allVals.length) return 96;
+            return Math.ceil((Math.max(...allVals) + 1.5) * 2) / 2;
+          })(),
+          ticks: {
+            font: { size: 10 },
+            stepSize: 0.5,
+            callback: v => v.toFixed(1)+'%'
+          },
+          title: { display: true, text: 'Yield (%)', font: { size: 10 } },
+          grid: { color: 'rgba(42,106,176,0.08)' }
+        }
+      }
+    }
+  });
+}
+
+function makeULLDParetoChart(id, labels, ppmData) {
+  const ctx = document.getElementById(id).getContext('2d');
+  const total = ppmData.reduce((a,b)=>a+b,0);
+  let cum = 0;
+  const cumPct = ppmData.map(v => { cum += v; return total > 0 ? parseFloat((cum/total*100).toFixed(1)) : 0; });
+
+  return new Chart(ctx, {
+    data: {
+      labels,
+      datasets: [
+        {
+          type: 'bar', label: 'Defect rate (PPM)', data: ppmData,
+          backgroundColor: 'rgba(100,160,230,0.6)', borderColor: 'rgba(42,106,176,0.8)',
+          borderWidth: 1, yAxisID: 'yPPM', order: 2
+        },
+        {
+          type: 'line', label: 'Cumulative %', data: cumPct,
+          borderColor: '#27ae60', backgroundColor: 'transparent',
+          borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#27ae60',
+          yAxisID: 'yCum', order: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 10 } } },
+        tooltip: { mode: 'index', intersect: false }
+      },
+      scales: {
+        x: { ticks: { font: { size: 11 } } },
+        yPPM: {
+          type: 'linear', position: 'left',
+          title: { display: true, text: 'Defect rate (PPM)', font: { size: 10 } },
+          ticks: { font: { size: 10 } }, grid: { color: 'rgba(42,106,176,0.08)' }
+        },
+        yCum: {
+          type: 'linear', position: 'right', min: 0, max: 100,
+          title: { display: true, text: 'Cumulative (%)', font: { size: 10 } },
+          ticks: { font: { size: 10 }, callback: v => v+'%' },
+          grid: { drawOnChartArea: false }
+        }
+      }
+    }
+  });
+}
+
+
+function makeEdgeDieChart(canvasId, labels, gainData, edgeYieldData, tabCfg) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId).getContext('2d');
+
+  const validYields = edgeYieldData.filter(v => v != null);
+  const minY = validYields.length ? Math.max(40, Math.floor(Math.min(...validYields) - 3)) : 40;
+  const maxY = 101;
+
+  const datasets = [
+    {
+      type: 'bar',
+      label: 'Gain edge die (ea)',
+      data: gainData,
+      backgroundColor: 'rgba(100,140,210,0.6)',
+      borderColor: 'rgba(100,140,210,0.85)',
+      borderWidth: 1,
+      yAxisID: 'yBar',
+      order: 2,
+      datalabels: {
+        display: true,
+        anchor: 'end', align: 'top',
+        color: '#5570a0',
+        font: { size: 10, weight: '600' },
+        formatter: v => v > 0 ? v.toLocaleString() : '',
+      }
+    },
+    {
+      type: 'line',
+      label: `${tabCfg.key.replace('_',' ')} edge die Yield (%)`,
+      data: edgeYieldData,
+      borderColor: '#c05020',
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      pointRadius: 5,
+      pointStyle: 'triangle',
+      pointBackgroundColor: '#c05020',
+      yAxisID: 'yLine',
+      order: 1,
+      tension: 0.1,
+      spanGaps: false,
+      datalabels: {
+        display: true,
+        anchor: 'top', align: 'top', offset: 4,
+        color: '#c05020',
+        font: { size: 10, weight: '700' },
+        formatter: v => v != null ? v.toFixed(2)+'%' : '',
+      }
+    }
+  ];
+
+  chartInstances[canvasId] = new Chart(ctx, {
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#9ba3c0', font: { size: 11 }, boxWidth: 12 } },
+        tooltip: {
+          backgroundColor: '#1a1d27', borderColor: '#2e3350', borderWidth: 1,
+          titleColor: '#e8eaf0', bodyColor: '#9ba3c0',
+          callbacks: {
+            label: ctx2 => {
+              const v = ctx2.parsed.y;
+              if (v === null || v === undefined || v === 0) return '';
+              return ctx2.dataset.yAxisID === 'yLine'
+                ? `${ctx2.dataset.label}: ${v.toFixed(2)}%`
+                : `${ctx2.dataset.label}: ${v.toLocaleString()}`;
+            }
+          }
+        },
+        datalabels: {}
+      },
+      scales: {
+        x: { ticks: { color: '#9ba3c0', font: { size: 10 } }, grid: { color: 'rgba(200,200,210,0.4)' } },
+        yBar: {
+          position: 'right',
+          ticks: { color: '#9ba3c0', font: { size: 10 }, callback: v => v.toLocaleString() },
+          grid: { display: false },
+          min: 0,
+          title: { display: true, text: 'Gain Die (ea)', color: '#9ba3c0', font: { size: 10 } }
+        },
+        yLine: {
+          position: 'left',
+          ticks: { color: '#9ba3c0', font: { size: 10 }, callback: v => v.toFixed(0)+'%' },
+          grid: { color: 'rgba(200,200,210,0.4)' },
+          min: minY,
+          max: maxY,
+          title: { display: true, text: 'Edge Die Yield (%)', color: '#9ba3c0', font: { size: 10 } }
+        }
+      }
+    }
+  });
+}
+
+
+function makeULLDEdgeChart(id, labels, dicePcsData, diceYieldData) {
+  const ctx = document.getElementById(id).getContext('2d');
+  const validYields = diceYieldData.filter(v => v != null);
+  const minY = validYields.length ? Math.max(40, Math.floor(Math.min(...validYields) - 3)) : 40;
+  const maxY = validYields.length ? Math.min(100, Math.ceil(Math.max(...validYields) + 3)) : 100;
+
+  return new Chart(ctx, {
+    data: {
+      labels,
+      datasets: [
+        {
+          type: 'bar', label: 'Extra Die (dice pcs)', data: dicePcsData,
+          backgroundColor: 'rgba(100,160,230,0.55)', borderColor: 'rgba(100,160,230,0.8)',
+          borderWidth: 1, yAxisID: 'yBar', order: 2
+        },
+        {
+          type: 'line', label: 'Extra Die Yield (%)',  data: diceYieldData,
+          borderColor: '#e8a020', backgroundColor: 'rgba(232,160,32,0.10)',
+          borderWidth: 2.5, pointRadius: 5, pointBackgroundColor: '#e8a020',
+          yAxisID: 'yYield', tension: 0.2, order: 1, spanGaps: false
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 } } },
+        tooltip: {
+          mode: 'index', intersect: false,
+          callbacks: {
+            label: ctx2 => {
+              const v = ctx2.parsed.y;
+              if (v === null || v === undefined) return '';
+              return ctx2.dataset.yAxisID === 'yYield' ? `${ctx2.dataset.label}: ${v.toFixed(2)}%` : `${ctx2.dataset.label}: ${v.toLocaleString()}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { font: { size: 10 }, maxRotation: 45 }, grid: { color: 'rgba(200,200,210,0.4)' } },
+        yBar: {
+          type: 'linear', position: 'right',
+          title: { display: true, text: 'dice (pcs)', font: { size: 10 }, color: '#3a6a9a' },
+          grid: { drawOnChartArea: false }, ticks: { font: { size: 10 }, color: '#3a6a9a' }
+        },
+        yYield: {
+          type: 'linear', position: 'left',
+          min: minY, max: maxY,
+          title: { display: true, text: 'Extra Die Yield (%)', font: { size: 10 }, color: '#e8a020' },
+          ticks: { font: { size: 10 }, color: '#e8a020', callback: v => v.toFixed(0)+'%' },
+          grid: { color: 'rgba(232,160,32,0.12)' }
+        }
+      }
+    }
+  });
+}
+
+
+function renderNoData(tabIdx, msg) {
+  const page = document.getElementById(`page${tabIdx}`);
+  if (!page) return;
+  page.innerHTML = `<div class="no-data">${msg}<div class="hint">Import files and click Generate Report</div></div>`;
+}
+
+// ─── Strip File Handler ────────────────────────────────────────────────────────
+function handleStrip(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('statusStrip');
+  statusEl.textContent = 'Strip: loading…';
+  statusEl.className = 'file-status';
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      // Try sheet named 'Summary', fallback to first sheet
+      const sheetName = wb.SheetNames.includes('Summary') ? 'Summary' : wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: null });
+      stripData = rows;
+      const acCount = rows.filter(r => r['Lot No.'] && String(r['Lot No.']).trim().endsWith('AC')).length;
+      const ccCount = rows.filter(r => r['Lot No.'] && String(r['Lot No.']).trim().endsWith('CC')).length;
+      statusEl.textContent = `Strip: ${rows.length} rows (AC:${acCount}, CC:${ccCount})`;
+      statusEl.className = 'file-status ok';
+      // Auto-render Strip tabs
+      renderStripAC();
+      renderStripCC();
+    } catch(err) {
+      statusEl.textContent = 'Strip: parse error – ' + err.message;
+      statusEl.className = 'file-status err';
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ─── Strip helpers ─────────────────────────────────────────────────────────────
+function stripParseDate(v, reportDate) {
+  // Try Test Date/ Time first
+  if (v) {
+    if (v instanceof Date && !isNaN(v)) return v;
+    if (typeof v === 'number') {
+      const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+      if (!isNaN(d)) return d;
+    }
+    if (typeof v === 'string') {
+      const m = v.match(/^(\d{4})(\d{2})(\d{2})/);
+      if (m) return new Date(`${m[1]}-${m[2]}-${m[3]}`);
+      const d = new Date(v);
+      if (!isNaN(d)) return d;
+    }
+  }
+  // Fallback: Report Date
+  if (reportDate) {
+    if (reportDate instanceof Date && !isNaN(reportDate)) return reportDate;
+    if (typeof reportDate === 'number') {
+      const d = new Date(Math.round((reportDate - 25569) * 86400 * 1000));
+      if (!isNaN(d)) return d;
+    }
+    const d = new Date(reportDate);
+    if (!isNaN(d)) return d;
+  }
+  return null;
+}
+
+function stripGetWeek(d) {
+  const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((tmp - yearStart) / 86400000 + 1) / 7);
+  return { year: tmp.getUTCFullYear(), week };
+}
+
+function stripGetMonth(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+const STRIP_MONTH_LABELS = {
+  '2025-11':"25'Nov",'2025-12':"25'Dec",
+  '2026-01':"26'Jan",'2026-02':"26'Feb",
+  '2026-03':"26'Mar",'2026-04':"26'Apr",
+  '2026-05':"26'May",'2026-06':"26'Jun",
+  '2026-07':"26'Jul",'2026-08':"26'Aug",
+  '2026-09':"26'Sep",'2026-10':"26'Oct",
+  '2026-11':"26'Nov",'2026-12':"26'Dec"
+};
+
+// Defect columns (count columns = even indices 6,8,10,12,14,16,20,22,24,26)
+// We show BVDSS (MAX of BVDSS 2 and BVDSS 1), VTH<1.5V, VTH>6V, VFSD, IPD-10V, IDSS (IDSS1+IDSS2+IDSS3)
+const STRIP_DEFECT_DEFS = {
+  AC: [
+    { key: 'BVDSS 2',    cols: ['BVDSS 2'],               color: 'rgba(180,120,60,0.75)' },
+    { key: 'VTH < 1.5V', cols: ['VTH < 1.5 V'],           color: 'rgba(180,120,60,0.60)' },
+    { key: 'VTH > 6V',   cols: ['VTH > 6 V'],             color: 'rgba(180,120,60,0.50)' },
+    { key: 'VFSD',       cols: ['VFSD'],                   color: 'rgba(180,120,60,0.40)' },
+    { key: 'IPD',        cols: ['IPD-10V'],                color: 'rgba(180,120,60,0.30)' },
+  ],
+  CC: [
+    { key: 'IDSS',       cols: ['IDSS1','IDSS2','IDSS3'],  color: 'rgba(180,120,60,0.75)' },
+    { key: 'BVDSS 2',    cols: ['BVDSS 2'],               color: 'rgba(180,120,60,0.60)' },
+    { key: 'VTH > 6V',   cols: ['VTH > 6 V'],             color: 'rgba(180,120,60,0.50)' },
+    { key: 'VTH < 1.5V', cols: ['VTH < 1.5 V'],           color: 'rgba(180,120,60,0.40)' },
+    { key: 'IPD',        cols: ['IPD-10V'],                color: 'rgba(180,120,60,0.30)' },
+  ]
+};
+
+function computeStripData(rows, type) {
+  // type = 'AC' or 'CC'
+  const filtered = rows.filter(r => r['Lot No.'] && String(r['Lot No.']).trim().endsWith(type));
+
+  const monthBuckets = {};
+  const weekBuckets  = {};
+
+  filtered.forEach(r => {
+    const d = stripParseDate(r['Test Date/ Time'] || r['Test Date/Time'] || r['Test Date'], r['Report Date']);
+    if (!d) return;
+    const input  = parseFloat(r['Input'] || 0);
+    const output = parseFloat(r['Output'] || 0);
+    if (isNaN(input) || input <= 0) return;
+
+    const mk = stripGetMonth(d);
+    const { year, week } = stripGetWeek(d);
+    const wk = `${year}-W${String(week).padStart(2,'0')}`;
+
+    // Defect counts (raw count)
+    const defects = {};
+    STRIP_DEFECT_DEFS[type].forEach(def => {
+      defects[def.key] = def.cols.reduce((s, c) => s + (parseFloat(r[c])||0), 0);
+    });
+
+    // Monthly
+    if (STRIP_MONTH_LABELS[mk]) {
+      if (!monthBuckets[mk]) monthBuckets[mk] = { totalInput:0, totalOutput:0, batches:0, defects:{} };
+      monthBuckets[mk].totalInput  += input;
+      monthBuckets[mk].totalOutput += output;
+      monthBuckets[mk].batches     += (parseFloat(r['_batches']) || 1);
+      STRIP_DEFECT_DEFS[type].forEach(def => {
+        monthBuckets[mk].defects[def.key] = (monthBuckets[mk].defects[def.key]||0) + defects[def.key];
+      });
+    }
+
+    // Weekly
+    if (!weekBuckets[wk]) weekBuckets[wk] = { totalInput:0, totalOutput:0, batches:0, defects:{}, year, week };
+    weekBuckets[wk].totalInput  += input;
+    weekBuckets[wk].totalOutput += output;
+    weekBuckets[wk].batches     += (parseFloat(r['_batches']) || 1);
+    STRIP_DEFECT_DEFS[type].forEach(def => {
+      weekBuckets[wk].defects[def.key] = (weekBuckets[wk].defects[def.key]||0) + defects[def.key];
+    });
+  });
+
+  const sortedMonths = Object.keys(STRIP_MONTH_LABELS);
+  const monthlyPts = sortedMonths.map(mk => {
+    const b = monthBuckets[mk];
+    const totalInput  = b ? b.totalInput  : 0;
+    const totalOutput = b ? b.totalOutput : 0;
+    const batches     = b ? b.batches     : 0;
+    const yld = (b && totalInput > 0) ? (totalOutput / totalInput * 100) : null;
+    const aty = (b && batches   > 0) ? (totalOutput / (4056 * batches) * 100) : null;
+    return { label: STRIP_MONTH_LABELS[mk], totalInput, totalOutput, batches, yield: yld, aty, defects: b ? b.defects : {} };
+  }).filter(p => p.totalInput > 0).slice(-5);
+
+  const sortedWeeks = Object.keys(weekBuckets).sort();
+  const recentWkKeys = sortedWeeks.slice(-5);
+  const weeklyPts = recentWkKeys.map(wk => {
+    const b = weekBuckets[wk];
+    const totalInput  = b.totalInput;
+    const totalOutput = b.totalOutput;
+    const batches     = b.batches;
+    const yld = totalInput > 0 ? (totalOutput / totalInput * 100) : null;
+    const aty = batches   > 0 ? (totalOutput / (4056 * batches) * 100) : null;
+    return { label: `26W${b.week}`, wkKey: wk, totalInput, totalOutput, batches, yield: yld, aty, defects: b.defects };
+  });
+
+  return { monthlyPts, weeklyPts, recentWkKeys, weekBuckets };
+}
+
+// ─── Strip Pareto helpers ─────────────────────────────────────────────────────
+function getWeekPPM(weekBuckets, wkKey, type) {
+  const b = weekBuckets[wkKey];
+  if (!b) return { ppm: {} };
+  const totalOutput = b.totalOutput;
+  const ppm = {};
+  if (totalOutput > 0) {
+    STRIP_DEFECT_DEFS[type].forEach(def => {
+      ppm[def.key] = Math.round((b.defects[def.key]||0) / totalOutput * 1e6);
+    });
+  }
+  return { ppm };
+}
+
+// ─── Strip renderers ──────────────────────────────────────────────────────────
+function renderStripPage(pageId, type) {
+  const page = document.getElementById(pageId);
+  if (!stripData || stripData.length === 0) {
+    page.innerHTML = `<div class="no-data">請匯入 StripTest_Summary_*.xlsx 檔案<div class="hint">點擊上方 📊 Strip 按鈕</div></div>`;
+    return;
+  }
+
+  const { monthlyPts, weeklyPts, recentWkKeys, weekBuckets } = computeStripData(stripData, type);
+  // GAP point to disconnect months from weeks visually
+  const STRIP_GAP = { label: '', totalInput: null, totalOutput: null, yield: null, aty: null, defects: {}, _gap: true };
+  const combined = [...monthlyPts, STRIP_GAP, ...weeklyPts];
+  const labels   = combined.map(p => p.label);
+  const inputData  = combined.map(p => p._gap ? null : (p.totalInput || 0));
+  const outputData = combined.map(p => p._gap ? null : (p.totalOutput || 0));
+  const yieldData  = combined.map(p => p.yield);
+
+  // ATY per point = output / (4056 × batches) — only for points with batches info
+  const atyData = combined.map(p => (p.aty != null) ? p.aty : null);
+  const atyVal  = atyData.filter(v => v != null).slice(-1)[0] || null;
+
+  // Pareto: last 2 recent weeks
+  const last2wks = recentWkKeys.slice(-2);
+  const prevWk = last2wks.length >= 2 ? last2wks[0] : null;
+  const lastWk = last2wks.length >= 1 ? last2wks[last2wks.length-1] : null;
+  const { ppm: prevPPM } = prevWk ? getWeekPPM(weekBuckets, prevWk, type) : { ppm: {} };
+  const { ppm: lastPPM } = lastWk ? getWeekPPM(weekBuckets, lastWk, type) : { ppm: {} };
+
+  function wkLabel(wk) {
+    if (!wk) return 'N/A';
+    return `26W${parseInt(wk.split('-W')[1])}`;
+  }
+
+  const TARGET = 99.5;
+  const defs = STRIP_DEFECT_DEFS[type];
+  const paretoKeys  = defs.map(d => d.key);
+  const paretoColors = defs.map(d => d.color);
+
+  const prevPPMArr = paretoKeys.map(k => prevPPM[k] || 0);
+  const lastPPMArr = paretoKeys.map(k => lastPPM[k] || 0);
+
+  // Latest yield stats
+  const latestYield = yieldData.filter(v=>v!=null).slice(-1)[0];
+  const avgYield    = yieldData.filter(v=>v!=null).reduce((s,v,_,a)=>s+v/a.length, 0) || null;
+  const totalInput  = inputData.reduce((s,v)=>s+v,0);
+  const totalOutput = outputData.reduce((s,v)=>s+v,0);
+
+  const chartId   = `strip_${type}_chart`;
+  const p1Id      = `strip_${type}_pareto1`;
+  const p2Id      = `strip_${type}_pareto2`;
+
+  function yieldClass(v) { return v >= TARGET ? 'good' : v >= TARGET-1 ? 'warn' : 'bad'; }
+
+  page.innerHTML = `
+    <button class="export-png-btn" onclick="exportPagePNG('${pageId}','Strip_${type}_${new Date().toISOString().slice(0,10)}.png')">📷 Export PNG</button>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Latest Strip Yield</div><div class="stat-value ${yieldClass(latestYield)}">${latestYield!=null?latestYield.toFixed(2)+'%':'-'}</div></div>
+      <div class="stat-card"><div class="stat-label">Period Avg Yield</div><div class="stat-value ${yieldClass(avgYield)}">${avgYield!=null?avgYield.toFixed(2)+'%':'-'}</div></div>
+      <div class="stat-card"><div class="stat-label">2026 Target</div><div class="stat-value">${TARGET}%</div></div>
+      <div class="stat-card"><div class="stat-label">Strip ATY</div><div class="stat-value">${atyVal!=null?atyVal.toFixed(2)+'%':'-'}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Input (pcs)</div><div class="stat-value">${totalInput.toLocaleString()}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Output (pcs)</div><div class="stat-value">${totalOutput.toLocaleString()}</div></div>
+    </div>
+
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-card-title">ULLD strip test ${type} yield chart</div>
+        <div class="chart-wrap" style="height:300px"><canvas id="${chartId}"></canvas></div>
+        <div class="target-note">— 2026 target ${TARGET}%</div>
+      </div>
+    </div>
+
+    <div class="pareto-row">
+      <div class="chart-card">
+        <div class="chart-card-title" style="color:#1a4a8a">${wkLabel(prevWk)} Defect Pareto</div>
+        <div class="chart-wrap" style="height:260px"><canvas id="${p1Id}"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-title" style="color:#1a4a8a">${wkLabel(lastWk)} Defect Pareto</div>
+        <div class="chart-wrap" style="height:260px"><canvas id="${p2Id}"></canvas></div>
+      </div>
+    </div>
+  `;
+
+  requestAnimationFrame(() => {
+    [chartId, p1Id, p2Id].forEach(id => {
+      if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+    });
+
+    // Main yield chart
+    const ctx = document.getElementById(chartId).getContext('2d');
+    chartInstances[chartId] = new Chart(ctx, {
+      data: {
+        labels,
+        datasets: [
+          {
+            type: 'bar', label: 'Wo PPt Loss units (ea)', data: inputData,
+            backgroundColor: 'rgba(80,60,130,0.65)', borderColor: 'rgba(80,60,130,0.9)',
+            borderWidth: 1, yAxisID: 'yBar', order: 4
+          },
+          {
+            type: 'bar', label: 'ATC Output units (ea)', data: outputData,
+            backgroundColor: 'rgba(140,170,60,0.65)', borderColor: 'rgba(140,170,60,0.9)',
+            borderWidth: 1, yAxisID: 'yBar', order: 3
+          },
+          {
+            type: 'line', label: 'Strip test Yield (%)', data: yieldData,
+            borderColor: '#5080c0', backgroundColor: 'rgba(80,128,192,0.08)',
+            borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#5080c0',
+            yAxisID: 'yYield', tension: 0.2, order: 1,
+            pointStyle: 'triangle', spanGaps: false
+          },
+          {
+            type: 'line', label: 'Strip ATY (%)', data: atyData,
+            borderColor: '#b040b0', backgroundColor: 'transparent',
+            borderWidth: 1.5, pointRadius: 0, borderDash: [6,3],
+            yAxisID: 'yYield', tension: 0, order: 2, spanGaps: false
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 10 } } },
+          tooltip: { mode: 'index', intersect: false },
+          annotation: {
+            annotations: {
+              targetLine: {
+                type: 'line', yMin: TARGET, yMax: TARGET, yScaleID: 'yYield',
+                borderColor: '#d94f4f', borderWidth: 1.5, borderDash: [6,3],
+                label: { content: `2026 target ${TARGET}%`, display: true, position: 'end', font: { size: 10 }, color: '#d94f4f', backgroundColor: 'rgba(255,255,255,0.7)' }
+              }
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { font: { size: 10 }, maxRotation: 45 } },
+          yBar: {
+            type: 'linear', position: 'right',
+            title: { display: true, text: 'units (ea)', font: { size: 10 } },
+            grid: { drawOnChartArea: false }, ticks: { font: { size: 10 } }
+          },
+          yYield: {
+            type: 'linear', position: 'left',
+            min: (()=>{
+              const allVals = [...yieldData, ...atyData].filter(v=>v!=null);
+              return allVals.length ? Math.max(70, Math.floor(Math.min(...allVals)) - 2) : 70;
+            })(),
+            max: 102,
+            title: { display: true, text: 'test yield', font: { size: 10 } },
+            ticks: { font: { size: 10 }, callback: v => v.toFixed(0)+'%' },
+            grid: { color: 'rgba(80,128,192,0.08)' }
+          }
+        }
+      }
+    });
+
+    // Pareto charts
+    function makeStripPareto(canvasId, ppmArr) {
+      const ctx2 = document.getElementById(canvasId).getContext('2d');
+      const total = ppmArr.reduce((a,b)=>a+b,0);
+      // Sort by PPM descending
+      const sorted = paretoKeys.map((k,i)=>({ k, v: ppmArr[i], color: paretoColors[i] }))
+                               .sort((a,b)=>b.v-a.v);
+      const sortedLabels = sorted.map(s=>s.k);
+      const sortedPPM    = sorted.map(s=>s.v);
+      const sortedColors = sorted.map(s=>s.color);
+
+      let cum = 0;
+      const cumPct = sortedPPM.map(v => { cum += v; return total>0 ? parseFloat((cum/total*100).toFixed(1)) : 0; });
+
+      return new Chart(ctx2, {
+        data: {
+          labels: sortedLabels,
+          datasets: [
+            {
+              type: 'bar', label: 'Defect rate (PPM)', data: sortedPPM,
+              backgroundColor: sortedColors,
+              borderColor: sortedColors.map(c=>c.replace('0.75','1').replace('0.6','1').replace('0.5','1').replace('0.4','1').replace('0.3','1')),
+              borderWidth: 1, yAxisID: 'yPPM', order: 2
+            },
+            {
+              type: 'line', label: 'Cumulative %', data: cumPct,
+              borderColor: '#27ae60', backgroundColor: 'transparent',
+              borderWidth: 2, pointRadius: 5, pointBackgroundColor: '#27ae60',
+              yAxisID: 'yCum', order: 1
+            }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { font: { size: 10 } } },
+            tooltip: { mode: 'index', intersect: false },
+            datalabels: false
+          },
+          scales: {
+            x: { ticks: { font: { size: 11 } } },
+            yPPM: {
+              type: 'linear', position: 'left',
+              title: { display: true, text: 'Defect rate (PPM)', font: { size: 10 } },
+              ticks: { font: { size: 10 } }, grid: { color: 'rgba(42,106,176,0.08)' }
+            },
+            yCum: {
+              type: 'linear', position: 'right', min: 0, max: 100,
+              title: { display: true, text: 'Cumulative (%)', font: { size: 10 } },
+              ticks: { font: { size: 10 }, callback: v => v+'%' },
+              grid: { drawOnChartArea: false }
+            }
+          }
+        }
+      });
+    }
+
+    chartInstances[p1Id] = makeStripPareto(p1Id, prevPPMArr);
+    chartInstances[p2Id] = makeStripPareto(p2Id, lastPPMArr);
+  });
+}
+
+// ─── Report Mode State ────────────────────────────────────────────────────────
+let reportMode = 'weekly'; // 'weekly' | 'monthly'
+
+function onThresholdChange(val) {
+  lowYieldThreshold = parseFloat(val);
+  // Update display value
+  const valEl = document.getElementById('thresholdValue');
+  if (valEl) valEl.textContent = lowYieldThreshold + '%';
+  // Update modal description if visible
+  const modalVal = document.getElementById('modalThresholdVal');
+  if (modalVal) modalVal.textContent = lowYieldThreshold;
+  // Update slider gradient fill
+  const slider = document.getElementById('thresholdSlider');
+  if (slider) slider.style.setProperty('--pct', (lowYieldThreshold) + '%');
+}
+
+function onReportModeChange(isMonthly) {
+  reportMode = isMonthly ? 'monthly' : 'weekly';
+  updateToggleUI();
+  // Re-render all loaded CP tabs
+  if (processedTabs) {
+    TAB_CONFIG.forEach((cfg, i) => {
+      const data = processedTabs[cfg.key];
+      if (data && data.weeks && data.weeks.length > 0) renderTabPage(i, data, cfg);
+    });
+  }
+  if (ulldData) renderULLDTab();
+  renderStripAC();
+  renderStripCC();
+}
+
+function setReportMode(mode) {
+  const toggle = document.getElementById('reportModeToggle');
+  if (!toggle) return;
+  toggle.checked = (mode === 'monthly');
+  onReportModeChange(mode === 'monthly');
+}
+
+function updateToggleUI() {
+  const lw = document.getElementById('labelWeekly');
+  const lm = document.getElementById('labelMonthly');
+  if (!lw || !lm) return;
+  if (reportMode === 'monthly') {
+    lw.classList.remove('active'); lm.classList.add('active');
+  } else {
+    lm.classList.remove('active'); lw.classList.add('active');
+  }
+}
+
+// ─── Monthly Pareto helper: aggregate by calendar month ──────────────────────
+function getMonthPPM(rows, type, monthKey) {
+  // monthKey = 'YYYY-MM'
+  const filtered = rows.filter(r => r['Lot No.'] && String(r['Lot No.']).trim().endsWith(type));
+  let totalOutput = 0;
+  const defectSums = {};
+  STRIP_DEFECT_DEFS[type].forEach(def => { defectSums[def.key] = 0; });
+  filtered.forEach(r => {
+    const d = stripParseDate(r['Test Date/ Time'] || r['Test Date/Time'] || r['Test Date'], r['Report Date']);
+    if (!d) return;
+    const mk = stripGetMonth(d);
+    if (mk !== monthKey) return;
+    const output = parseFloat(r['Output'] || 0);
+    totalOutput += output;
+    STRIP_DEFECT_DEFS[type].forEach(def => {
+      defectSums[def.key] += def.cols.reduce((s, c) => s + (parseFloat(r[c])||0), 0);
+    });
+  });
+  const ppm = {};
+  if (totalOutput > 0) {
+    STRIP_DEFECT_DEFS[type].forEach(def => {
+      ppm[def.key] = Math.round(defectSums[def.key] / totalOutput * 1e6);
+    });
+  }
+  return { ppm, totalOutput };
+}
+
+// ─── Quarterly aggregation helper ─────────────────────────────────────────────
+function computeStripQuarterly(rows, type) {
+  // Returns array of up to 5 quarters, each { label, totalInput, totalOutput, yield, aty, defects }
+  const filtered = rows.filter(r => r['Lot No.'] && String(r['Lot No.']).trim().endsWith(type));
+  const qBuckets = {};
+  filtered.forEach(r => {
+    const d = stripParseDate(r['Test Date/ Time'] || r['Test Date/Time'] || r['Test Date'], r['Report Date']);
+    if (!d) return;
+    const input  = parseFloat(r['Input'] || 0);
+    const output = parseFloat(r['Output'] || 0);
+    if (isNaN(input) || input <= 0) return;
+    const yr = d.getFullYear();
+    const q  = Math.ceil((d.getMonth() + 1) / 3);
+    const qk = `${yr}-Q${q}`;
+    if (!qBuckets[qk]) qBuckets[qk] = { label: `${String(yr).slice(2)}'Q${q}`, totalInput:0, totalOutput:0, batches:0, defects:{} };
+    qBuckets[qk].totalInput  += input;
+    qBuckets[qk].totalOutput += output;
+    qBuckets[qk].batches     += (parseFloat(r['_batches']) || 1);
+    STRIP_DEFECT_DEFS[type].forEach(def => {
+      let v;
+v = def.cols.reduce((s, c) => s + (parseFloat(r[c])||0), 0);
+      qBuckets[qk].defects[def.key] = (qBuckets[qk].defects[def.key]||0) + v;
+    });
+  });
+  const sortedQs = Object.keys(qBuckets).sort();
+  // Take last 5 quarters; pad front with nulls if fewer than 5
+  const recent5 = sortedQs.slice(-5);
+  const result = recent5.map(qk => {
+    const b = qBuckets[qk];
+    const yld = b.totalInput > 0 ? (b.totalOutput / b.totalInput * 100) : null;
+    const aty = b.batches   > 0 ? (b.totalOutput / (4056 * b.batches) * 100) : null;
+    return { label: b.label, totalInput: b.totalInput, totalOutput: b.totalOutput, yield: yld, aty, defects: b.defects };
+  });
+  // Pad front to always have 5 slots
+  while (result.length < 5) result.unshift({ label: '', totalInput: 0, totalOutput: 0, yield: null, aty: null, defects: {}, _empty: true });
+  return result;
+}
+
+// ─── Monthly Strip renderer ───────────────────────────────────────────────────
+function renderStripPageMonthly(pageId, type) {
+  const page = document.getElementById(pageId);
+  if (!stripData || stripData.length === 0) {
+    page.innerHTML = `<div class="no-data">請匯入 StripTest_Summary_*.xlsx 檔案<div class="hint">點擊上方 📊 Strip 按鈕</div></div>`;
+    return;
+  }
+
+  // ── Quarterly data (left side of trend) ──
+  const quarterlyPts = computeStripQuarterly(stripData, type);
+
+  // ── Monthly data (right side of trend) — last 5 months with data ──
+  const { monthlyPts } = computeStripData(stripData, type);
+  const last5Months = monthlyPts.slice(-5);
+  // Pad to 5
+  while (last5Months.length < 5) last5Months.unshift({ label:'', totalInput:0, totalOutput:0, yield:null, aty:null, defects:{}, _empty:true });
+
+  // Build combined dual-axis trend dataset:
+  // Left 5 = quarterly, gap, right 5 = monthly
+  const STRIP_GAP = { label: '', yield: null, aty: null, totalInput: null, totalOutput: null, defects: {}, _gap: true };
+  const combined = [...quarterlyPts, STRIP_GAP, ...last5Months];
+  const labels    = combined.map(p => p.label);
+  const inputData = combined.map(p => (p._gap || p._empty) ? null : (p.totalInput || 0));
+  const outputData= combined.map(p => (p._gap || p._empty) ? null : (p.totalOutput || 0));
+  const yieldData = combined.map(p => p.yield);
+  const atyData   = combined.map(p => p.aty || null);
+
+  // ── Monthly Pareto: previous month = April (2026-04), current = May (2026-05) ──
+  const now = new Date();
+  const curMonthKey  = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const prevMonthObj = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevMonthKey = `${prevMonthObj.getFullYear()}-${String(prevMonthObj.getMonth()+1).padStart(2,'0')}`;
+
+  function monthLabel(mk) {
+    const [y, m] = mk.split('-');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${y.slice(2)}'${months[parseInt(m)-1]}`;
+  }
+
+  const { ppm: prevPPM } = getMonthPPM(stripData, type, prevMonthKey);
+  const { ppm: curPPM  } = getMonthPPM(stripData, type, curMonthKey);
+
+  const TARGET = 99.5;
+  const defs = STRIP_DEFECT_DEFS[type];
+  const paretoKeys   = defs.map(d => d.key);
+  const paretoColors = defs.map(d => d.color);
+  const prevPPMArr   = paretoKeys.map(k => prevPPM[k] || 0);
+  const curPPMArr    = paretoKeys.map(k => curPPM[k]  || 0);
+
+  // Latest yield stats from monthly data
+  const validYields = yieldData.filter(v => v != null);
+  const latestYield = validYields.slice(-1)[0];
+  const avgYield    = validYields.length ? validYields.reduce((s,v)=>s+v,0)/validYields.length : null;
+  const totalInput  = (inputData.filter(v=>v!=null)).reduce((s,v)=>s+(v||0),0);
+  const totalOutput = (outputData.filter(v=>v!=null)).reduce((s,v)=>s+(v||0),0);
+  const atyVal      = atyData.filter(v=>v!=null).slice(-1)[0] || null;
+
+  const chartId = `strip_monthly_${type}_chart`;
+  const p1Id    = `strip_monthly_${type}_pareto1`;
+  const p2Id    = `strip_monthly_${type}_pareto2`;
+
+  function yieldClass(v) { return v == null ? '' : v >= TARGET ? 'good' : v >= TARGET-1 ? 'warn' : 'bad'; }
+
+  page.innerHTML = `
+    <button class="export-png-btn" onclick="exportPagePNG('${pageId}','Strip_${type}_Monthly_${new Date().toISOString().slice(0,10)}.png')">📷 Export PNG</button>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Latest Monthly Yield</div><div class="stat-value ${yieldClass(latestYield)}">${latestYield!=null?latestYield.toFixed(2)+'%':'-'}</div></div>
+      <div class="stat-card"><div class="stat-label">Period Avg Yield</div><div class="stat-value ${yieldClass(avgYield)}">${avgYield!=null?avgYield.toFixed(2)+'%':'-'}</div></div>
+      <div class="stat-card"><div class="stat-label">2026 Target</div><div class="stat-value">${TARGET}%</div></div>
+      <div class="stat-card"><div class="stat-label">Strip ATY (Latest)</div><div class="stat-value">${atyVal!=null?atyVal.toFixed(2)+'%':'-'}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Input (pcs)</div><div class="stat-value">${totalInput.toLocaleString()}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Output (pcs)</div><div class="stat-value">${totalOutput.toLocaleString()}</div></div>
+    </div>
+
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-card-title">ULLD strip test ${type} yield chart — 月報 (季趨勢 + 月趨勢)</div>
+        <div style="display:flex;gap:8px;align-items:center;justify-content:center;margin-bottom:6px;">
+          <span style="font-size:11px;color:#9a7a00;background:#fff8d0;border:1px solid #e8d880;border-radius:4px;padding:2px 8px;">◀ 近5季</span>
+          <span style="font-size:11px;color:#1a4a8a;background:#eef5ff;border:1px solid #b0d0f0;border-radius:4px;padding:2px 8px;">近5月 ▶</span>
+        </div>
+        <div class="chart-wrap" style="height:300px"><canvas id="${chartId}"></canvas></div>
+        <div class="target-note">— 2026 target ${TARGET}%</div>
+      </div>
+    </div>
+
+    <div class="pareto-row">
+      <div class="chart-card">
+        <div class="chart-card-title" style="color:#9a7a00">${monthLabel(prevMonthKey)} Defect Pareto (上個月)</div>
+        <div class="chart-wrap" style="height:260px"><canvas id="${p1Id}"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-title" style="color:#1a4a8a">${monthLabel(curMonthKey)} Defect Pareto (本月)</div>
+        <div class="chart-wrap" style="height:260px"><canvas id="${p2Id}"></canvas></div>
+      </div>
+    </div>
+  `;
+
+  requestAnimationFrame(() => {
+    [chartId, p1Id, p2Id].forEach(id => {
+      if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+    });
+
+    // ── Main trend chart (quarterly + monthly combined) ──
+    // Color the quarterly bars differently from monthly bars using segment coloring
+    const qCount = quarterlyPts.length;
+
+    const ctx = document.getElementById(chartId).getContext('2d');
+    chartInstances[chartId] = new Chart(ctx, {
+      data: {
+        labels,
+        datasets: [
+          {
+            type: 'bar', label: 'Input (ea) - Q', data: inputData.map((v,i)=>i<qCount?v:null),
+            backgroundColor: 'rgba(120,90,180,0.55)', borderColor: 'rgba(120,90,180,0.85)',
+            borderWidth: 1, yAxisID: 'yBar', order: 5
+          },
+          {
+            type: 'bar', label: 'Output (ea) - Q', data: outputData.map((v,i)=>i<qCount?v:null),
+            backgroundColor: 'rgba(80,160,80,0.55)', borderColor: 'rgba(80,160,80,0.85)',
+            borderWidth: 1, yAxisID: 'yBar', order: 4
+          },
+          {
+            type: 'bar', label: 'Input (ea) - M', data: inputData.map((v,i)=>i>qCount?v:null),
+            backgroundColor: 'rgba(80,60,130,0.65)', borderColor: 'rgba(80,60,130,0.9)',
+            borderWidth: 1, yAxisID: 'yBar', order: 5
+          },
+          {
+            type: 'bar', label: 'Output (ea) - M', data: outputData.map((v,i)=>i>qCount?v:null),
+            backgroundColor: 'rgba(140,170,60,0.65)', borderColor: 'rgba(140,170,60,0.9)',
+            borderWidth: 1, yAxisID: 'yBar', order: 4
+          },
+          {
+            type: 'line', label: 'Strip test Yield (%)', data: yieldData,
+            borderColor: '#5080c0', backgroundColor: 'rgba(80,128,192,0.08)',
+            borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#5080c0',
+            yAxisID: 'yYield', tension: 0.2, order: 1,
+            pointStyle: 'triangle', spanGaps: false
+          },
+          {
+            type: 'line', label: 'Strip ATY (%)', data: atyData,
+            borderColor: '#b040b0', backgroundColor: 'transparent',
+            borderWidth: 1.5, pointRadius: 0, borderDash: [6,3],
+            yAxisID: 'yYield', tension: 0, order: 2, spanGaps: false
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 10 } } },
+          tooltip: { mode: 'index', intersect: false },
+          annotation: {
+            annotations: {
+              targetLine: {
+                type: 'line', yMin: TARGET, yMax: TARGET, yScaleID: 'yYield',
+                borderColor: '#d94f4f', borderWidth: 1.5, borderDash: [6,3],
+                label: { content: `2026 target ${TARGET}%`, display: true, position: 'end', font: { size: 10 }, color: '#d94f4f', backgroundColor: 'rgba(255,255,255,0.7)' }
+              },
+              // Divider between quarterly and monthly sections
+              dividerLine: {
+                type: 'line', xMin: qCount - 0.5, xMax: qCount - 0.5,
+                borderColor: '#e8d880', borderWidth: 2, borderDash: [4,4],
+                label: { content: '季 ↔ 月', display: true, position: 'start', font: { size: 10 }, color: '#9a7a00', backgroundColor: 'rgba(255,250,220,0.8)' }
+              }
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { font: { size: 10 }, maxRotation: 45 } },
+          yBar: {
+            type: 'linear', position: 'right',
+            title: { display: true, text: 'units (ea)', font: { size: 10 } },
+            grid: { drawOnChartArea: false }, ticks: { font: { size: 10 } }
+          },
+          yYield: {
+            type: 'linear', position: 'left',
+            min: (()=>{
+              const allVals = [...yieldData, ...atyData].filter(v=>v!=null);
+              return allVals.length ? Math.max(70, Math.floor(Math.min(...allVals)) - 2) : 70;
+            })(),
+            max: 102,
+            title: { display: true, text: 'test yield', font: { size: 10 } },
+            ticks: { font: { size: 10 }, callback: v => v.toFixed(0)+'%' },
+            grid: { color: 'rgba(80,128,192,0.08)' }
+          }
+        }
+      }
+    });
+
+    // ── Pareto charts (monthly) ──
+    function makeMonthlyPareto(canvasId, ppmArr, bgColor) {
+      const ctx2 = document.getElementById(canvasId).getContext('2d');
+      const total = ppmArr.reduce((a,b)=>a+b,0);
+      const sorted = paretoKeys.map((k,i)=>({ k, v: ppmArr[i], color: paretoColors[i] }))
+                               .sort((a,b)=>b.v-a.v);
+      const sortedLabels = sorted.map(s=>s.k);
+      const sortedPPM    = sorted.map(s=>s.v);
+      const sortedColors = sorted.map(s=>s.color);
+      let cum = 0;
+      const cumPct = sortedPPM.map(v => { cum += v; return total>0 ? parseFloat((cum/total*100).toFixed(1)) : 0; });
+      return new Chart(ctx2, {
+        data: {
+          labels: sortedLabels,
+          datasets: [
+            {
+              type: 'bar', label: 'Defect rate (PPM)', data: sortedPPM,
+              backgroundColor: sortedColors,
+              borderColor: sortedColors.map(c=>c.replace('0.75','1').replace('0.6','1').replace('0.5','1').replace('0.4','1').replace('0.3','1')),
+              borderWidth: 1, yAxisID: 'yPPM', order: 2
+            },
+            {
+              type: 'line', label: 'Cumulative %', data: cumPct,
+              borderColor: '#27ae60', backgroundColor: 'transparent',
+              borderWidth: 2, pointRadius: 5, pointBackgroundColor: '#27ae60',
+              yAxisID: 'yCum', order: 1
+            }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { font: { size: 10 } } },
+            tooltip: { mode: 'index', intersect: false }
+          },
+          scales: {
+            x: { ticks: { font: { size: 11 } } },
+            yPPM: {
+              type: 'linear', position: 'left',
+              title: { display: true, text: 'Defect rate (PPM)', font: { size: 10 } },
+              ticks: { font: { size: 10 } }, grid: { color: 'rgba(42,106,176,0.08)' }
+            },
+            yCum: {
+              type: 'linear', position: 'right', min: 0, max: 100,
+              title: { display: true, text: 'Cumulative (%)', font: { size: 10 } },
+              ticks: { font: { size: 10 }, callback: v => v+'%' },
+              grid: { drawOnChartArea: false }
+            }
+          }
+        }
+      });
+    }
+
+    chartInstances[p1Id] = makeMonthlyPareto(p1Id, prevPPMArr);
+    chartInstances[p2Id] = makeMonthlyPareto(p2Id, curPPMArr);
+  });
+}
+
+function renderStripAC() {
+  if (reportMode === 'monthly') { renderStripPageMonthly('page5', 'AC'); return; }
+  renderStripPage('page5', 'AC');
+}
+function renderStripCC() {
+  if (reportMode === 'monthly') { renderStripPageMonthly('page6', 'CC'); return; }
+  renderStripPage('page6', 'CC');
+}
+
+// ─── Main Generate ─────────────────────────────────────────────────────────────
+async function generateReport() {
+  if (!dailyData && !ulldData && !stripData) {
+    alert('請先匯入至少一個資料檔案（DailyReport、ULLD_DataBase 或 Strip）。');
+    return;
+  }
+
+  const loadingEl = document.getElementById('loadingOverlay');
+  loadingEl.classList.remove('hidden');
+  await new Promise(r => setTimeout(r, 30));
+
+  try {
+    if (dailyData) {
+      processedTabs = await processData(undefined);
+      loadingEl.classList.remove('hidden');
+      await new Promise(r => setTimeout(r, 20));
+    }
+    renderAllTabs();
+    // 若沒有 DailyReport，自動切到有資料的分頁
+    if (!dailyData && ulldData) {
+      switchTab(4);
+    } else if (!dailyData && !ulldData && stripData) {
+      switchTab(5);
+    }
+  } catch(e) {
+    alert('Error processing data: ' + e.message);
+    console.error(e);
+  } finally {
+    loadingEl.classList.add('hidden');
+  }
+}
+
+function renderAllTabs() {
+  // 35A / 35A_Valeo / 50A / 50A_SEG — each renders independently if DailyReport is loaded
+  TAB_CONFIG.forEach((cfg, i) => {
+    if (!dailyData || !processedTabs) {
+      renderNoData(i, `Import DailyReport + WAT_CP to generate ${cfg.label} report`);
+      return;
+    }
+    const data = processedTabs[cfg.key];
+    if (!data || data.weeks.length === 0) {
+      renderNoData(i, `No data for ${cfg.label}`);
+    } else {
+      renderTabPage(i, data, cfg);
+    }
+  });
+
+  // ULLD tab (index 4) — renders independently if ULLD data is loaded
+  if (ulldData) {
+    renderULLDTab();
+  } else {
+    renderNoData(4, 'Import ULLD_DataBase_xxxx.xls to generate ULLD report');
+  }
+
+  // Strip tabs (index 5 & 6) — render independently if Strip data is loaded
+  if (stripData) {
+    renderStripAC();
+    renderStripCC();
+  } else {
+    renderNoData(5, 'Import StripTest_Summary_*.xlsx via 📊 Strip button to generate Strip AC report');
+    renderNoData(6, 'Import StripTest_Summary_*.xlsx via 📊 Strip button to generate Strip CC report');
+  }
+}
+
+
+// ─── Pre-embedded Strip data (StripTest_Summary_20260515.xlsx, Report Date fallback) ─
+const PRECOMPUTED_STRIP = {"AC":[{"year":2025,"week":1,"dateISO":"2024-12-30","label":"26W1","input":310414,"output":309086,"batches":78,"yield":99.5722,"aty":97.6983,"defects":{"VTH < 1.5V":262,"VTH > 6V":1187,"VFSD":1809,"IPD":97,"BVDSS 2":806}},{"year":2025,"week":2,"dateISO":"2025-01-06","label":"26W2","input":431131,"output":429530,"batches":108,"yield":99.6287,"aty":98.0555,"defects":{"VTH < 1.5V":617,"VTH > 6V":1565,"VFSD":1055,"IPD":244,"BVDSS 2":135}},{"year":2025,"week":3,"dateISO":"2025-01-13","label":"26W3","input":228828,"output":228137,"batches":59,"yield":99.698,"aty":95.3336,"defects":{"VTH < 1.5V":373,"VTH > 6V":1091,"VFSD":1376,"IPD":88,"BVDSS 2":57}},{"year":2025,"week":4,"dateISO":"2025-01-20","label":"26W4","input":308172,"output":306512,"batches":77,"yield":99.4613,"aty":98.1429,"defects":{"VTH < 1.5V":333,"VTH > 6V":1387,"VFSD":2838,"IPD":346,"BVDSS 2":238}},{"year":2025,"week":6,"dateISO":"2025-02-03","label":"26W6","input":681456,"output":676414,"batches":172,"yield":99.2601,"aty":96.9586,"defects":{"VTH < 1.5V":306,"VTH > 6V":2095,"VFSD":4580,"IPD":130,"BVDSS 2":164}},{"year":2025,"week":7,"dateISO":"2025-02-10","label":"26W7","input":345254,"output":343373,"batches":86,"yield":99.4552,"aty":98.4396,"defects":{"VTH < 1.5V":472,"VTH > 6V":1593,"VFSD":2700,"IPD":140,"BVDSS 2":172}},{"year":2025,"week":8,"dateISO":"2025-02-17","label":"26W8","input":287619,"output":286476,"batches":72,"yield":99.6026,"aty":98.0975,"defects":{"VTH < 1.5V":513,"VTH > 6V":1211,"VFSD":1361,"IPD":206,"BVDSS 2":377}},{"year":2025,"week":9,"dateISO":"2025-02-24","label":"26W9","input":372581,"output":370864,"batches":94,"yield":99.5392,"aty":97.2722,"defects":{"VTH < 1.5V":450,"VTH > 6V":1238,"VFSD":2144,"IPD":113,"BVDSS 2":456}},{"year":2025,"week":10,"dateISO":"2025-03-03","label":"26W10","input":568362,"output":566238,"batches":142,"yield":99.6263,"aty":98.3134,"defects":{"VTH < 1.5V":479,"VTH > 6V":1298,"VFSD":874,"IPD":101,"BVDSS 2":908}},{"year":2025,"week":11,"dateISO":"2025-03-10","label":"26W11","input":313753,"output":312313,"batches":78,"yield":99.541,"aty":98.7183,"defects":{"VTH < 1.5V":307,"VTH > 6V":2174,"VFSD":967,"IPD":96,"BVDSS 2":1021}},{"year":2025,"week":12,"dateISO":"2025-03-17","label":"26W12","input":509113,"output":506846,"batches":129,"yield":99.5547,"aty":96.8698,"defects":{"VTH < 1.5V":558,"VTH > 6V":1626,"VFSD":781,"IPD":148,"BVDSS 2":1277}},{"year":2025,"week":13,"dateISO":"2025-03-24","label":"26W13","input":401980,"output":400108,"batches":100,"yield":99.5343,"aty":98.646,"defects":{"VTH < 1.5V":845,"VTH > 6V":1302,"VFSD":760,"IPD":187,"BVDSS 2":1455}},{"year":2025,"week":14,"dateISO":"2025-03-31","label":"26W14","input":270219,"output":269358,"batches":67,"yield":99.6814,"aty":99.119,"defects":{"VTH < 1.5V":572,"VTH > 6V":646,"VFSD":999,"IPD":89,"BVDSS 2":832}},{"year":2025,"week":15,"dateISO":"2025-04-07","label":"26W15","input":394114,"output":392840,"batches":98,"yield":99.6767,"aty":98.8307,"defects":{"VTH < 1.5V":710,"VTH > 6V":1079,"VFSD":588,"IPD":257,"BVDSS 2":537}},{"year":2025,"week":16,"dateISO":"2025-04-14","label":"26W16","input":472104,"output":471108,"batches":117,"yield":99.789,"aty":99.2743,"defects":{"VTH < 1.5V":367,"VTH > 6V":442,"VFSD":191,"IPD":93,"BVDSS 2":987}},{"year":2025,"week":17,"dateISO":"2025-04-21","label":"26W17","input":487614,"output":486096,"batches":121,"yield":99.6887,"aty":99.0464,"defects":{"VTH < 1.5V":307,"VTH > 6V":370,"VFSD":1166,"IPD":72,"BVDSS 2":1177}},{"year":2025,"week":18,"dateISO":"2025-04-28","label":"26W18","input":185727,"output":184071,"batches":46,"yield":99.1084,"aty":98.6574,"defects":{"VTH < 1.5V":375,"VTH > 6V":619,"VFSD":1222,"IPD":65,"BVDSS 2":6699}},{"year":2025,"week":19,"dateISO":"2025-05-05","label":"26W19","input":639681,"output":637698,"batches":160,"yield":99.69,"aty":98.2646,"defects":{"VTH < 1.5V":347,"VTH > 6V":580,"VFSD":326,"IPD":165,"BVDSS 2":1656}},{"year":2025,"week":20,"dateISO":"2025-05-12","label":"26W20","input":516039,"output":514906,"batches":129,"yield":99.7804,"aty":98.4102,"defects":{"VTH < 1.5V":353,"VTH > 6V":530,"VFSD":526,"IPD":111,"BVDSS 2":658}},{"year":2025,"week":21,"dateISO":"2025-05-19","label":"26W21","input":483332,"output":482046,"batches":120,"yield":99.7339,"aty":99.0397,"defects":{"VTH < 1.5V":454,"VTH > 6V":556,"VFSD":1066,"IPD":131,"BVDSS 2":425}},{"year":2025,"week":22,"dateISO":"2025-05-26","label":"26W22","input":397934,"output":396836,"batches":99,"yield":99.7241,"aty":98.8275,"defects":{"VTH < 1.5V":300,"VTH > 6V":756,"VFSD":1353,"IPD":91,"BVDSS 2":252}},{"year":2025,"week":23,"dateISO":"2025-06-02","label":"26W23","input":609383,"output":608269,"batches":152,"yield":99.8172,"aty":98.663,"defects":{"VTH < 1.5V":409,"VTH > 6V":521,"VFSD":677,"IPD":69,"BVDSS 2":184}},{"year":2025,"week":24,"dateISO":"2025-06-09","label":"26W24","input":379919,"output":379635,"batches":95,"yield":99.9252,"aty":98.5246,"defects":{"VTH < 1.5V":237,"VTH > 6V":256,"VFSD":8,"IPD":50,"BVDSS 2":182}},{"year":2025,"week":25,"dateISO":"2025-06-16","label":"26W25","input":346870,"output":346043,"batches":86,"yield":99.7616,"aty":99.205,"defects":{"VTH < 1.5V":549,"VTH > 6V":353,"VFSD":142,"IPD":217,"BVDSS 2":1095}},{"year":2025,"week":26,"dateISO":"2025-06-23","label":"26W26","input":359842,"output":358297,"batches":90,"yield":99.5706,"aty":98.1528,"defects":{"VTH < 1.5V":349,"VTH > 6V":212,"VFSD":167,"IPD":47,"BVDSS 2":3519}},{"year":2025,"week":27,"dateISO":"2025-06-30","label":"26W27","input":523068,"output":520924,"batches":130,"yield":99.5901,"aty":98.7946,"defects":{"VTH < 1.5V":449,"VTH > 6V":328,"VFSD":165,"IPD":146,"BVDSS 2":2997}},{"year":2025,"week":28,"dateISO":"2025-07-07","label":"26W28","input":442124,"output":440702,"batches":111,"yield":99.6784,"aty":97.8868,"defects":{"VTH < 1.5V":456,"VTH > 6V":227,"VFSD":193,"IPD":107,"BVDSS 2":2206}},{"year":2025,"week":29,"dateISO":"2025-07-14","label":"26W29","input":20170,"output":20142,"batches":5,"yield":99.8612,"aty":99.3195,"defects":{"VTH < 1.5V":447,"VTH > 6V":447,"VFSD":199,"IPD":149,"BVDSS 2":149}},{"year":2025,"week":30,"dateISO":"2025-07-21","label":"26W30","input":591186,"output":590213,"batches":147,"yield":99.8354,"aty":98.9905,"defects":{"VTH < 1.5V":413,"VTH > 6V":413,"VFSD":122,"IPD":154,"BVDSS 2":454}},{"year":2025,"week":31,"dateISO":"2025-07-28","label":"26W31","input":447984,"output":447224,"batches":112,"yield":99.8304,"aty":98.4485,"defects":{"VTH < 1.5V":606,"VTH > 6V":698,"VFSD":56,"IPD":141,"BVDSS 2":159}},{"year":2025,"week":32,"dateISO":"2025-08-04","label":"26W32","input":445962,"output":444916,"batches":111,"yield":99.7655,"aty":98.8228,"defects":{"VTH < 1.5V":1072,"VTH > 6V":661,"VFSD":117,"IPD":400,"BVDSS 2":79}},{"year":2025,"week":33,"dateISO":"2025-08-11","label":"26W33","input":61979,"output":61855,"batches":16,"yield":99.7999,"aty":95.314,"defects":{"VTH < 1.5V":598,"VTH > 6V":501,"VFSD":340,"IPD":501,"BVDSS 2":32}},{"year":2025,"week":34,"dateISO":"2025-08-18","label":"26W34","input":445090,"output":444136,"batches":111,"yield":99.7857,"aty":98.6495,"defects":{"VTH < 1.5V":878,"VTH > 6V":718,"VFSD":52,"IPD":360,"BVDSS 2":104}},{"year":2025,"week":35,"dateISO":"2025-08-25","label":"26W35","input":526242,"output":525173,"batches":131,"yield":99.7969,"aty":98.8401,"defects":{"VTH < 1.5V":889,"VTH > 6V":790,"VFSD":51,"IPD":158,"BVDSS 2":112}},{"year":2025,"week":36,"dateISO":"2025-09-01","label":"26W36","input":404103,"output":403365,"batches":101,"yield":99.8174,"aty":98.4643,"defects":{"VTH < 1.5V":424,"VTH > 6V":731,"VFSD":154,"IPD":206,"BVDSS 2":295}},{"year":2025,"week":37,"dateISO":"2025-09-08","label":"26W37","input":518831,"output":517546,"batches":129,"yield":99.7523,"aty":98.9148,"defects":{"VTH < 1.5V":508,"VTH > 6V":663,"VFSD":228,"IPD":278,"BVDSS 2":786}},{"year":2025,"week":38,"dateISO":"2025-09-15","label":"26W38","input":188352,"output":187789,"batches":47,"yield":99.7011,"aty":98.5086,"defects":{"VTH < 1.5V":559,"VTH > 6V":554,"VFSD":138,"IPD":154,"BVDSS 2":1571}},{"year":2025,"week":39,"dateISO":"2025-09-22","label":"26W39","input":96910,"output":96637,"batches":24,"yield":99.7183,"aty":99.2737,"defects":{"VTH < 1.5V":1190,"VTH > 6V":559,"VFSD":217,"IPD":424,"BVDSS 2":414}},{"year":2025,"week":40,"dateISO":"2025-09-29","label":"26W40","input":342574,"output":341058,"batches":85,"yield":99.5575,"aty":98.9262,"defects":{"VTH < 1.5V":1363,"VTH > 6V":625,"VFSD":199,"IPD":560,"BVDSS 2":1680}},{"year":2025,"week":41,"dateISO":"2025-10-06","label":"26W41","input":505361,"output":502177,"batches":126,"yield":99.37,"aty":98.2626,"defects":{"VTH < 1.5V":3079,"VTH > 6V":1165,"VFSD":68,"IPD":739,"BVDSS 2":1276}},{"year":2025,"week":42,"dateISO":"2025-10-13","label":"26W42","input":530452,"output":526587,"batches":136,"yield":99.2714,"aty":95.4626,"defects":{"VTH < 1.5V":5275,"VTH > 6V":743,"VFSD":93,"IPD":613,"BVDSS 2":610}},{"year":2025,"week":43,"dateISO":"2025-10-20","label":"26W43","input":393139,"output":391792,"batches":99,"yield":99.6574,"aty":97.5714,"defects":{"VTH < 1.5V":1613,"VTH > 6V":459,"VFSD":120,"IPD":533,"BVDSS 2":735}},{"year":2025,"week":44,"dateISO":"2025-10-27","label":"26W44","input":151984,"output":151173,"batches":38,"yield":99.4664,"aty":98.0828,"defects":{"VTH < 1.5V":3751,"VTH > 6V":807,"VFSD":73,"IPD":463,"BVDSS 2":324}},{"year":2025,"week":45,"dateISO":"2025-11-03","label":"26W45","input":426712,"output":424586,"batches":110,"yield":99.5018,"aty":95.1645,"defects":{"VTH < 1.5V":2916,"VTH > 6V":1013,"VFSD":203,"IPD":370,"BVDSS 2":480}},{"year":2025,"week":46,"dateISO":"2025-11-10","label":"26W46","input":478002,"output":475402,"batches":119,"yield":99.4561,"aty":98.4954,"defects":{"VTH < 1.5V":3523,"VTH > 6V":879,"VFSD":158,"IPD":351,"BVDSS 2":536}},{"year":2025,"week":47,"dateISO":"2025-11-17","label":"26W47","input":185726,"output":185269,"batches":46,"yield":99.7539,"aty":99.2995,"defects":{"VTH < 1.5V":702,"VTH > 6V":1117,"VFSD":297,"IPD":76,"BVDSS 2":270}},{"year":2025,"week":48,"dateISO":"2025-11-24","label":"26W48","input":322698,"output":322116,"batches":80,"yield":99.8196,"aty":99.2714,"defects":{"VTH < 1.5V":447,"VTH > 6V":714,"VFSD":140,"IPD":96,"BVDSS 2":413}},{"year":2025,"week":49,"dateISO":"2025-12-01","label":"26W49","input":321732,"output":320397,"batches":80,"yield":99.5851,"aty":98.7417,"defects":{"VTH < 1.5V":718,"VTH > 6V":771,"VFSD":456,"IPD":156,"BVDSS 2":2022}},{"year":2025,"week":50,"dateISO":"2025-12-08","label":"26W50","input":302166,"output":301256,"batches":75,"yield":99.6988,"aty":99.0322,"defects":{"VTH < 1.5V":1321,"VTH > 6V":534,"VFSD":266,"IPD":186,"BVDSS 2":687}},{"year":2025,"week":51,"dateISO":"2025-12-15","label":"26W51","input":267543,"output":266858,"batches":67,"yield":99.744,"aty":98.1991,"defects":{"VTH < 1.5V":416,"VTH > 6V":768,"VFSD":221,"IPD":112,"BVDSS 2":1027}},{"year":2025,"week":52,"dateISO":"2025-12-22","label":"26W52","input":354252,"output":353535,"batches":88,"yield":99.7976,"aty":99.0494,"defects":{"VTH < 1.5V":402,"VTH > 6V":639,"VFSD":308,"IPD":99,"BVDSS 2":569}},{"year":2026,"week":1,"dateISO":"2025-12-29","label":"26W1","input":369172,"output":368240,"batches":92,"yield":99.7475,"aty":98.6836,"defects":{"VTH < 1.5V":358,"VTH > 6V":725,"VFSD":394,"IPD":133,"BVDSS 2":918}},{"year":2026,"week":2,"dateISO":"2026-01-05","label":"26W2","input":509995,"output":508129,"batches":127,"yield":99.6341,"aty":98.6444,"defects":{"VTH < 1.5V":313,"VTH > 6V":943,"VFSD":762,"IPD":104,"BVDSS 2":1527}},{"year":2026,"week":3,"dateISO":"2026-01-12","label":"26W3","input":91814,"output":90830,"batches":23,"yield":98.9283,"aty":97.3651,"defects":{"VTH < 1.5V":165,"VTH > 6V":738,"VFSD":473,"IPD":44,"BVDSS 2":5395}},{"year":2026,"week":4,"dateISO":"2026-01-19","label":"26W4","input":8089,"output":8073,"batches":2,"yield":99.8022,"aty":99.5192,"defects":{"VTH < 1.5V":124,"VTH > 6V":372,"VFSD":0,"IPD":0,"BVDSS 2":867}},{"year":2026,"week":5,"dateISO":"2026-01-26","label":"26W5","input":176124,"output":174807,"batches":44,"yield":99.2522,"aty":97.9508,"defects":{"VTH < 1.5V":538,"VTH > 6V":749,"VFSD":469,"IPD":200,"BVDSS 2":2935}},{"year":2026,"week":6,"dateISO":"2026-02-02","label":"26W6","input":342112,"output":339403,"batches":85,"yield":99.2082,"aty":98.4462,"defects":{"VTH < 1.5V":654,"VTH > 6V":678,"VFSD":451,"IPD":130,"BVDSS 2":3344}},{"year":2026,"week":7,"dateISO":"2026-02-09","label":"26W7","input":205275,"output":203533,"batches":52,"yield":99.1514,"aty":96.5014,"defects":{"VTH < 1.5V":260,"VTH > 6V":1061,"VFSD":501,"IPD":103,"BVDSS 2":3773}},{"year":2026,"week":9,"dateISO":"2026-02-23","label":"26W9","input":575277,"output":561910,"batches":143,"yield":97.6764,"aty":96.8797,"defects":{"VTH < 1.5V":9886,"VTH > 6V":949,"VFSD":486,"IPD":198,"BVDSS 2":2698}},{"year":2026,"week":10,"dateISO":"2026-03-02","label":"26W10","input":644572,"output":635817,"batches":161,"yield":98.6417,"aty":97.3662,"defects":{"VTH < 1.5V":3683,"VTH > 6V":1373,"VFSD":425,"IPD":197,"BVDSS 2":2350}},{"year":2026,"week":11,"dateISO":"2026-03-09","label":"26W11","input":578000,"output":566851,"batches":145,"yield":98.0711,"aty":96.3836,"defects":{"VTH < 1.5V":4952,"VTH > 6V":1625,"VFSD":1032,"IPD":178,"BVDSS 2":3488}},{"year":2026,"week":12,"dateISO":"2026-03-16","label":"26W12","input":325884,"output":322981,"batches":81,"yield":99.1092,"aty":98.3092,"defects":{"VTH < 1.5V":1229,"VTH > 6V":1310,"VFSD":697,"IPD":130,"BVDSS 2":3201}},{"year":2026,"week":13,"dateISO":"2026-03-23","label":"26W13","input":291512,"output":289703,"batches":72,"yield":99.3794,"aty":99.2025,"defects":{"VTH < 1.5V":4346,"VTH > 6V":677,"VFSD":266,"IPD":186,"BVDSS 2":1029}},{"year":2026,"week":14,"dateISO":"2026-03-30","label":"26W14","input":286678,"output":285184,"batches":72,"yield":99.4789,"aty":97.6551,"defects":{"VTH < 1.5V":3791,"VTH > 6V":540,"VFSD":60,"IPD":196,"BVDSS 2":691}},{"year":2026,"week":15,"dateISO":"2026-04-06","label":"26W15","input":268660,"output":267755,"batches":67,"yield":99.6631,"aty":98.5292,"defects":{"VTH < 1.5V":814,"VTH > 6V":512,"VFSD":220,"IPD":194,"BVDSS 2":2416}},{"year":2026,"week":16,"dateISO":"2026-04-13","label":"26W16","input":289389,"output":287864,"batches":72,"yield":99.473,"aty":98.5728,"defects":{"VTH < 1.5V":1282,"VTH > 6V":563,"VFSD":101,"IPD":104,"BVDSS 2":4579}},{"year":2026,"week":17,"dateISO":"2026-04-20","label":"26W17","input":213209,"output":211291,"batches":53,"yield":99.1004,"aty":98.2895,"defects":{"VTH < 1.5V":6678,"VTH > 6V":454,"VFSD":279,"IPD":213,"BVDSS 2":2281}},{"year":2026,"week":18,"dateISO":"2026-04-27","label":"26W18","input":364627,"output":363255,"batches":91,"yield":99.6237,"aty":98.4175,"defects":{"VTH < 1.5V":644,"VTH > 6V":551,"VFSD":176,"IPD":129,"BVDSS 2":3350}},{"year":2026,"week":19,"dateISO":"2026-05-04","label":"26W19","input":669651,"output":665072,"batches":168,"yield":99.3162,"aty":97.6026,"defects":{"VTH < 1.5V":848,"VTH > 6V":818,"VFSD":370,"IPD":616,"BVDSS 2":5363}},{"year":2026,"week":20,"dateISO":"2026-05-11","label":"26W20","input":277408,"output":275894,"batches":69,"yield":99.4542,"aty":98.5815,"defects":{"VTH < 1.5V":275,"VTH > 6V":855,"VFSD":671,"IPD":953,"BVDSS 2":5680}}],"CC":[{"year":2025,"week":1,"dateISO":"2024-12-30","label":"26W1","input":333269,"output":331772,"batches":83,"yield":99.5508,"aty":98.5516,"defects":{"IDSS":169,"VTH > 6V":1860,"VTH < 1.5V":437,"IPD":127,"BVDSS 2":286}},{"year":2025,"week":2,"dateISO":"2025-01-06","label":"26W2","input":339527,"output":338255,"batches":85,"yield":99.6254,"aty":98.1132,"defects":{"IDSS":30,"VTH > 6V":2108,"VTH < 1.5V":234,"IPD":103,"BVDSS 2":95}},{"year":2025,"week":3,"dateISO":"2025-01-13","label":"26W3","input":395449,"output":394072,"batches":99,"yield":99.6518,"aty":98.1392,"defects":{"IDSS":43,"VTH > 6V":1540,"VTH < 1.5V":406,"IPD":129,"BVDSS 2":91}},{"year":2025,"week":4,"dateISO":"2025-01-20","label":"26W4","input":392222,"output":389595,"batches":98,"yield":99.3302,"aty":98.0143,"defects":{"IDSS":226,"VTH > 6V":2115,"VTH < 1.5V":667,"IPD":462,"BVDSS 2":259}},{"year":2025,"week":6,"dateISO":"2025-02-03","label":"26W6","input":551441,"output":547288,"batches":138,"yield":99.2469,"aty":97.7775,"defects":{"IDSS":93,"VTH > 6V":2640,"VTH < 1.5V":358,"IPD":305,"BVDSS 2":250}},{"year":2025,"week":7,"dateISO":"2025-02-10","label":"26W7","input":380090,"output":377762,"batches":96,"yield":99.3875,"aty":97.0173,"defects":{"IDSS":48,"VTH > 6V":2504,"VTH < 1.5V":389,"IPD":177,"BVDSS 2":161}},{"year":2025,"week":8,"dateISO":"2025-02-17","label":"26W8","input":272750,"output":271598,"batches":70,"yield":99.5776,"aty":95.66,"defects":{"IDSS":44,"VTH > 6V":2095,"VTH < 1.5V":236,"IPD":122,"BVDSS 2":320}},{"year":2025,"week":9,"dateISO":"2025-02-24","label":"26W9","input":361545,"output":359766,"batches":91,"yield":99.5079,"aty":97.4722,"defects":{"IDSS":31,"VTH > 6V":2213,"VTH < 1.5V":114,"IPD":75,"BVDSS 2":359}},{"year":2025,"week":10,"dateISO":"2025-03-03","label":"26W10","input":529080,"output":526619,"batches":132,"yield":99.5349,"aty":98.3614,"defects":{"IDSS":46,"VTH > 6V":2229,"VTH < 1.5V":311,"IPD":127,"BVDSS 2":856}},{"year":2025,"week":11,"dateISO":"2025-03-10","label":"26W11","input":402773,"output":400538,"batches":100,"yield":99.4451,"aty":98.752,"defects":{"IDSS":40,"VTH > 6V":2756,"VTH < 1.5V":255,"IPD":75,"BVDSS 2":1241}},{"year":2025,"week":12,"dateISO":"2025-03-17","label":"26W12","input":482251,"output":479892,"batches":121,"yield":99.5108,"aty":97.7823,"defects":{"IDSS":54,"VTH > 6V":2705,"VTH < 1.5V":398,"IPD":98,"BVDSS 2":777}},{"year":2025,"week":13,"dateISO":"2025-03-24","label":"26W13","input":386608,"output":384638,"batches":96,"yield":99.4904,"aty":98.7832,"defects":{"IDSS":86,"VTH > 6V":2392,"VTH < 1.5V":455,"IPD":127,"BVDSS 2":1219}},{"year":2025,"week":14,"dateISO":"2025-03-31","label":"26W14","input":313624,"output":312081,"batches":78,"yield":99.508,"aty":98.6449,"defects":{"IDSS":115,"VTH > 6V":1891,"VTH < 1.5V":260,"IPD":154,"BVDSS 2":1589}},{"year":2025,"week":15,"dateISO":"2025-04-07","label":"26W15","input":419498,"output":417951,"batches":105,"yield":99.6312,"aty":98.1382,"defects":{"IDSS":45,"VTH > 6V":1881,"VTH < 1.5V":242,"IPD":165,"BVDSS 2":720}},{"year":2025,"week":16,"dateISO":"2025-04-14","label":"26W16","input":397939,"output":396760,"batches":99,"yield":99.7037,"aty":98.8086,"defects":{"IDSS":53,"VTH > 6V":1631,"VTH < 1.5V":151,"IPD":81,"BVDSS 2":716}},{"year":2025,"week":17,"dateISO":"2025-04-21","label":"26W17","input":374449,"output":373017,"batches":94,"yield":99.6176,"aty":97.8369,"defects":{"IDSS":35,"VTH > 6V":1193,"VTH < 1.5V":97,"IPD":113,"BVDSS 2":1217}},{"year":2025,"week":18,"dateISO":"2025-04-28","label":"26W18","input":410018,"output":406749,"batches":102,"yield":99.2027,"aty":98.3169,"defects":{"IDSS":15,"VTH > 6V":1758,"VTH < 1.5V":125,"IPD":76,"BVDSS 2":5030}},{"year":2025,"week":19,"dateISO":"2025-05-05","label":"26W19","input":476258,"output":473827,"batches":119,"yield":99.4896,"aty":98.1691,"defects":{"IDSS":27,"VTH > 6V":1847,"VTH < 1.5V":342,"IPD":76,"BVDSS 2":2457}},{"year":2025,"week":20,"dateISO":"2025-05-12","label":"26W20","input":481020,"output":479806,"batches":120,"yield":99.7476,"aty":98.5795,"defects":{"IDSS":56,"VTH > 6V":1207,"VTH < 1.5V":200,"IPD":85,"BVDSS 2":515}},{"year":2025,"week":21,"dateISO":"2025-05-19","label":"26W21","input":382048,"output":379893,"batches":96,"yield":99.4359,"aty":97.5646,"defects":{"IDSS":108,"VTH > 6V":1561,"VTH < 1.5V":2264,"IPD":395,"BVDSS 2":419}},{"year":2025,"week":22,"dateISO":"2025-05-26","label":"26W22","input":401512,"output":400144,"batches":100,"yield":99.6593,"aty":98.6548,"defects":{"IDSS":22,"VTH > 6V":1472,"VTH < 1.5V":225,"IPD":75,"BVDSS 2":445}},{"year":2025,"week":23,"dateISO":"2025-06-02","label":"26W23","input":453838,"output":452772,"batches":113,"yield":99.7651,"aty":98.7878,"defects":{"IDSS":9,"VTH > 6V":1144,"VTH < 1.5V":192,"IPD":57,"BVDSS 2":289}},{"year":2025,"week":24,"dateISO":"2025-06-09","label":"26W24","input":502859,"output":501929,"batches":126,"yield":99.8151,"aty":98.2141,"defects":{"IDSS":159,"VTH > 6V":751,"VTH < 1.5V":189,"IPD":546,"BVDSS 2":193}},{"year":2025,"week":25,"dateISO":"2025-06-16","label":"26W25","input":659194,"output":657848,"batches":166,"yield":99.7958,"aty":97.7056,"defects":{"IDSS":29,"VTH > 6V":804,"VTH < 1.5V":230,"IPD":109,"BVDSS 2":768}},{"year":2025,"week":26,"dateISO":"2025-06-23","label":"26W26","input":368817,"output":366809,"batches":93,"yield":99.4556,"aty":97.2432,"defects":{"IDSS":237,"VTH > 6V":984,"VTH < 1.5V":314,"IPD":545,"BVDSS 2":3154}},{"year":2025,"week":27,"dateISO":"2025-06-30","label":"26W27","input":425938,"output":423718,"batches":106,"yield":99.4788,"aty":98.5537,"defects":{"IDSS":19,"VTH > 6V":1331,"VTH < 1.5V":219,"IPD":85,"BVDSS 2":3342}},{"year":2025,"week":28,"dateISO":"2025-07-07","label":"26W28","input":485104,"output":483153,"batches":121,"yield":99.5978,"aty":98.4467,"defects":{"IDSS":91,"VTH > 6V":1354,"VTH < 1.5V":348,"IPD":141,"BVDSS 2":1848}},{"year":2025,"week":29,"dateISO":"2025-07-14","label":"26W29","input":325305,"output":324352,"batches":81,"yield":99.707,"aty":98.7265,"defects":{"IDSS":154,"VTH > 6V":1597,"VTH < 1.5V":361,"IPD":182,"BVDSS 2":438}},{"year":2025,"week":30,"dateISO":"2025-07-21","label":"26W30","input":281481,"output":280583,"batches":70,"yield":99.681,"aty":98.8247,"defects":{"IDSS":64,"VTH > 6V":1896,"VTH < 1.5V":417,"IPD":203,"BVDSS 2":499}},{"year":2025,"week":31,"dateISO":"2025-07-28","label":"26W31","input":349321,"output":348324,"batches":87,"yield":99.7146,"aty":98.7111,"defects":{"IDSS":29,"VTH > 6V":1780,"VTH < 1.5V":382,"IPD":175,"BVDSS 2":405}},{"year":2025,"week":32,"dateISO":"2025-08-04","label":"26W32","input":332283,"output":331489,"batches":83,"yield":99.761,"aty":98.4675,"defects":{"IDSS":18,"VTH > 6V":1587,"VTH < 1.5V":365,"IPD":136,"BVDSS 2":91}},{"year":2025,"week":33,"dateISO":"2025-08-11","label":"26W33","input":48487,"output":48383,"batches":12,"yield":99.7855,"aty":99.4062,"defects":{"IDSS":21,"VTH > 6V":1405,"VTH < 1.5V":310,"IPD":41,"BVDSS 2":21}},{"year":2025,"week":34,"dateISO":"2025-08-18","label":"26W34","input":484551,"output":483129,"batches":121,"yield":99.7065,"aty":98.4419,"defects":{"IDSS":17,"VTH > 6V":1457,"VTH < 1.5V":898,"IPD":381,"BVDSS 2":108}},{"year":2025,"week":35,"dateISO":"2025-08-25","label":"26W35","input":329955,"output":329189,"batches":82,"yield":99.7678,"aty":98.9768,"defects":{"IDSS":3,"VTH > 6V":1294,"VTH < 1.5V":519,"IPD":197,"BVDSS 2":255}},{"year":2025,"week":36,"dateISO":"2025-09-01","label":"26W36","input":241627,"output":240914,"batches":61,"yield":99.7049,"aty":97.372,"defects":{"IDSS":29,"VTH > 6V":1461,"VTH < 1.5V":760,"IPD":428,"BVDSS 2":66}},{"year":2025,"week":37,"dateISO":"2025-09-08","label":"26W37","input":364743,"output":363841,"batches":91,"yield":99.7527,"aty":98.5763,"defects":{"IDSS":22,"VTH > 6V":1388,"VTH < 1.5V":473,"IPD":236,"BVDSS 2":143}},{"year":2025,"week":38,"dateISO":"2025-09-15","label":"26W38","input":399042,"output":398200,"batches":99,"yield":99.789,"aty":99.1672,"defects":{"IDSS":15,"VTH > 6V":972,"VTH < 1.5V":427,"IPD":151,"BVDSS 2":359}},{"year":2025,"week":39,"dateISO":"2025-09-22","label":"26W39","input":645435,"output":643001,"batches":162,"yield":99.6229,"aty":97.8585,"defects":{"IDSS":22,"VTH > 6V":1602,"VTH < 1.5V":854,"IPD":308,"BVDSS 2":876}},{"year":2025,"week":40,"dateISO":"2025-09-29","label":"26W40","input":385389,"output":383058,"batches":96,"yield":99.3952,"aty":98.3774,"defects":{"IDSS":8,"VTH > 6V":1109,"VTH < 1.5V":3057,"IPD":663,"BVDSS 2":1078}},{"year":2025,"week":41,"dateISO":"2025-10-06","label":"26W41","input":180449,"output":179008,"batches":45,"yield":99.2014,"aty":98.0758,"defects":{"IDSS":17,"VTH > 6V":1810,"VTH < 1.5V":4045,"IPD":1056,"BVDSS 2":1056}},{"year":2025,"week":42,"dateISO":"2025-10-13","label":"26W42","input":428486,"output":425928,"batches":107,"yield":99.403,"aty":98.1419,"defects":{"IDSS":5,"VTH > 6V":1641,"VTH < 1.5V":3012,"IPD":477,"BVDSS 2":742}},{"year":2025,"week":43,"dateISO":"2025-10-20","label":"26W43","input":314923,"output":313554,"batches":78,"yield":99.5653,"aty":99.1105,"defects":{"IDSS":16,"VTH > 6V":1186,"VTH < 1.5V":1776,"IPD":593,"BVDSS 2":705}},{"year":2025,"week":44,"dateISO":"2025-10-27","label":"26W44","input":685004,"output":680874,"batches":171,"yield":99.3971,"aty":98.1686,"defects":{"IDSS":22,"VTH > 6V":1724,"VTH < 1.5V":3426,"IPD":429,"BVDSS 2":419}},{"year":2025,"week":45,"dateISO":"2025-11-03","label":"26W45","input":434200,"output":431249,"batches":110,"yield":99.3204,"aty":96.6579,"defects":{"IDSS":65,"VTH > 6V":1839,"VTH < 1.5V":3917,"IPD":378,"BVDSS 2":417}},{"year":2025,"week":46,"dateISO":"2025-11-10","label":"26W46","input":407721,"output":405802,"batches":103,"yield":99.5293,"aty":97.1357,"defects":{"IDSS":20,"VTH > 6V":1848,"VTH < 1.5V":1747,"IPD":266,"BVDSS 2":525}},{"year":2025,"week":47,"dateISO":"2025-11-17","label":"26W47","input":145308,"output":143559,"batches":36,"yield":98.7963,"aty":98.3173,"defects":{"IDSS":111,"VTH > 6V":1679,"VTH < 1.5V":7119,"IPD":104,"BVDSS 2":2724}},{"year":2025,"week":48,"dateISO":"2025-11-24","label":"26W48","input":273573,"output":272949,"batches":68,"yield":99.7719,"aty":98.9634,"defects":{"IDSS":4,"VTH > 6V":1656,"VTH < 1.5V":216,"IPD":33,"BVDSS 2":260}},{"year":2025,"week":49,"dateISO":"2025-12-01","label":"26W49","input":293706,"output":292195,"batches":73,"yield":99.4855,"aty":98.6852,"defects":{"IDSS":27,"VTH > 6V":1571,"VTH < 1.5V":2187,"IPD":181,"BVDSS 2":811}},{"year":2025,"week":50,"dateISO":"2025-12-08","label":"26W50","input":315478,"output":314277,"batches":79,"yield":99.6193,"aty":98.0816,"defects":{"IDSS":25,"VTH > 6V":1986,"VTH < 1.5V":150,"IPD":54,"BVDSS 2":1088}},{"year":2025,"week":51,"dateISO":"2025-12-15","label":"26W51","input":340866,"output":339965,"batches":85,"yield":99.7357,"aty":98.6092,"defects":{"IDSS":6,"VTH > 6V":1538,"VTH < 1.5V":206,"IPD":68,"BVDSS 2":509}},{"year":2025,"week":52,"dateISO":"2025-12-22","label":"26W52","input":280659,"output":279942,"batches":70,"yield":99.7445,"aty":98.5989,"defects":{"IDSS":4,"VTH > 6V":1250,"VTH < 1.5V":175,"IPD":43,"BVDSS 2":679}},{"year":2026,"week":1,"dateISO":"2025-12-29","label":"26W1","input":23995,"output":23888,"batches":6,"yield":99.5541,"aty":98.1591,"defects":{"IDSS":0,"VTH > 6V":1047,"VTH < 1.5V":209,"IPD":84,"BVDSS 2":1884}},{"year":2026,"week":2,"dateISO":"2026-01-05","label":"26W2","input":183250,"output":181844,"batches":46,"yield":99.2327,"aty":97.4638,"defects":{"IDSS":11,"VTH > 6V":1325,"VTH < 1.5V":4845,"IPD":126,"BVDSS 2":874}},{"year":2026,"week":3,"dateISO":"2026-01-12","label":"26W3","input":778244,"output":773163,"batches":195,"yield":99.3471,"aty":97.7549,"defects":{"IDSS":4,"VTH > 6V":1410,"VTH < 1.5V":193,"IPD":84,"BVDSS 2":1326}},{"year":2026,"week":4,"dateISO":"2026-01-19","label":"26W4","input":139970,"output":139057,"batches":35,"yield":99.3477,"aty":97.9551,"defects":{"IDSS":14,"VTH > 6V":1489,"VTH < 1.5V":137,"IPD":79,"BVDSS 2":1215}},{"year":2026,"week":5,"dateISO":"2026-01-26","label":"26W5","input":153323,"output":152017,"batches":38,"yield":99.1482,"aty":98.6304,"defects":{"IDSS":0,"VTH > 6V":1934,"VTH < 1.5V":211,"IPD":72,"BVDSS 2":2460}},{"year":2026,"week":6,"dateISO":"2026-02-02","label":"26W6","input":519955,"output":515574,"batches":130,"yield":99.1574,"aty":97.7799,"defects":{"IDSS":33,"VTH > 6V":1775,"VTH < 1.5V":194,"IPD":85,"BVDSS 2":2783}},{"year":2026,"week":7,"dateISO":"2026-02-09","label":"26W7","input":531859,"output":525842,"batches":132,"yield":98.8687,"aty":98.2163,"defects":{"IDSS":46,"VTH > 6V":1712,"VTH < 1.5V":842,"IPD":160,"BVDSS 2":3682}},{"year":2026,"week":9,"dateISO":"2026-02-23","label":"26W9","input":76740,"output":75710,"batches":19,"yield":98.6578,"aty":98.243,"defects":{"IDSS":0,"VTH > 6V":1413,"VTH < 1.5V":330,"IPD":40,"BVDSS 2":5389}},{"year":2026,"week":10,"dateISO":"2026-03-02","label":"26W10","input":221770,"output":217419,"batches":56,"yield":98.0381,"aty":95.7219,"defects":{"IDSS":230,"VTH > 6V":1821,"VTH < 1.5V":7359,"IPD":193,"BVDSS 2":1099}},{"year":2026,"week":11,"dateISO":"2026-03-09","label":"26W11","input":165155,"output":162852,"batches":41,"yield":98.6056,"aty":97.929,"defects":{"IDSS":37,"VTH > 6V":1990,"VTH < 1.5V":233,"IPD":92,"BVDSS 2":5563}},{"year":2026,"week":12,"dateISO":"2026-03-16","label":"26W12","input":478904,"output":473996,"batches":119,"yield":98.9752,"aty":98.2041,"defects":{"IDSS":99,"VTH > 6V":1447,"VTH < 1.5V":3101,"IPD":114,"BVDSS 2":3196}},{"year":2026,"week":13,"dateISO":"2026-03-23","label":"26W13","input":607002,"output":602737,"batches":151,"yield":99.2974,"aty":98.4131,"defects":{"IDSS":86,"VTH > 6V":1083,"VTH < 1.5V":4982,"IPD":216,"BVDSS 2":876}},{"year":2026,"week":14,"dateISO":"2026-03-30","label":"26W14","input":377578,"output":375850,"batches":94,"yield":99.5423,"aty":98.58,"defects":{"IDSS":74,"VTH > 6V":641,"VTH < 1.5V":3105,"IPD":146,"BVDSS 2":809}},{"year":2026,"week":15,"dateISO":"2026-04-06","label":"26W15","input":448530,"output":446215,"batches":112,"yield":99.4839,"aty":98.2264,"defects":{"IDSS":29,"VTH > 6V":740,"VTH < 1.5V":3218,"IPD":182,"BVDSS 2":1593}},{"year":2026,"week":16,"dateISO":"2026-04-13","label":"26W16","input":353912,"output":352750,"batches":88,"yield":99.6717,"aty":98.8295,"defects":{"IDSS":9,"VTH > 6V":590,"VTH < 1.5V":235,"IPD":74,"BVDSS 2":3637}},{"year":2026,"week":17,"dateISO":"2026-04-20","label":"26W17","input":228462,"output":227764,"batches":57,"yield":99.6945,"aty":98.5172,"defects":{"IDSS":9,"VTH > 6V":689,"VTH < 1.5V":426,"IPD":75,"BVDSS 2":2178}},{"year":2026,"week":18,"dateISO":"2026-04-27","label":"26W18","input":293139,"output":291824,"batches":75,"yield":99.5514,"aty":95.9316,"defects":{"IDSS":134,"VTH > 6V":1330,"VTH < 1.5V":391,"IPD":425,"BVDSS 2":3297}},{"year":2026,"week":19,"dateISO":"2026-05-04","label":"26W19","input":645294,"output":642481,"batches":163,"yield":99.5641,"aty":97.1795,"defects":{"IDSS":935,"VTH > 6V":830,"VTH < 1.5V":356,"IPD":389,"BVDSS 2":4237}},{"year":2026,"week":20,"dateISO":"2026-05-11","label":"26W20","input":244157,"output":242442,"batches":61,"yield":99.2976,"aty":97.9896,"defects":{"IDSS":2681,"VTH > 6V":965,"VTH < 1.5V":243,"IPD":1048,"BVDSS 2":5968}}]};
+
+function loadPrecomputedStrip() {
+  const rows = [];
+  ['AC','CC'].forEach(type => {
+    PRECOMPUTED_STRIP[type].forEach(wkData => {
+      // Reconstruct a synthetic row for computeStripData
+      const dateStr = wkData.dateISO.replace(/-/g,'').slice(0,8) + '-00:0000';
+      const row = {
+        'Test Date/ Time': dateStr,
+        'Report Date': wkData.dateISO,
+        'Lot No.': `SYN_W${wkData.week}${type}`,
+        'Input':  wkData.input,
+        'Output': wkData.output,
+        'Yield':  wkData.output / wkData.input,
+        '_batches': wkData.batches,
+      };
+      // Defects: convert PPM back to counts (ppm = count/output*1e6)
+      const colMap = {
+        'BVDSS':      [['BVDSS 2', 1], ['BVDSS 1', 0]],
+        'VTH < 1.5V': [['VTH < 1.5 V', 1]],
+        'VTH > 6V':   [['VTH > 6 V', 1]],
+        'VFSD':       [['VFSD', 1]],
+        'IPD':        [['IPD-10V', 1]],
+        'IDSS':       [['IDSS1', 0.34], ['IDSS2', 0.33], ['IDSS3', 0.33]],
+      };
+      Object.entries(wkData.defects).forEach(([k, ppm]) => {
+        const totalCount = Math.round(ppm * wkData.output / 1e6);
+        const cols = colMap[k] || [];
+        cols.forEach(([col, frac]) => { row[col] = Math.round(totalCount * frac); });
+      });
+      rows.push(row);
+    });
+  });
+  return rows;
+}
+
+// ─── localStorage Persistence (store aggregated summaries, not raw rows) ──────
+const STORAGE_KEY = 'cpYieldReport_v12';
+
+// Aggregate Strip raw rows → compact weekly summaries for storage
+function buildStripSummary(rows, type) {
+  const { monthlyPts, weeklyPts } = computeStripData(rows, type);
+  return [...monthlyPts, ...weeklyPts].map(p => ({
+    lbl: p.label, tp: p._gap ? 'gap' : (p.wkKey ? 'W' : 'M'),
+    inp: p.totalInput||0, out: p.totalOutput||0, bat: p.batches||0,
+    yld: p.yield, aty: p.aty, def: p.defects||{},
+    yr:  p.year, wk: p.week, wkKey: p.wkKey
+  }));
+}
+
+// Aggregate DailyReport rows → compact weekly summaries per TAB
+function buildCPSummary() {
+  if (!processedTabs) return null;
+  const out = {};
+  TAB_CONFIG.forEach(cfg => {
+    const d = processedTabs[cfg.key];
+    if (!d) return;
+    const paretoKeys = ['dir0','vz0','ir0','dvz','aoi','gdbc','vf0','vf1'];
+    out[cfg.key] = {
+      months: d.months.map(m => ({
+        lbl:m.label, inp:m.inputSum, cpY:m.cpYield, finY:m.finalYield,
+        edgY:m.edgeYield, gain:m.gainDie, totalDie:m.totalDie,
+        ...Object.fromEntries(paretoKeys.map(k=>[k,m[k]||0]))
+      })),
+      weeks: d.weeks.map(w => ({
+        lbl:w.label, yr:w.year, wk:w.week,
+        inp:w.inputSum, cpY:w.cpYield, finY:w.finalYield,
+        edgY:w.edgeYield, gain:w.gainDie, totalDie:w.totalDie,
+        ...Object.fromEntries(paretoKeys.map(k=>[k,w[k]||0]))
+      }))
+    };
+  });
+  return out;
+}
+
+// ─── Build full raw payload for JSON file ────────────────────────────────────
+function buildJSONPayload() {
+  const STRIP_KEEP = ['Lot No.','Test Date/ Time','Report Date','Input','Output','_batches',
+    'BVDSS 2','BVDSS 1','VTH < 1.5 V','VTH > 6 V','VFSD','IPD-10V','IDSS1','IDSS2','IDSS3'];
+  const stripRaw = (stripData||[]).map(r =>
+    Object.fromEntries(STRIP_KEEP.filter(k => r[k] != null).map(k => [k, r[k]]))
+  );
+  return {
+    savedAt:    new Date().toISOString(),
+    version:    'v13',
+    dailyRaw:   dailyData  || [],
+    watRaw:     watData ? Object.entries(watData).map(([lot,dev]) => ({ lot, dev })) : [],
+    ulldYield:  ulldData  ? ulldData.yieldRows  : [],
+    ulldDetail: ulldData  ? ulldData.detailRows : [],
+    stripRaw,
+  };
+}
+
+// ─── Save JSON → download file ────────────────────────────────────────────────
+function saveToJSON() {
+  try {
+    const payload = buildJSONPayload();
+    const json    = JSON.stringify(payload);
+    const sizeKB  = (json.length / 1024).toFixed(0);
+    const ts   = new Date().toISOString().slice(0,10).replace(/-/g,'');
+    const name = `CP_Report_Data_${ts}.json`;
+    const blob = new Blob([json], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = name; a.click();
+    URL.revokeObjectURL(url);
+    const daily = (dailyData||[]).length;
+    const wat   = Object.keys(watData||{}).length;
+    const ulld  = (ulldData?.yieldRows||[]).length;
+    const strip = (stripData||[]).length;
+    alert(`✅ Downloaded: ${name}\nSize: ~${sizeKB} KB\nDaily: ${daily} rows | WAT: ${wat} lots | ULLD: ${ulld} rows | Strip: ${strip} rows`);
+  } catch(e) {
+    alert('❌ Save failed: ' + e.message);
+  }
+}
+
+// ─── Import JSON → merge into current state, then auto-generate ──────────────
+function handleImportJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const st = document.getElementById('statusJSON');
+  st.style.display = '';
+  st.textContent = `JSON: loading ${file.name}…`;
+  st.className = 'file-status';
+
+  const reader = new FileReader();
+  reader.onerror = () => { st.textContent = '✗ JSON read error'; st.className = 'file-status err'; };
+  reader.onload = ev => {
+    try {
+      const payload = JSON.parse(ev.target.result);
+      if (!payload.version || !payload.savedAt) throw new Error('Invalid JSON (missing version/savedAt)');
+      const savedAt = new Date(payload.savedAt).toLocaleString();
+      let merged = { daily:0, wat:0, ulld:0, strip:0 };
+
+      // Merge dailyRaw
+      if (Array.isArray(payload.dailyRaw) && payload.dailyRaw.length > 0) {
+        const existingLots = new Set((dailyData||[]).map(r => String(r['Lot Num']||'').trim()));
+        const newRows = payload.dailyRaw.filter(r => !existingLots.has(String(r['Lot Num']||'').trim()));
+        dailyData = [...newRows, ...(dailyData||[])];
+        merged.daily = newRows.length;
+        const dates = dailyData.map(r=>String(r['Test Date']||'').slice(0,10)).filter(Boolean).sort();
+        const stD = document.getElementById('statusDaily');
+        stD.textContent = `✓ Daily: ${dailyData.length} rows (${dates[0]||''} ~ ${dates[dates.length-1]||''})`;
+        stD.className = 'file-status ok';
+      }
+
+      // Merge watRaw
+      if (Array.isArray(payload.watRaw) && payload.watRaw.length > 0) {
+        if (!watData) watData = {};
+        payload.watRaw.forEach(({ lot, dev }) => {
+          if (lot && dev && !watData[String(lot).trim()]) {
+            watData[String(lot).trim()] = String(dev).trim();
+            merged.wat++;
+          }
+        });
+        const stW = document.getElementById('statusWAT');
+        stW.textContent = `✓ WAT: ${Object.keys(watData).length} lots mapped`;
+        stW.className = 'file-status ok';
+      }
+
+      // Merge ULLD
+      if (Array.isArray(payload.ulldYield) && payload.ulldYield.length > 0) {
+        const existingLots = new Set((ulldData?.yieldRows||[]).map(r=>String(r['Lot Num #']||r['Lot Num']||'').trim()));
+        const newY = payload.ulldYield.filter(r => !existingLots.has(String(r['Lot Num #']||r['Lot Num']||'').trim()));
+        const newD = (payload.ulldDetail||[]).filter(r => !existingLots.has(String(r['Lot Num #']||r['Lot Num']||'').trim()));
+        if (!ulldData) ulldData = { yieldRows:[], detailRows:[] };
+        ulldData.yieldRows  = [...newY, ...ulldData.yieldRows];
+        ulldData.detailRows = [...newD, ...ulldData.detailRows];
+        merged.ulld = newY.length;
+        const stU = document.getElementById('statusULLD');
+        stU.textContent = `✓ ULLD: ${ulldData.yieldRows.length} yield rows`;
+        stU.className = 'file-status ok';
+      }
+
+      // Merge stripRaw
+      if (Array.isArray(payload.stripRaw) && payload.stripRaw.length > 0) {
+        const makeKey = r => `${String(r['Lot No.']||'').trim()}|${String(r['Test Date/ Time']||r['Report Date']||'').slice(0,10)}`;
+        const existingKeys = new Set((stripData||[]).map(makeKey));
+        const newRows = payload.stripRaw.filter(r => !existingKeys.has(makeKey(r)));
+        stripData = [...newRows, ...(stripData||[])];
+        merged.strip = newRows.length;
+        const stS = document.getElementById('statusStrip');
+        stS.textContent = `✓ Strip: ${stripData.length} rows`;
+        stS.className = 'file-status ok';
+      }
+
+      st.textContent = `✓ ${file.name} (saved ${savedAt}) — +${merged.daily} daily, +${merged.wat} WAT, +${merged.ulld} ULLD, +${merged.strip} Strip`;
+      st.className = 'file-status ok';
+      event.target.value = '';
+
+      // Auto-generate report
+      if (dailyData && dailyData.length > 0) {
+        generateReport();
+      } else if (ulldData) {
+        renderULLDTab();
+      } else if (stripData) {
+        renderStripAC(); renderStripCC();
+      }
+    } catch(e) {
+      st.textContent = `✗ JSON error: ${e.message}`;
+      st.className = 'file-status err';
+      event.target.value = '';
+    }
+  };
+  reader.readAsText(file);
+}
+
+function saveToStorage() {
+  try {
+    // Build compact summaries — avoid saving raw rows
+    const acSummary = buildStripSummary(stripData || loadPrecomputedStrip(), 'AC');
+    const ccSummary = buildStripSummary(stripData || loadPrecomputedStrip(), 'CC');
+    const cpSummary = buildCPSummary();
+
+    const payload = {
+      savedAt: new Date().toISOString(),
+      version: 'v12',
+      stripAC: acSummary,
+      stripCC: ccSummary,
+      cpSummary,
+      // Store minimal Strip raw rows (only key columns needed for re-aggregation)
+      stripRaw: (stripData||[]).map(r => ({
+        'Lot No.':  r['Lot No.'],
+        'Test Date/ Time': r['Test Date/ Time'],
+        'Report Date': r['Report Date'],
+        'Input':  r['Input'],
+        'Output': r['Output'],
+        '_batches': r['_batches'],
+        ...Object.fromEntries(
+          ['BVDSS 2','BVDSS 1','VTH < 1.5 V','VTH > 6 V','VFSD','IPD-10V',
+           'IDSS1','IDSS2','IDSS3']
+          .filter(k => r[k] != null)
+          .map(k => [k, r[k]])
+        )
+      }))
+    };
+
+    const json = JSON.stringify(payload);
+    const sizeKB = (json.length/1024).toFixed(1);
+
+    // If still too large, drop raw rows (summaries are enough for charts)
+    let toSave = json;
+    if (json.length > 4500000) {
+      const slimPayload = { ...payload, stripRaw: [] };
+      toSave = JSON.stringify(slimPayload);
+    }
+
+    localStorage.setItem(STORAGE_KEY, toSave);
+    const finalKB = (toSave.length/1024).toFixed(1);
+    const stripCount = (stripData||[]).length;
+    const cpCount = (dailyData||[]).length;
+    alert(`✅ Saved!\nStrip: ${stripCount} rows (AC+CC)\nCP Daily: ${cpCount} rows\nStorage: ~${finalKB} KB`);
+  } catch(e) {
+    alert('❌ Save failed: ' + e.message);
+  }
+}
+
+function loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const payload = JSON.parse(raw);
+    if (payload.version !== 'v12') return false;
+    const savedAt = payload.savedAt ? new Date(payload.savedAt).toLocaleString() : '?';
+
+    // Restore Strip raw rows for re-import merging
+    if (payload.stripRaw && payload.stripRaw.length > 0) {
+      const makeKey = r => `${String(r['Lot No.']||'').trim()}|${String(r['Test Date/ Time']||r['Report Date']||'').slice(0,10)}`;
+      const existingKeys = new Set((stripData||[]).map(makeKey));
+      const newRows = payload.stripRaw.filter(r => !existingKeys.has(makeKey(r)));
+      stripData = [...(stripData||[]), ...newRows];
+    }
+
+    const statusEl = document.getElementById('statusStrip');
+    if (statusEl && stripData && stripData.length > 0) {
+      statusEl.textContent = `Strip: ${stripData.length} rows (incl. saved @ ${savedAt})`;
+      statusEl.className = 'file-status ok';
+    }
+    return true;
+  } catch(e) {
+    console.warn('loadFromStorage failed:', e);
+    return false;
+  }
+}
+
+function clearStorage() {
+  if (!confirm('清除所有已載入的資料並重置頁面？')) return;
+
+  // Clear localStorage
+  localStorage.removeItem(STORAGE_KEY);
+
+  // Reset all state variables
+  dailyData     = null;
+  watData       = null;
+  ulldData      = null;
+  stripData     = null;
+  processedTabs = null;
+  pendingLowYieldLots = [];
+  lowYieldCallback    = null;
+
+  // Destroy all chart instances
+  Object.values(chartInstances).forEach(c => { try { c.destroy(); } catch(e) {} });
+  chartInstances = {};
+
+  // Reset all status labels
+  document.getElementById('statusDaily').textContent = 'DailyReport: not loaded';
+  document.getElementById('statusDaily').className   = 'file-status';
+  document.getElementById('statusWAT').textContent   = 'WAT/CP Summary: not loaded';
+  document.getElementById('statusWAT').className     = 'file-status';
+  document.getElementById('statusULLD').textContent  = 'ULLD DB: not loaded';
+  document.getElementById('statusULLD').className    = 'file-status';
+  document.getElementById('statusStrip').textContent = 'Strip: not loaded';
+  document.getElementById('statusStrip').className   = 'file-status';
+  const stJ = document.getElementById('statusJSON');
+  if (stJ) { stJ.textContent = ''; stJ.style.display = 'none'; }
+
+  // Reset all file inputs so same file can be re-imported
+  ['inputDailyReport','inputWAT','inputULLD','inputStrip','inputJSON'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
+  // Clear date filter
+  const fFrom = document.getElementById('filterFrom');
+  const fTo   = document.getElementById('filterTo');
+  if (fFrom) fFrom.value = '';
+  if (fTo)   fTo.value   = '';
+
+  // Reset all tab pages to empty no-data state
+  const noDataMsg = '<div class="no-data">Import files and click Generate Report<div class="hint">DailyReport + WAT_CP → CP tabs &nbsp;|&nbsp; ULLD → ULLD tab &nbsp;|&nbsp; Strip → Strip tabs</div></div>';
+  for (let i = 0; i < 7; i++) {
+    const pg = document.getElementById(`page${i}`);
+    if (pg) pg.innerHTML = noDataMsg;
+  }
+
+  // Switch to first tab
+  switchTab(0);
+}
+
+function mergeNewStripData(newRows) {
+  const makeKey = r => `${String(r['Lot No.']||'').trim()}|${String(r['Test Date/ Time']||r['Report Date']||'').slice(0,10)}`;
+  const newKeys = new Set(newRows.map(makeKey));
+  const filtered = (stripData || []).filter(r => !newKeys.has(makeKey(r)));
+  stripData = [...filtered, ...newRows];
+}
+
+function mergeNewDailyData(newRows) {
+  const newLots = new Set(newRows.map(r => String(r['Lot Num']||'').trim()));
+  const filtered = (dailyData || []).filter(r => !newLots.has(String(r['Lot Num']||'').trim()));
+  dailyData = [...filtered, ...newRows];
+}
+
+// ─── Excel Export — 7 sheets matching the 7 HTML tabs ────────────────────────
+function exportExcel() {
+  if (!window.XLSX) { alert('XLSX library not loaded'); return; }
+
+  const wb = XLSX.utils.book_new();
+
+  // ── Utility: append a blank row + section header + data rows to an aoa ──
+  function appendSection(aoa, sectionTitle, header, dataRows) {
+    if (aoa.length > 0) aoa.push([]); // blank separator
+    aoa.push([sectionTitle]);
+    aoa.push(header);
+    dataRows.forEach(r => aoa.push(r));
+  }
+
+  // ── Helper: get CP defect pareto rows for a tabData ──
+  function getCPParetoRows(tabData) {
+    const paretoKeys   = ['dir0','vz0','ir0','dvz','aoi','gdbc','vf0','vf1'];
+    const paretoLabels = ['DIR0','VZ0','IR0','DVZ','AOI','GDBC+DPAT+MWS','VF0','VF1'];
+    if (!tabData) return { header: [], rows: [] };
+    const header = ['Week','Input (pcs)', ...paretoLabels.map(l=>l+' (ea)'), ...paretoLabels.map(l=>l+' PPM')];
+    const rows = tabData.weeks.slice(-10).map(w => {
+      const denom = w.totalDie || 1;
+      return [w.label, w.inputSum||0,
+        ...paretoKeys.map(k=>w[k]||0),
+        ...paretoKeys.map(k=>Math.round((w[k]||0)/denom*1e6))];
+    });
+    return { header, rows };
+  }
+
+  // ── Helper: get Strip trend rows ──
+  function getStripTrendRows(type) {
+    const { monthlyPts, weeklyPts } = computeStripData(stripData || loadPrecomputedStrip(), type);
+    const defs = STRIP_DEFECT_DEFS[type];
+    const defKeys = defs.map(d => d.key);
+    const header = ['Period','Type','Input (ea)','Output (ea)','Strip Yield (%)','Strip ATY (%)',
+                    ...defKeys.map(k => k + ' PPM')];
+    const allPts = [...monthlyPts, ...weeklyPts];
+    const rows = allPts.map(p => {
+      const total = p.totalOutput || 1;
+      const defPPMs = defKeys.map(k => p.defects[k] ? Math.round(p.defects[k]/total*1e6) : 0);
+      return [p.label, p.wkKey ? 'Weekly' : 'Monthly',
+              p.totalInput||0, p.totalOutput||0,
+              p.yield!=null?+p.yield.toFixed(4):'',
+              p.aty!=null?+p.aty.toFixed(4):'',
+              ...defPPMs];
+    });
+    return { header, rows };
+  }
+
+  // ── Helper: get Strip pareto rows (last 5 weeks) ──
+  function getStripParetoRows(type) {
+    const { weeklyPts } = computeStripData(stripData || loadPrecomputedStrip(), type);
+    const defs = STRIP_DEFECT_DEFS[type];
+    const defKeys = defs.map(d => d.key);
+    const header = ['Week','Total Output', ...defKeys.map(k=>k+' (ea)'), ...defKeys.map(k=>k+' PPM')];
+    const rows = weeklyPts.map(p => {
+      const total = p.totalOutput || 1;
+      return [p.label, p.totalOutput||0,
+        ...defKeys.map(k=>p.defects[k]||0),
+        ...defKeys.map(k=>p.defects[k]?Math.round(p.defects[k]/total*1e6):0)];
+    });
+    return { header, rows };
+  }
+
+  // ── Helper: get CP trend rows ──
+  function getCPTrendRows(tabData) {
+    if (!tabData) return { header:[], rows:[] };
+    const { monthlyPoints, recentWeeks } = tabData;
+    const header = ['Period','Type','Input (pcs)','CP Yield (%)','Final Yield (%)','Edge Die Yield (%)','Gain Edge Die (ea)'];
+    const rows = [
+      ...monthlyPoints.map(p => [p.label,'Monthly',p.inputSum||0,
+        p.cpYield!=null?+p.cpYield.toFixed(4):'',
+        p.finalYield!=null?+p.finalYield.toFixed(4):'',
+        p.edgeYield!=null?+p.edgeYield.toFixed(4):'', p.gainDie||0]),
+      ...recentWeeks.map(p => [p.label,'Weekly',p.inputSum||0,
+        p.cpYield!=null?+p.cpYield.toFixed(4):'',
+        p.finalYield!=null?+p.finalYield.toFixed(4):'',
+        p.edgeYield!=null?+p.edgeYield.toFixed(4):'', p.gainDie||0])
+    ];
+    return { header, rows };
+  }
+
+  // ── TAB_LABELS: exactly matches the 7 HTML tab labels ──
+  const TAB_SHEET_NAMES = [
+    '35A (570mV)',
+    '35A 570mV_27V (Valeo)',
+    '50A (550+530+580mV)',
+    '50A 550mV_27V (SEG)',
+    'ULLD',
+    'Strip AC',
+    'Strip CC',
+  ];
+
+  // ── Sheets 0-3: CP tabs (Trend + Pareto combined) ──
+  TAB_CONFIG.forEach((cfg, i) => {
+    const tabData = processedTabs ? processedTabs[cfg.key] : null;
+    const aoa = [];
+
+    const trend = getCPTrendRows(tabData);
+    appendSection(aoa, `【${TAB_SHEET_NAMES[i]}】Yield Trend`, trend.header, trend.rows);
+
+    const pareto = getCPParetoRows(tabData);
+    appendSection(aoa, `【${TAB_SHEET_NAMES[i]}】Defect Pareto (Last 10 Weeks)`, pareto.header, pareto.rows);
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = Array(20).fill({ wch: 18 });
+    XLSX.utils.book_append_sheet(wb, ws, TAB_SHEET_NAMES[i]);
+  });
+
+  // ── Sheet 4: ULLD — Yield Trend + Extra Die Trend + Defect Pareto ──
+  {
+    const aoa = [];
+
+    if (!ulldData) {
+      aoa.push(['ULLD data not loaded — import ULLD_DataBase file first.']);
+    } else {
+      // ── Re-run the same aggregation as renderULLDTab ──────────────────────
+      const { yieldRows, detailRows } = ulldData;
+
+      function _parseDate(v) {
+        if (!v) return null;
+        if (v instanceof Date) return v;
+        if (typeof v === 'number') { const d = new Date(Math.round((v-25569)*86400*1000)); return isNaN(d)?null:d; }
+        const d = new Date(v); return isNaN(d)?null:d;
+      }
+      function _isoWeek(d) {
+        const t = new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+        t.setUTCDate(t.getUTCDate()+4-(t.getUTCDay()||7));
+        const y0 = new Date(Date.UTC(t.getUTCFullYear(),0,1));
+        return { year: t.getUTCFullYear(), week: Math.ceil(((t-y0)/86400000+1)/7) };
+      }
+      function _avg(arr) { const v=arr.filter(x=>x!=null&&!isNaN(x)); return v.length?v.reduce((a,b)=>a+b,0)/v.length:null; }
+      function _sum(arr) { return arr.reduce((a,b)=>a+(b||0),0); }
+
+      const ULLD_MONTH_LABELS = {
+        '2025-11':"25'Nov",'2025-12':"25'Dec",
+        '2026-01':"26'Jan",'2026-02':"26'Feb",
+        '2026-03':"26'Mar",'2026-04':"26'Apr"
+      };
+      const mBkt={}, wBkt={};
+
+      yieldRows.forEach(r => {
+        const d = _parseDate(r['Test  Date']||r['Test Date']); if(!d) return;
+        const finalY = parseFloat(r['Final Yield']);
+        const cpY    = parseFloat(r['CP  Yield']||r['CP  Yield ']||r['CP Yield']);
+        const input  = parseFloat(r['Input']||0);
+        const dicePcs    = parseFloat(r['dice(pcs)']||0);
+        const diceYield  = parseFloat(r['Yield(%)']||NaN);
+        const diceValid  = !isNaN(diceYield) && diceYield >= 40;
+        const dicePcsF   = diceValid ? dicePcs : 0;
+        const diceCap    = diceValid ? (input * 10) : 0;
+        if (isNaN(finalY)) return;
+
+        const mk = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        if (ULLD_MONTH_LABELS[mk]) {
+          if (!mBkt[mk]) mBkt[mk]={finalYs:[],cpYs:[],inputs:[],dPcs:0,dCap:0};
+          mBkt[mk].finalYs.push(finalY); mBkt[mk].cpYs.push(isNaN(cpY)?null:cpY);
+          mBkt[mk].inputs.push(input);   mBkt[mk].dPcs+=dicePcsF; mBkt[mk].dCap+=diceCap;
+        }
+        const {year,week} = _isoWeek(d);
+        const wk = `${year}-W${String(week).padStart(2,'0')}`;
+        if (!wBkt[wk]) wBkt[wk]={finalYs:[],cpYs:[],inputs:[],dPcs:0,dCap:0,year,week};
+        wBkt[wk].finalYs.push(finalY); wBkt[wk].cpYs.push(isNaN(cpY)?null:cpY);
+        wBkt[wk].inputs.push(input);   wBkt[wk].dPcs+=dicePcsF; wBkt[wk].dCap+=diceCap;
+      });
+
+      // Monthly trend (last 5 months with data)
+      const ulldMonthly = Object.keys(ULLD_MONTH_LABELS).map(mk => {
+        const b=mBkt[mk];
+        return {
+          label: ULLD_MONTH_LABELS[mk], type: 'Monthly',
+          input: b?_sum(b.inputs):0,
+          finalYield: b?_avg(b.finalYs):null,
+          cpYield:    b?_avg(b.cpYs):null,
+          dicePcs:    b?b.dPcs:0,
+          diceYield:  (b&&b.dCap>0)?b.dPcs/b.dCap*100:null
+        };
+      }).filter(p=>p.input>0);
+
+      // Weekly trend (last 10 weeks)
+      const ulldWeekly = Object.keys(wBkt).sort().slice(-10).map(wk => {
+        const b=wBkt[wk];
+        return {
+          label: `26W${b.week}`, type: 'Weekly',
+          input: _sum(b.inputs),
+          finalYield: _avg(b.finalYs),
+          cpYield:    _avg(b.cpYs),
+          dicePcs:    b.dPcs,
+          diceYield:  b.dCap>0?b.dPcs/b.dCap*100:null
+        };
+      });
+
+      // Yield Trend section
+      const trendHdr = ['Period','Type','Input (wafers)','Final Yield (%)','CP Yield (%)','Extra Die (pcs)','Extra Die Yield (%)'];
+      const trendRows = [...ulldMonthly, ...ulldWeekly].map(p => [
+        p.label, p.type, p.input||0,
+        p.finalYield!=null?+p.finalYield.toFixed(4):'',
+        p.cpYield   !=null?+p.cpYield.toFixed(4):'',
+        p.dicePcs||0,
+        p.diceYield !=null?+p.diceYield.toFixed(4):''
+      ]);
+      appendSection(aoa, '【ULLD】Yield + Extra Die Trend', trendHdr, trendRows);
+
+      // Defect Pareto section (last 10 weeks from Detail Yield Summary)
+      const ULLD_FAIL_COLS   = ['nA_igss2f@15V','nA_idss2@18V','V_delta1(B-A)','nA_igss3@26V(SILC)','RIDSS2(nA)'];
+      const ULLD_FAIL_LABELS = ['IGSS2F','IDSS2','Delta1','IGSS3','RIDSS2'];
+      const detBkt = {};
+
+      detailRows.forEach(r => {
+        const d = _parseDate(r['Test Date']||r['Test  Date']); if(!d) return;
+        const {year,week} = _isoWeek(d);
+        const wk = `${year}-W${String(week).padStart(2,'0')}`;
+        if (!detBkt[wk]) detBkt[wk]={initInput:0,fails:{}};
+        detBkt[wk].initInput += parseFloat(r['Init Input']||0);
+        ULLD_FAIL_COLS.forEach(col=>{ detBkt[wk].fails[col]=(detBkt[wk].fails[col]||0)+parseFloat(r[col]||0); });
+      });
+
+      const paretoHdr = ['Week','Init Input (ea)', ...ULLD_FAIL_LABELS.map(l=>l+' (ea)'), ...ULLD_FAIL_LABELS.map(l=>l+' PPM')];
+      const paretoRows = Object.keys(detBkt).sort().slice(-10).map(wk => {
+        const b=detBkt[wk];
+        const wnum = parseInt(wk.split('-W')[1]);
+        const inp  = b.initInput||1;
+        return [
+          `26W${wnum}`, b.initInput||0,
+          ...ULLD_FAIL_COLS.map(c=>b.fails[c]||0),
+          ...ULLD_FAIL_COLS.map(c=>Math.round((b.fails[c]||0)/inp*1e6))
+        ];
+      });
+      appendSection(aoa, '【ULLD】Defect Pareto (Last 10 Weeks)', paretoHdr, paretoRows);
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = Array(15).fill({ wch: 20 });
+    XLSX.utils.book_append_sheet(wb, ws, 'ULLD');
+  }
+
+  // ── Sheets 5-6: Strip AC / CC (Trend + Pareto combined) ──
+  ['AC','CC'].forEach((type, i) => {
+    const sheetName = `Strip ${type}`;
+    const tabLabel = TAB_SHEET_NAMES[5 + i];
+    const aoa = [];
+
+    const trend = getStripTrendRows(type);
+    appendSection(aoa, `【${tabLabel}】Yield Trend`, trend.header, trend.rows);
+
+    const pareto = getStripParetoRows(type);
+    appendSection(aoa, `【${tabLabel}】Defect Pareto (Last 5 Weeks)`, pareto.header, pareto.rows);
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = Array(20).fill({ wch: 16 });
+    XLSX.utils.book_append_sheet(wb, ws, tabLabel);
+  });
+
+  const date = new Date().toISOString().slice(0,10).replace(/-/g,'');
+  XLSX.writeFile(wb, `CP_Yield_Report_${date}.xlsx`);
+}
+
+// ─── Patch file handlers to merge instead of replace ─────────────────────────
+const _origHandleStrip = handleStrip;
+// Override Strip handler to merge with stored data
+function handleStrip(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('statusStrip');
+  statusEl.textContent = 'Strip: loading…';
+  statusEl.className = 'file-status';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      const sheetName = wb.SheetNames.includes('Summary') ? 'Summary' : wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const newRows = XLSX.utils.sheet_to_json(ws, { defval: null });
+      mergeNewStripData(newRows);
+      const acCount = stripData.filter(r => r['Lot No.'] && String(r['Lot No.']).trim().endsWith('AC')).length;
+      const ccCount = stripData.filter(r => r['Lot No.'] && String(r['Lot No.']).trim().endsWith('CC')).length;
+      statusEl.textContent = `Strip: ${stripData.length} rows total (AC:${acCount}, CC:${ccCount}) — new: ${newRows.length}`;
+      statusEl.className = 'file-status ok';
+      renderStripAC();
+      renderStripCC();
+    } catch(err) {
+      statusEl.textContent = 'Strip: parse error – ' + err.message;
+      statusEl.className = 'file-status err';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  // Initialize threshold slider gradient
+  const slider = document.getElementById('thresholdSlider');
+  if (slider) slider.style.setProperty('--pct', lowYieldThreshold + '%');
+
+  TAB_CONFIG.forEach((cfg, i) => {
+    renderNoData(i, `Import files to generate ${cfg.label} report`);
+  });
+  renderNoData(4, 'Import ULLD_DataBase_xxxx.xls to generate ULLD report');
+
+  // Initialize toggle UI
+  updateToggleUI();
+
+  // Auto-load pre-embedded Strip data
+  stripData = loadPrecomputedStrip();
+
+  // Merge with any localStorage-saved data (new import rows win over stored)
+  const restored = loadFromStorage();
+
+  const statusEl = document.getElementById('statusStrip');
+  if (statusEl) {
+    const acCount = (stripData||[]).filter(r => r['Lot No.'] && String(r['Lot No.']).trim().endsWith('AC')).length;
+    const ccCount = (stripData||[]).filter(r => r['Lot No.'] && String(r['Lot No.']).trim().endsWith('CC')).length;
+    statusEl.textContent = restored
+      ? `Strip: ${(stripData||[]).length} rows (pre-loaded + saved data, AC:${acCount} CC:${ccCount})`
+      : `Strip: StripTest_Summary_20260515.xlsx (pre-loaded, ${(stripData||[]).length} rows)`;
+    statusEl.className = 'file-status ok';
+  }
+  renderStripAC();
+  renderStripCC();
+});
+// ─── Export page as PNG ───────────────────────────────────────────────────────
+function exportPagePNG(pageId, filename) {
+  const el = document.getElementById(pageId);
+  if (!el || !window.html2canvas) { alert('html2canvas not loaded'); return; }
+  const btn = el.querySelector('.export-png-btn');
+  if (btn) btn.style.display = 'none';
+  html2canvas(el, {
+    backgroundColor: '#ffffff',
+    scale: 2,
+    useCORS: true,
+    logging: false,
+  }).then(canvas => {
+    if (btn) btn.style.display = '';
+    const a = document.createElement('a');
+    a.download = filename;
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  }).catch(err => {
+    if (btn) btn.style.display = '';
+    alert('PNG export failed: ' + err.message);
+  });
+}
+
+
+</script>
+<!-- PWA Service Worker 註冊 -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js')
+        .then(reg => console.log('SW registered:', reg.scope))
+        .catch(err => console.log('SW error:', err));
+    });
+  }
+</script>
+</body>
+</html>

@@ -686,6 +686,8 @@
     <button class="import-btn mobile-hide" style="background:#e6f0ff;border-color:#6a9ee0;color:#1a3e80;" onclick="saveToJSON()" title="Download all data as .json file for cross-device sharing">💾 Save JSON</button>
     <button class="import-btn mobile-hide" style="background:#ede6ff;border-color:#9070d8;color:#3a1a7a;" onclick="openVerifyModal()" title="驗證 JSON 檔案日期是否 up-to-date">🔍 Verify JSON</button>
     <button class="import-btn mobile-hide" style="background:#e6f5e6;border-color:#6ab86a;color:#1e5c1e;" onclick="openDropModal('json')" title="Import a previously saved .json file">📥 Import JSON</button>
+    <!-- 手機版專用 Import JSON 按鈕 -->
+    <label class="import-btn mobile-json-label" style="display:none;background:#e6f5e6;border:1.5px solid #6ab86a;color:#1e5c1e;cursor:pointer;" title="Import a previously saved .json file">📥 Import JSON<input type="file" accept=".json" onchange="handleImportJSON(event)" style="display:none"></label>
     <input type="file" id="inputJSON" accept=".json" onchange="handleImportJSON(event)" style="display:none">
     <button class="import-btn mobile-hide" style="background:#fff0e6;border-color:#d08850;color:#7a3800;" onclick="exportExcel()" title="Export 7-sheet Excel matching HTML tabs">📤 Export Excel</button>
     <button class="import-btn mobile-hide" style="background:#fff0f0;border-color:#d07070;color:#7a0000;" onclick="clearStorage()" title="Clear browser saved storage">🗑 Clear</button>
@@ -769,6 +771,7 @@
 let lowYieldThreshold = 60; // user-adjustable via slider
 let dailyData = null;
 let watData = null;
+let watYieldData = null; // [{ lot, runOn:Date, yield:number, device:string }]
 let ulldData = null;   // { yieldRows, detailRows }
 let stripData = null;  // parsed Strip rows
 let processedTabs = null;
@@ -882,12 +885,34 @@ function handleWAT(e) {
         rows = XLSX.utils.sheet_to_json(ws);
       }
       watData = {};
+      watYieldData = [];
       rows.forEach(r => {
         const lot = r['Lot no.'] || r['Lot No'] || r['Lot'];
         const dev = r['Device Mapping'] || r['device_mapping'];
         if (lot && dev) watData[String(lot).trim()] = String(dev).trim();
+        // Parse RUN ON and WAT Yield(%)
+        const runOnRaw = r['RUN ON'];
+        const yldRaw   = r['Yield(%)'];
+        if (lot && dev && runOnRaw != null && yldRaw != null) {
+          let runOn = null;
+          if (runOnRaw instanceof Date) {
+            runOn = runOnRaw;
+          } else if (typeof runOnRaw === 'number') {
+            // Excel serial (date-only serials come without time)
+            runOn = new Date(Math.round((runOnRaw - 25569) * 86400 * 1000));
+          } else {
+            // String like "20251211 010007"
+            const s = String(runOnRaw).trim();
+            const m = s.match(/^(\d{4})(\d{2})(\d{2})/);
+            if (m) runOn = new Date(+m[1], +m[2]-1, +m[3]);
+          }
+          const yld = parseFloat(yldRaw);
+          if (runOn && !isNaN(runOn) && !isNaN(yld)) {
+            watYieldData.push({ lot: String(lot).trim(), runOn, yield: yld, device: String(dev).trim() });
+          }
+        }
       });
-      st.textContent = `✓ ${file.name} (${Object.keys(watData).length} lots mapped)`;
+      st.textContent = `✓ ${file.name} (${Object.keys(watData).length} lots mapped, ${watYieldData.length} WAT yield pts)`;
       st.className = 'file-status ok';
     } catch(err) {
       st.textContent = `✗ Error: ${err.message}`;
@@ -1607,6 +1632,112 @@ function renderTabPageMonthly(tabIdx, tabData, tabCfg) {
   _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData, cpYieldData, gainData, edgeYieldData, prevP, lastP, '月報', true);
 }
 
+// ─── Compute WAT Yield trend aligned to a combined timeline ──────────────────
+// combined: array of period points with .label, ._gap, ._empty
+// deviceKeys: array of device strings to include (e.g. ['35A570mV'])
+// isMonthly: true = monthly/quarterly buckets, false = weekly
+// Returns array of same length as combined, each entry = avg WAT yield or null
+function computeWatYield(combined, deviceKeys, isMonthly) {
+  if (!watYieldData || watYieldData.length === 0) return combined.map(() => null);
+  const rows = watYieldData.filter(r => deviceKeys.includes(r.device));
+  if (rows.length === 0) return combined.map(() => null);
+
+  function getISOWeek(d) {
+    const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+    return { year: tmp.getUTCFullYear(), week: Math.ceil(((tmp - yearStart) / 86400000 + 1) / 7) };
+  }
+  function getMonthKey(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  }
+  function getQuarterKey(d) {
+    return `${d.getFullYear()}-Q${Math.ceil((d.getMonth()+1)/3)}`;
+  }
+  function getWeekKey(d) {
+    const { year, week } = getISOWeek(d);
+    return `${year}-W${String(week).padStart(2,'0')}`;
+  }
+
+  // Bucket WAT rows
+  const buckets = {};
+  rows.forEach(r => {
+    let key;
+    if (isMonthly) {
+      // Decide if point is quarterly or monthly by checking what combined labels look like
+      // We'll bucket by both quarter and month; combined labels will be matched later
+      const qk = getQuarterKey(r.runOn);
+      const mk = getMonthKey(r.runOn);
+      // Store under both keys
+      [qk, mk].forEach(k => {
+        if (!buckets[k]) buckets[k] = [];
+        buckets[k].push(r.yield);
+      });
+    } else {
+      key = getWeekKey(r.runOn);
+      if (!buckets[key]) buckets[key] = [];
+      buckets[key].push(r.yield);
+    }
+  });
+  if (isMonthly) {
+    // Also bucket by month for monthly points
+    // (already done above)
+  }
+
+  function avg(arr) { return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null; }
+
+  return combined.map(pt => {
+    if (pt._gap || pt._empty || !pt.label) return null;
+    const lbl = pt.label; // e.g. "25'Dec", "26'Jan", "2025-Q4", "W01", "05/12"
+    // Try to find matching bucket key from label
+    // Weekly labels: "W18" → current-year week key, or "05/12" (MM/DD) etc.
+    // Monthly labels: "25'Dec" → 2025-12
+    // Quarterly labels: "Q4'25" or "2025-Q4"
+
+    // Match monthly "25'Dec" → 2025-12
+    const mMatch = lbl.match(/^(\d{2})'([A-Za-z]{3})$/);
+    if (mMatch) {
+      const yr = 2000 + parseInt(mMatch[1]);
+      const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(mMatch[2]) + 1;
+      if (mo > 0) {
+        const mk = `${yr}-${String(mo).padStart(2,'0')}`;
+        return avg(buckets[mk] || []);
+      }
+    }
+    // Match quarterly "Q4'25" or similar
+    const qMatch = lbl.match(/Q(\d)'(\d{2})/);
+    if (qMatch) {
+      const yr = 2000 + parseInt(qMatch[2]);
+      const qk = `${yr}-Q${qMatch[1]}`;
+      return avg(buckets[qk] || []);
+    }
+    // Match weekly "W18" → find most recent year's W18
+    const wMatch = lbl.match(/^W(\d{1,2})$/);
+    if (wMatch) {
+      const wn = String(parseInt(wMatch[1])).padStart(2,'0');
+      // Try current year then previous
+      const now = new Date();
+      for (let yr = now.getFullYear(); yr >= now.getFullYear()-1; yr--) {
+        const wk = `${yr}-W${wn}`;
+        if (buckets[wk]) return avg(buckets[wk]);
+      }
+    }
+    // Match weekly "MM/DD" — find WAT rows whose week matches
+    const mdMatch = lbl.match(/^(\d{2})\/(\d{2})$/);
+    if (mdMatch) {
+      // Find WAT rows where runOn is within ±3 days of a date in current year
+      const now = new Date();
+      for (let yr = now.getFullYear(); yr >= now.getFullYear()-1; yr--) {
+        const refDate = new Date(yr, parseInt(mdMatch[1])-1, parseInt(mdMatch[2]));
+        if (isNaN(refDate)) continue;
+        const refWk = getWeekKey(refDate);
+        if (buckets[refWk]) return avg(buckets[refWk]);
+      }
+    }
+    return null;
+  });
+}
+
 function _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData, cpYieldData, gainData, edgeYieldData, prevP, lastP, modeLabel, isMonthly) {
   const page = document.getElementById(`page${tabIdx}`);
 
@@ -1693,10 +1824,12 @@ function _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData
   // Render charts after DOM update
   requestAnimationFrame(() => {
     const finalYieldData = combined.map(p => (p._gap || p._empty) ? null : (p.finalYield != null ? p.finalYield : p.cpYield));
+    const watTrend = computeWatYield(combined, tabCfg.devices, isMonthly);
+    const hasWat = watTrend.some(v => v != null);
     makeComboChart(cpChartId, labels, inputData, cpYieldData,
       'Input (pcs)', 'CP Yield (%)', tabCfg.target,
       'rgba(74,124,255,0.5)', '#4a7cff', null,
-      null, null, null);
+      hasWat ? watTrend : null, 'WAT Yield (%)', '#f9ca24');
 
     makeEdgeDieChart(edgeChartId, labels, gainData, edgeYieldData, tabCfg);
 
@@ -3150,6 +3283,7 @@ function buildJSONPayload() {
     version:    'v13',
     dailyRaw:   dailyData  || [],
     watRaw:     watData ? Object.entries(watData).map(([lot,dev]) => ({ lot, dev })) : [],
+    watYieldRaw: (watYieldData||[]).map(r => ({ lot: r.lot, runOn: r.runOn.toISOString(), yield: r.yield, device: r.device })),
     ulldYield:  ulldData  ? ulldData.yieldRows  : [],
     ulldDetail: ulldData  ? ulldData.detailRows : [],
     stripRaw,
@@ -3221,6 +3355,20 @@ function handleImportJSON(event) {
         const stW = document.getElementById('statusWAT');
         stW.textContent = `✓ WAT: ${Object.keys(watData).length} lots mapped`;
         stW.className = 'file-status ok';
+      }
+      // Merge watYieldRaw
+      if (Array.isArray(payload.watYieldRaw) && payload.watYieldRaw.length > 0) {
+        if (!watYieldData) watYieldData = [];
+        const existingLots = new Set(watYieldData.map(r => r.lot));
+        payload.watYieldRaw.forEach(({ lot, runOn, yield: yld, device }) => {
+          if (lot && !existingLots.has(lot)) {
+            const d = new Date(runOn);
+            if (!isNaN(d)) {
+              watYieldData.push({ lot, runOn: d, yield: parseFloat(yld), device });
+              existingLots.add(lot);
+            }
+          }
+        });
       }
 
       // Merge ULLD
@@ -3357,6 +3505,7 @@ function clearStorage() {
   // Reset all state variables
   dailyData     = null;
   watData       = null;
+  watYieldData  = null;
   ulldData      = null;
   stripData     = null;
   processedTabs = null;

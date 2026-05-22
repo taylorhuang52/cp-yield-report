@@ -291,6 +291,101 @@
     .pareto-row { grid-template-columns: 1fr; }
   }
 
+  /* ── Yield threshold panel (Discount / Reject) ── */
+  .yield-lot-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow);
+  }
+  .yield-lot-panel-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .yield-lot-panel-title::before {
+    content: '';
+    width: 4px; height: 16px;
+    background: var(--accent2);
+    border-radius: 2px;
+  }
+  .yield-threshold-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+    font-size: 12.5px;
+    color: var(--text2);
+  }
+  .yield-threshold-row label { font-weight: 600; color: var(--text); }
+  .yield-threshold-input {
+    width: 58px;
+    padding: 3px 7px;
+    border: 1.5px solid var(--border);
+    border-radius: 5px;
+    font-size: 12.5px;
+    color: var(--text);
+    background: var(--bg);
+    text-align: center;
+  }
+  .yield-threshold-input:focus { outline: none; border-color: var(--accent); }
+  .yield-lot-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  @media (max-width: 640px) { .yield-lot-grid { grid-template-columns: 1fr; } }
+  .yield-lot-section { }
+  .yield-lot-section-title {
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+  .yield-lot-section-title.discount { background: #fff8d0; color: #8a6000; }
+  .yield-lot-section-title.reject   { background: #ffe0e0; color: #a00000; }
+  .yield-lot-list {
+    font-size: 11.5px;
+    color: var(--text);
+    line-height: 1.7;
+    max-height: 140px;
+    overflow-y: auto;
+    padding: 4px 8px;
+    background: var(--panel2);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+  .yield-lot-list .lot-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 1px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+  }
+  .yield-lot-list .lot-no { font-weight: 600; color: var(--text); }
+  .yield-lot-list .lot-yld { color: var(--text2); }
+  .yield-lot-none { color: var(--text2); font-size: 12px; padding: 6px 0; }
+  .yield-lot-apply-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: filter 0.15s;
+  }
+  .yield-lot-apply-btn:hover { filter: brightness(0.88); }
+
   /* Target line label */
   .target-note {
     font-size: 11px;
@@ -785,6 +880,26 @@ const TAB_CONFIG = [
   { key: '50A',        label: '50A CP Test Yield',           target: 95.0, devices: ['50A550mV','50A530mV','50A580mV'] },
   { key: '50A_SEG',    label: '50A 550mV_27V (SEG) Yield',   target: 95.0, devices: ['50A550mV_27V_SEG'] },
 ];
+
+// ─── Per-tab Discount / Reject thresholds ────────────────────────────────────
+// CP tabs 0,2 (35A 570mV / 50A 550+530+580mV): Discount 75~85%, Reject <75%
+// CP tabs 1,3 (35A_Valeo / 50A_SEG):             Discount 60~75%, Reject <60%
+// ULLD (page4):                                   Discount 70~75%, Reject <70%
+// Strip AC/CC (page5,6):                          Discount 75~90%, Reject <75%
+const TAB_THRESHOLDS = {
+  0: { discountHi: 85, discountLo: 75, reject: 75 },  // 35A (570mV)
+  1: { discountHi: 75, discountLo: 60, reject: 60 },  // 35A_Valeo
+  2: { discountHi: 85, discountLo: 75, reject: 75 },  // 50A
+  3: { discountHi: 75, discountLo: 60, reject: 60 },  // 50A_SEG
+  ulld:  { discountHi: 75, discountLo: 70, reject: 70 },
+  stripAC: { discountHi: 90, discountLo: 75, reject: 75 },
+  stripCC: { discountHi: 90, discountLo: 75, reject: 75 },
+};
+
+function getThreshold(key) {
+  // key: 0-3 (CP tabs), 'ulld', 'stripAC', 'stripCC'
+  return TAB_THRESHOLDS[key];
+}
 
 // ─── Tab switching ────────────────────────────────────────────────────────────
 function switchTab(idx) {
@@ -1659,30 +1774,16 @@ function computeWatYield(combined, deviceKeys, isMonthly) {
     return `${year}-W${String(week).padStart(2,'0')}`;
   }
 
-  // Bucket WAT rows
+  // Bucket WAT rows by week, month AND quarter simultaneously
+  // (combined timeline always has both monthly and weekly points)
   const buckets = {};
   rows.forEach(r => {
-    let key;
-    if (isMonthly) {
-      // Decide if point is quarterly or monthly by checking what combined labels look like
-      // We'll bucket by both quarter and month; combined labels will be matched later
-      const qk = getQuarterKey(r.runOn);
-      const mk = getMonthKey(r.runOn);
-      // Store under both keys
-      [qk, mk].forEach(k => {
-        if (!buckets[k]) buckets[k] = [];
-        buckets[k].push(r.yield);
-      });
-    } else {
-      key = getWeekKey(r.runOn);
-      if (!buckets[key]) buckets[key] = [];
-      buckets[key].push(r.yield);
-    }
+    const keys = [getWeekKey(r.runOn), getMonthKey(r.runOn), getQuarterKey(r.runOn)];
+    keys.forEach(k => {
+      if (!buckets[k]) buckets[k] = [];
+      buckets[k].push(r.yield);
+    });
   });
-  if (isMonthly) {
-    // Also bucket by month for monthly points
-    // (already done above)
-  }
 
   function avg(arr) { return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null; }
 
@@ -1711,21 +1812,26 @@ function computeWatYield(combined, deviceKeys, isMonthly) {
       const qk = `${yr}-Q${qMatch[1]}`;
       return avg(buckets[qk] || []);
     }
-    // Match weekly "W18" → find most recent year's W18
-    const wMatch = lbl.match(/^W(\d{1,2})$/);
+    // Match weekly "26W17" or "W17"
+    const wMatch = lbl.match(/^(?:\d{2})?W(\d{1,2})$/);
     if (wMatch) {
       const wn = String(parseInt(wMatch[1])).padStart(2,'0');
-      // Try current year then previous
       const now = new Date();
       for (let yr = now.getFullYear(); yr >= now.getFullYear()-1; yr--) {
         const wk = `${yr}-W${wn}`;
         if (buckets[wk]) return avg(buckets[wk]);
       }
     }
-    // Match weekly "MM/DD" — find WAT rows whose week matches
+    // Match quarterly "26'Q1" or "25'Q4"
+    const q2Match = lbl.match(/^(\d{2})'Q(\d)$/);
+    if (q2Match) {
+      const yr = 2000 + parseInt(q2Match[1]);
+      const qk = `${yr}-Q${q2Match[2]}`;
+      return avg(buckets[qk] || []);
+    }
+    // Match weekly "MM/DD"
     const mdMatch = lbl.match(/^(\d{2})\/(\d{2})$/);
     if (mdMatch) {
-      // Find WAT rows where runOn is within ±3 days of a date in current year
       const now = new Date();
       for (let yr = now.getFullYear(); yr >= now.getFullYear()-1; yr--) {
         const refDate = new Date(yr, parseInt(mdMatch[1])-1, parseInt(mdMatch[2]));
@@ -1738,7 +1844,366 @@ function computeWatYield(combined, deviceKeys, isMonthly) {
   });
 }
 
-function _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData, cpYieldData, gainData, edgeYieldData, prevP, lastP, modeLabel, isMonthly) {
+// ─── Yield Lot List Helpers ───────────────────────────────────────────────────
+// Returns rows from dailyData that fall in the "current week" (latest ISO week in data)
+function getLastWeekRows(rows, yieldKey) {
+  if (!rows || rows.length === 0) return [];
+  function isoWeekKey(d) {
+    const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+    const y0 = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+    return `${tmp.getUTCFullYear()}-W${String(Math.ceil(((tmp-y0)/86400000+1)/7)).padStart(2,'0')}`;
+  }
+  // Find the latest week key present in the data
+  let latestWk = null;
+  rows.forEach(r => {
+    const dv = r['Test Date'];
+    if (!dv) return;
+    let d;
+    if (dv instanceof Date) d = dv;
+    else if (typeof dv === 'number') d = new Date(Math.round((dv-25569)*86400*1000));
+    else d = new Date(dv);
+    if (!d || isNaN(d)) return;
+    const wk = isoWeekKey(d);
+    if (!latestWk || wk > latestWk) latestWk = wk;
+  });
+  if (!latestWk) return [];
+  // Filter to that week with valid yield
+  return rows.filter(r => {
+    const dv = r['Test Date'];
+    if (!dv) return false;
+    let d;
+    if (dv instanceof Date) d = dv;
+    else if (typeof dv === 'number') d = new Date(Math.round((dv-25569)*86400*1000));
+    else d = new Date(dv);
+    if (!d || isNaN(d)) return false;
+    if (isoWeekKey(d) !== latestWk) return false;
+    const y = parseFloat(r[yieldKey]);
+    return !isNaN(y);
+  });
+}
+
+// Render a yield lot panel HTML (discount + reject lists) for CP tabs
+// tabKey: 0-3, rows: dailyData rows for that device, yieldKey, lotKey
+function buildCPLotPanelHTML(tabIdx, rows, yieldKey, lotKey, weekRows) {
+  const thr = TAB_THRESHOLDS[tabIdx];
+  const discountHi = thr.discountHi;
+  const discountLo = thr.discountLo;
+  const reject     = thr.reject;
+
+  const discountLots = weekRows.filter(r => {
+    const y = parseFloat(r[yieldKey]);
+    return !isNaN(y) && y >= discountLo && y < discountHi;
+  }).map(r => ({ lot: String(r[lotKey]||'').trim(), yld: parseFloat(r[yieldKey]) }));
+
+  const rejectLots = weekRows.filter(r => {
+    const y = parseFloat(r[yieldKey]);
+    return !isNaN(y) && y < reject;
+  }).map(r => ({ lot: String(r[lotKey]||'').trim(), yld: parseFloat(r[yieldKey]) }));
+
+  const pfxD = `cpThr_${tabIdx}`;
+
+  function lotItemsHTML(lots) {
+    if (!lots.length) return `<div class="yield-lot-none">— 無 —</div>`;
+    return lots.map(l => `<div class="lot-item"><span class="lot-no">${l.lot}</span><span class="lot-yld">${l.yld.toFixed(2)}%</span></div>`).join('');
+  }
+
+  return `
+  <div class="yield-lot-panel" id="${pfxD}_panel">
+    <div class="yield-lot-panel-title">📋 當周 Lot Yield 清單</div>
+    <div class="yield-threshold-row">
+      <label>Discount</label>
+      <input class="yield-threshold-input" id="${pfxD}_discLo" type="number" min="0" max="100" step="1" value="${discountLo}" title="Discount 下限">
+      %
+      &lt; Yield &lt;
+      <input class="yield-threshold-input" id="${pfxD}_discHi" type="number" min="0" max="100" step="1" value="${discountHi}" title="Discount 上限">
+      %
+      &nbsp;&nbsp;
+      <label>Reject: Yield &lt;</label>
+      <input class="yield-threshold-input" id="${pfxD}_rej" type="number" min="0" max="100" step="1" value="${reject}" title="Reject 門檻">
+      %
+      <button class="yield-lot-apply-btn" onclick="refreshCPLotPanel(${tabIdx})">套用</button>
+    </div>
+    <div class="yield-lot-grid">
+      <div class="yield-lot-section">
+        <div class="yield-lot-section-title discount" id="${pfxD}_discTitle">Discount ${discountLo}% &lt; Yield &lt; ${discountHi}%</div>
+        <div class="yield-lot-list" id="${pfxD}_discList">${lotItemsHTML(discountLots)}</div>
+      </div>
+      <div class="yield-lot-section">
+        <div class="yield-lot-section-title reject" id="${pfxD}_rejTitle">Reject: Yield &lt; ${reject}%</div>
+        <div class="yield-lot-list" id="${pfxD}_rejList">${lotItemsHTML(rejectLots)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// Refresh CP lot panel in-place (called when user changes thresholds)
+function refreshCPLotPanel(tabIdx) {
+  const pfxD = `cpThr_${tabIdx}`;
+  const thr = TAB_THRESHOLDS[tabIdx];
+  const discHiEl = document.getElementById(`${pfxD}_discHi`);
+  const discLoEl = document.getElementById(`${pfxD}_discLo`);
+  const rejEl    = document.getElementById(`${pfxD}_rej`);
+  if (!discHiEl || !discLoEl || !rejEl) return;
+
+  const discountHi = parseFloat(discHiEl.value) || thr.discountHi;
+  const discountLo = parseFloat(discLoEl.value) || thr.discountLo;
+  const reject     = parseFloat(rejEl.value)     || thr.reject;
+
+  // Update stored thresholds
+  TAB_THRESHOLDS[tabIdx] = { discountHi, discountLo, reject };
+
+  // Re-filter rows
+  const cfg = TAB_CONFIG[tabIdx];
+  const rows = (dailyData || []).filter(r => {
+    if (!watData) return true; // no WAT → include all
+    const dev = watData[String(r['Lot Num']||'').trim()];
+    return dev && cfg.devices.includes(dev);
+  });
+  const yieldKey = 'Final yield[With AOI] (%)';
+  const weekRows = getLastWeekRows(rows, yieldKey);
+
+  function lotItemsHTML(lots) {
+    if (!lots.length) return `<div class="yield-lot-none">— 無 —</div>`;
+    return lots.map(l => `<div class="lot-item"><span class="lot-no">${l.lot}</span><span class="lot-yld">${l.yld.toFixed(2)}%</span></div>`).join('');
+  }
+
+  const discountLots = weekRows.filter(r => {
+    const y = parseFloat(r[yieldKey]);
+    return !isNaN(y) && y >= discountLo && y < discountHi;
+  }).map(r => ({ lot: String(r['Lot Num']||'').trim(), yld: parseFloat(r[yieldKey]) }));
+
+  const rejectLots = weekRows.filter(r => {
+    const y = parseFloat(r[yieldKey]);
+    return !isNaN(y) && y < reject;
+  }).map(r => ({ lot: String(r['Lot Num']||'').trim(), yld: parseFloat(r[yieldKey]) }));
+
+  const discTitle = document.getElementById(`${pfxD}_discTitle`);
+  const discList  = document.getElementById(`${pfxD}_discList`);
+  const rejTitle  = document.getElementById(`${pfxD}_rejTitle`);
+  const rejList   = document.getElementById(`${pfxD}_rejList`);
+
+  if (discTitle) discTitle.textContent = `Discount ${discountLo}% < Yield < ${discountHi}%`;
+  if (discList)  discList.innerHTML    = lotItemsHTML(discountLots);
+  if (rejTitle)  rejTitle.textContent  = `Reject: Yield < ${reject}%`;
+  if (rejList)   rejList.innerHTML     = lotItemsHTML(rejectLots);
+}
+
+// Build ULLD lot panel HTML
+function buildULLDLotPanelHTML(weekRows) {
+  const thr = TAB_THRESHOLDS['ulld'];
+  const discountHi = thr.discountHi;
+  const discountLo = thr.discountLo;
+  const reject     = thr.reject;
+  const yieldKey   = 'Final Yield';
+  const lotKey     = 'Lot Num #';
+
+  const discountLots = weekRows.filter(r => {
+    const y = parseFloat(r[yieldKey]);
+    return !isNaN(y) && y >= discountLo && y < discountHi;
+  }).map(r => ({ lot: String(r[lotKey]||'').trim(), yld: parseFloat(r[yieldKey]) }));
+
+  const rejectLots = weekRows.filter(r => {
+    const y = parseFloat(r[yieldKey]);
+    return !isNaN(y) && y < reject;
+  }).map(r => ({ lot: String(r[lotKey]||'').trim(), yld: parseFloat(r[yieldKey]) }));
+
+  function lotItemsHTML(lots) {
+    if (!lots.length) return `<div class="yield-lot-none">— 無 —</div>`;
+    return lots.map(l => `<div class="lot-item"><span class="lot-no">${l.lot}</span><span class="lot-yld">${l.yld.toFixed(2)}%</span></div>`).join('');
+  }
+
+  return `
+  <div class="yield-lot-panel" id="ulldThr_panel">
+    <div class="yield-lot-panel-title">📋 當周 ULLD Lot Yield 清單</div>
+    <div class="yield-threshold-row">
+      <label>Discount</label>
+      <input class="yield-threshold-input" id="ulldThr_discLo" type="number" min="0" max="100" step="1" value="${discountLo}" title="Discount 下限">
+      %
+      &lt; Yield &lt;
+      <input class="yield-threshold-input" id="ulldThr_discHi" type="number" min="0" max="100" step="1" value="${discountHi}" title="Discount 上限">
+      %
+      &nbsp;&nbsp;
+      <label>Reject: Yield &lt;</label>
+      <input class="yield-threshold-input" id="ulldThr_rej" type="number" min="0" max="100" step="1" value="${reject}" title="Reject 門檻">
+      %
+      <button class="yield-lot-apply-btn" onclick="refreshULLDLotPanel()">套用</button>
+    </div>
+    <div class="yield-lot-grid">
+      <div class="yield-lot-section">
+        <div class="yield-lot-section-title discount" id="ulldThr_discTitle">Discount ${discountLo}% &lt; Yield &lt; ${discountHi}%</div>
+        <div class="yield-lot-list" id="ulldThr_discList">${lotItemsHTML(discountLots)}</div>
+      </div>
+      <div class="yield-lot-section">
+        <div class="yield-lot-section-title reject" id="ulldThr_rejTitle">Reject: Yield &lt; ${reject}%</div>
+        <div class="yield-lot-list" id="ulldThr_rejList">${lotItemsHTML(rejectLots)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function refreshULLDLotPanel() {
+  const thr = TAB_THRESHOLDS['ulld'];
+  const discHi = parseFloat(document.getElementById('ulldThr_discHi')?.value) || thr.discountHi;
+  const discLo = parseFloat(document.getElementById('ulldThr_discLo')?.value) || thr.discountLo;
+  const rej    = parseFloat(document.getElementById('ulldThr_rej')?.value)    || thr.reject;
+  TAB_THRESHOLDS['ulld'] = { discountHi: discHi, discountLo: discLo, reject: rej };
+
+  if (!ulldData) return;
+  const yieldKey = 'Final Yield';
+  const lotKey   = 'Lot Num #';
+  // Get last-week rows from ULLD
+  const allRows = ulldData.yieldRows;
+  function isoWeekKey(d) {
+    const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+    const y0 = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+    return `${tmp.getUTCFullYear()}-W${String(Math.ceil(((tmp-y0)/86400000+1)/7)).padStart(2,'0')}`;
+  }
+  let latestWk = null;
+  allRows.forEach(r => {
+    const dv = r['Test  Date'] || r['Test Date'];
+    if (!dv) return;
+    let d;
+    if (dv instanceof Date) d = dv;
+    else if (typeof dv === 'number') d = new Date(Math.round((dv-25569)*86400*1000));
+    else d = new Date(dv);
+    if (!d || isNaN(d)) return;
+    const wk = isoWeekKey(d);
+    if (!latestWk || wk > latestWk) latestWk = wk;
+  });
+  const weekRows = !latestWk ? [] : allRows.filter(r => {
+    const dv = r['Test  Date'] || r['Test Date'];
+    if (!dv) return false;
+    let d;
+    if (dv instanceof Date) d = dv;
+    else if (typeof dv === 'number') d = new Date(Math.round((dv-25569)*86400*1000));
+    else d = new Date(dv);
+    if (!d || isNaN(d)) return false;
+    return isoWeekKey(d) === latestWk && !isNaN(parseFloat(r[yieldKey]));
+  });
+
+  function lotItemsHTML(lots) {
+    if (!lots.length) return `<div class="yield-lot-none">— 無 —</div>`;
+    return lots.map(l => `<div class="lot-item"><span class="lot-no">${l.lot}</span><span class="lot-yld">${l.yld.toFixed(2)}%</span></div>`).join('');
+  }
+
+  const discountLots = weekRows.filter(r => { const y=parseFloat(r[yieldKey]); return !isNaN(y) && y>=discLo && y<discHi; }).map(r=>({lot:String(r[lotKey]||'').trim(),yld:parseFloat(r[yieldKey])}));
+  const rejectLots   = weekRows.filter(r => { const y=parseFloat(r[yieldKey]); return !isNaN(y) && y<rej; }).map(r=>({lot:String(r[lotKey]||'').trim(),yld:parseFloat(r[yieldKey])}));
+
+  const dT = document.getElementById('ulldThr_discTitle');
+  const dL = document.getElementById('ulldThr_discList');
+  const rT = document.getElementById('ulldThr_rejTitle');
+  const rL = document.getElementById('ulldThr_rejList');
+  if (dT) dT.textContent = `Discount ${discLo}% < Yield < ${discHi}%`;
+  if (dL) dL.innerHTML   = lotItemsHTML(discountLots);
+  if (rT) rT.textContent = `Reject: Yield < ${rej}%`;
+  if (rL) rL.innerHTML   = lotItemsHTML(rejectLots);
+}
+
+// Build Strip lot panel HTML
+function buildStripLotPanelHTML(type, weekRows) {
+  const thrKey = `strip${type}`;
+  const thr    = TAB_THRESHOLDS[thrKey];
+  const discountHi = thr.discountHi;
+  const discountLo = thr.discountLo;
+  const reject     = thr.reject;
+
+  const discountLots = weekRows.filter(r => { const y=r._yield; return y!=null && y>=discountLo && y<discountHi; }).map(r=>({lot:r.lot,yld:r._yield}));
+  const rejectLots   = weekRows.filter(r => { const y=r._yield; return y!=null && y<reject; }).map(r=>({lot:r.lot,yld:r._yield}));
+
+  function lotItemsHTML(lots) {
+    if (!lots.length) return `<div class="yield-lot-none">— 無 —</div>`;
+    return lots.map(l=>`<div class="lot-item"><span class="lot-no">${l.lot}</span><span class="lot-yld">${l.yld.toFixed(2)}%</span></div>`).join('');
+  }
+  const pfx = `stripThr_${type}`;
+  return `
+  <div class="yield-lot-panel" id="${pfx}_panel">
+    <div class="yield-lot-panel-title">📋 當周 Strip ${type} Lot Yield 清單</div>
+    <div class="yield-threshold-row">
+      <label>Discount</label>
+      <input class="yield-threshold-input" id="${pfx}_discLo" type="number" min="0" max="100" step="1" value="${discountLo}" title="Discount 下限">
+      %
+      &lt; Yield &lt;
+      <input class="yield-threshold-input" id="${pfx}_discHi" type="number" min="0" max="100" step="1" value="${discountHi}" title="Discount 上限">
+      %
+      &nbsp;&nbsp;
+      <label>Reject: Yield &lt;</label>
+      <input class="yield-threshold-input" id="${pfx}_rej" type="number" min="0" max="100" step="1" value="${reject}" title="Reject 門檻">
+      %
+      <button class="yield-lot-apply-btn" onclick="refreshStripLotPanel('${type}')">套用</button>
+    </div>
+    <div class="yield-lot-grid">
+      <div class="yield-lot-section">
+        <div class="yield-lot-section-title discount" id="${pfx}_discTitle">Discount ${discountLo}% &lt; Yield &lt; ${discountHi}%</div>
+        <div class="yield-lot-list" id="${pfx}_discList">${lotItemsHTML(discountLots)}</div>
+      </div>
+      <div class="yield-lot-section">
+        <div class="yield-lot-section-title reject" id="${pfx}_rejTitle">Reject: Yield &lt; ${reject}%</div>
+        <div class="yield-lot-list" id="${pfx}_rejList">${lotItemsHTML(rejectLots)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function refreshStripLotPanel(type) {
+  const thrKey = `strip${type}`;
+  const thr = TAB_THRESHOLDS[thrKey];
+  const pfx = `stripThr_${type}`;
+  const discHi = parseFloat(document.getElementById(`${pfx}_discHi`)?.value) || thr.discountHi;
+  const discLo = parseFloat(document.getElementById(`${pfx}_discLo`)?.value) || thr.discountLo;
+  const rej    = parseFloat(document.getElementById(`${pfx}_rej`)?.value)    || thr.reject;
+  TAB_THRESHOLDS[thrKey] = { discountHi: discHi, discountLo: discLo, reject: rej };
+
+  const weekRows = computeStripLastWeekLots(type);
+
+  function lotItemsHTML(lots) {
+    if (!lots.length) return `<div class="yield-lot-none">— 無 —</div>`;
+    return lots.map(l=>`<div class="lot-item"><span class="lot-no">${l.lot}</span><span class="lot-yld">${l.yld.toFixed(2)}%</span></div>`).join('');
+  }
+  const discountLots = weekRows.filter(r=>{const y=r._yield;return y!=null&&y>=discLo&&y<discHi;}).map(r=>({lot:r.lot,yld:r._yield}));
+  const rejectLots   = weekRows.filter(r=>{const y=r._yield;return y!=null&&y<rej;}).map(r=>({lot:r.lot,yld:r._yield}));
+
+  const dT=document.getElementById(`${pfx}_discTitle`); if(dT) dT.textContent=`Discount ${discLo}% < Yield < ${discHi}%`;
+  const dL=document.getElementById(`${pfx}_discList`);  if(dL) dL.innerHTML=lotItemsHTML(discountLots);
+  const rT=document.getElementById(`${pfx}_rejTitle`);  if(rT) rT.textContent=`Reject: Yield < ${rej}%`;
+  const rL=document.getElementById(`${pfx}_rejList`);   if(rL) rL.innerHTML=lotItemsHTML(rejectLots);
+}
+
+// Compute lot-level strip data for the last week
+function computeStripLastWeekLots(type) {
+  if (!stripData || !stripData.length) return [];
+  const filtered = stripData.filter(r => r['Lot No.'] && String(r['Lot No.']).trim().endsWith(type));
+  // Find latest week
+  function isoWeekKey(d) {
+    const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+    const y0 = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+    return `${tmp.getUTCFullYear()}-W${String(Math.ceil(((tmp-y0)/86400000+1)/7)).padStart(2,'0')}`;
+  }
+  let latestWk = null;
+  filtered.forEach(r => {
+    const d = stripParseDate(r['Test Date/ Time']||r['Test Date/Time']||r['Test Date'], r['Report Date']);
+    if (!d || isNaN(d)) return;
+    const wk = isoWeekKey(d);
+    if (!latestWk || wk > latestWk) latestWk = wk;
+  });
+  if (!latestWk) return [];
+  return filtered.filter(r => {
+    const d = stripParseDate(r['Test Date/ Time']||r['Test Date/Time']||r['Test Date'], r['Report Date']);
+    if (!d || isNaN(d)) return false;
+    if (isoWeekKey(d) !== latestWk) return false;
+    const inp = parseFloat(r['Input']||0);
+    return inp > 0;
+  }).map(r => {
+    const inp = parseFloat(r['Input']||0);
+    const out = parseFloat(r['Output']||0);
+    const yld = inp > 0 ? (out/inp*100) : null;
+    return { lot: String(r['Lot No.']||'').trim(), _yield: yld, _input: inp, _output: out };
+  });
+}
+
+function _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData, cpYieldData, gainData, edgeYieldData, prevP, lastP, modeLabel, isMonthly = false) {
   const page = document.getElementById(`page${tabIdx}`);
 
   const paretoKeys   = ['dir0','vz0','ir0','dvz','aoi','gdbc','vf0','vf1'];
@@ -1819,6 +2284,15 @@ function _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData
         <div class="chart-wrap"><canvas id="${paretoLastId}"></canvas></div>
       </div>
     </div>
+    ${buildCPLotPanelHTML(tabIdx, tabData.rows || [], 'Final yield[With AOI] (%)', 'Lot Num', (()=>{
+      const cfg = TAB_CONFIG[tabIdx];
+      const rows = (dailyData || []).filter(r => {
+        if (!watData) return true;
+        const dev = watData[String(r['Lot Num']||'').trim()];
+        return dev && cfg.devices.includes(dev);
+      });
+      return getLastWeekRows(rows, 'Final yield[With AOI] (%)');
+    })())}
   `;
 
   // Render charts after DOM update
@@ -2057,6 +2531,38 @@ function renderULLDTab() {
         <div class="chart-wrap"><canvas id="${p2Id}"></canvas></div>
       </div>
     </div>
+    ${buildULLDLotPanelHTML((()=>{
+      const allRows = yieldRows;
+      function isoWeekKey(d) {
+        const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+        tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+        const y0 = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+        return `${tmp.getUTCFullYear()}-W${String(Math.ceil(((tmp-y0)/86400000+1)/7)).padStart(2,'0')}`;
+      }
+      let latestWk = null;
+      allRows.forEach(r => {
+        const dv = r['Test  Date'] || r['Test Date'];
+        if (!dv) return;
+        let d;
+        if (dv instanceof Date) d = dv;
+        else if (typeof dv === 'number') d = new Date(Math.round((dv-25569)*86400*1000));
+        else d = new Date(dv);
+        if (!d || isNaN(d)) return;
+        const wk = isoWeekKey(d);
+        if (!latestWk || wk > latestWk) latestWk = wk;
+      });
+      if (!latestWk) return [];
+      return allRows.filter(r => {
+        const dv = r['Test  Date'] || r['Test Date'];
+        if (!dv) return false;
+        let d;
+        if (dv instanceof Date) d = dv;
+        else if (typeof dv === 'number') d = new Date(Math.round((dv-25569)*86400*1000));
+        else d = new Date(dv);
+        if (!d || isNaN(d)) return false;
+        return isoWeekKey(d) === latestWk && !isNaN(parseFloat(r['Final Yield']));
+      });
+    })())}
   `;
 
   requestAnimationFrame(() => {
@@ -2622,6 +3128,7 @@ function renderStripPage(pageId, type) {
         <div class="chart-wrap" style="height:260px"><canvas id="${p2Id}"></canvas></div>
       </div>
     </div>
+    ${buildStripLotPanelHTML(type, computeStripLastWeekLots(type))}
   `;
 
   requestAnimationFrame(() => {
@@ -2968,6 +3475,7 @@ function renderStripPageMonthly(pageId, type) {
         <div class="chart-wrap" style="height:260px"><canvas id="${p2Id}"></canvas></div>
       </div>
     </div>
+    ${buildStripLotPanelHTML(type, computeStripLastWeekLots(type))}
   `;
 
   requestAnimationFrame(() => {
@@ -2985,23 +3493,17 @@ function renderStripPageMonthly(pageId, type) {
         labels,
         datasets: [
           {
-            type: 'bar', label: 'Input (ea) - Q', data: inputData.map((v,i)=>i<qCount?v:null),
-            backgroundColor: 'rgba(120,90,180,0.55)', borderColor: 'rgba(120,90,180,0.85)',
+            type: 'bar', label: 'Input (ea)',
+            data: inputData,
+            backgroundColor: inputData.map((v,i) => i < qCount ? 'rgba(120,90,180,0.55)' : 'rgba(80,60,130,0.65)'),
+            borderColor:     inputData.map((v,i) => i < qCount ? 'rgba(120,90,180,0.85)' : 'rgba(80,60,130,0.9)'),
             borderWidth: 1, yAxisID: 'yBar', order: 5, barPercentage: 0.6, categoryPercentage: 0.8
           },
           {
-            type: 'bar', label: 'Output (ea) - Q', data: outputData.map((v,i)=>i<qCount?v:null),
-            backgroundColor: 'rgba(80,160,80,0.55)', borderColor: 'rgba(80,160,80,0.85)',
-            borderWidth: 1, yAxisID: 'yBar', order: 4, barPercentage: 0.6, categoryPercentage: 0.8
-          },
-          {
-            type: 'bar', label: 'Input (ea) - M', data: inputData.map((v,i)=>i>qCount?v:null),
-            backgroundColor: 'rgba(80,60,130,0.65)', borderColor: 'rgba(80,60,130,0.9)',
-            borderWidth: 1, yAxisID: 'yBar', order: 5, barPercentage: 0.6, categoryPercentage: 0.8
-          },
-          {
-            type: 'bar', label: 'Output (ea) - M', data: outputData.map((v,i)=>i>qCount?v:null),
-            backgroundColor: 'rgba(140,170,60,0.65)', borderColor: 'rgba(140,170,60,0.9)',
+            type: 'bar', label: 'Output (ea)',
+            data: outputData,
+            backgroundColor: outputData.map((v,i) => i < qCount ? 'rgba(80,160,80,0.55)' : 'rgba(140,170,60,0.65)'),
+            borderColor:     outputData.map((v,i) => i < qCount ? 'rgba(80,160,80,0.85)' : 'rgba(140,170,60,0.9)'),
             borderWidth: 1, yAxisID: 'yBar', order: 4, barPercentage: 0.6, categoryPercentage: 0.8
           },
           {
@@ -3194,43 +3696,6 @@ function renderAllTabs() {
 }
 
 
-// ─── Pre-embedded Strip data (StripTest_Summary_20260515.xlsx, Report Date fallback) ─
-const PRECOMPUTED_STRIP = {"AC": [{"year": 2025, "week": 1, "dateISO": "2024-12-30", "label": "26W1", "input": 310414, "output": 309086, "batches": 78, "yield": 99.5722, "aty": 97.6983, "defects": {"BVDSS": 806, "VTH < 1.5V": 262, "VTH > 6V": 1187, "VFSD": 1809, "IPD": 97}}, {"year": 2025, "week": 2, "dateISO": "2025-01-06", "label": "26W2", "input": 431131, "output": 429530, "batches": 108, "yield": 99.6287, "aty": 98.0555, "defects": {"BVDSS": 135, "VTH < 1.5V": 617, "VTH > 6V": 1565, "VFSD": 1055, "IPD": 244}}, {"year": 2025, "week": 3, "dateISO": "2025-01-13", "label": "26W3", "input": 228828, "output": 228137, "batches": 59, "yield": 99.698, "aty": 95.3336, "defects": {"BVDSS": 57, "VTH < 1.5V": 373, "VTH > 6V": 1091, "VFSD": 1376, "IPD": 88}}, {"year": 2025, "week": 4, "dateISO": "2025-01-20", "label": "26W4", "input": 308172, "output": 306512, "batches": 77, "yield": 99.4613, "aty": 98.1429, "defects": {"BVDSS": 238, "VTH < 1.5V": 333, "VTH > 6V": 1387, "VFSD": 2838, "IPD": 346}}, {"year": 2025, "week": 6, "dateISO": "2025-02-03", "label": "26W6", "input": 681456, "output": 676414, "batches": 172, "yield": 99.2601, "aty": 96.9586, "defects": {"BVDSS": 164, "VTH < 1.5V": 306, "VTH > 6V": 2095, "VFSD": 4580, "IPD": 130}}, {"year": 2025, "week": 7, "dateISO": "2025-02-10", "label": "26W7", "input": 345254, "output": 343373, "batches": 86, "yield": 99.4552, "aty": 98.4396, "defects": {"BVDSS": 172, "VTH < 1.5V": 472, "VTH > 6V": 1593, "VFSD": 2700, "IPD": 140}}, {"year": 2025, "week": 8, "dateISO": "2025-02-17", "label": "26W8", "input": 287619, "output": 286476, "batches": 72, "yield": 99.6026, "aty": 98.0975, "defects": {"BVDSS": 377, "VTH < 1.5V": 513, "VTH > 6V": 1211, "VFSD": 1361, "IPD": 206}}, {"year": 2025, "week": 9, "dateISO": "2025-02-24", "label": "26W9", "input": 372581, "output": 370864, "batches": 94, "yield": 99.5392, "aty": 97.2722, "defects": {"BVDSS": 456, "VTH < 1.5V": 450, "VTH > 6V": 1238, "VFSD": 2144, "IPD": 113}}, {"year": 2025, "week": 10, "dateISO": "2025-03-03", "label": "26W10", "input": 568362, "output": 566238, "batches": 142, "yield": 99.6263, "aty": 98.3134, "defects": {"BVDSS": 908, "VTH < 1.5V": 479, "VTH > 6V": 1298, "VFSD": 874, "IPD": 101}}, {"year": 2025, "week": 11, "dateISO": "2025-03-10", "label": "26W11", "input": 313753, "output": 312313, "batches": 78, "yield": 99.541, "aty": 98.7183, "defects": {"BVDSS": 1021, "VTH < 1.5V": 307, "VTH > 6V": 2174, "VFSD": 967, "IPD": 96}}, {"year": 2025, "week": 12, "dateISO": "2025-03-17", "label": "26W12", "input": 509113, "output": 506846, "batches": 129, "yield": 99.5547, "aty": 96.8698, "defects": {"BVDSS": 1277, "VTH < 1.5V": 558, "VTH > 6V": 1626, "VFSD": 781, "IPD": 148}}, {"year": 2025, "week": 13, "dateISO": "2025-03-24", "label": "26W13", "input": 401980, "output": 400108, "batches": 100, "yield": 99.5343, "aty": 98.646, "defects": {"BVDSS": 1455, "VTH < 1.5V": 845, "VTH > 6V": 1302, "VFSD": 760, "IPD": 187}}, {"year": 2025, "week": 14, "dateISO": "2025-03-31", "label": "26W14", "input": 270219, "output": 269358, "batches": 67, "yield": 99.6814, "aty": 99.119, "defects": {"BVDSS": 832, "VTH < 1.5V": 572, "VTH > 6V": 646, "VFSD": 999, "IPD": 89}}, {"year": 2025, "week": 15, "dateISO": "2025-04-07", "label": "26W15", "input": 394114, "output": 392840, "batches": 98, "yield": 99.6767, "aty": 98.8307, "defects": {"BVDSS": 537, "VTH < 1.5V": 710, "VTH > 6V": 1079, "VFSD": 588, "IPD": 257}}, {"year": 2025, "week": 16, "dateISO": "2025-04-14", "label": "26W16", "input": 472104, "output": 471108, "batches": 117, "yield": 99.789, "aty": 99.2743, "defects": {"BVDSS": 987, "VTH < 1.5V": 367, "VTH > 6V": 442, "VFSD": 191, "IPD": 93}}, {"year": 2025, "week": 17, "dateISO": "2025-04-21", "label": "26W17", "input": 487614, "output": 486096, "batches": 121, "yield": 99.6887, "aty": 99.0464, "defects": {"BVDSS": 1177, "VTH < 1.5V": 307, "VTH > 6V": 370, "VFSD": 1166, "IPD": 72}}, {"year": 2025, "week": 18, "dateISO": "2025-04-28", "label": "26W18", "input": 185727, "output": 184071, "batches": 46, "yield": 99.1084, "aty": 98.6574, "defects": {"BVDSS": 6699, "VTH < 1.5V": 375, "VTH > 6V": 619, "VFSD": 1222, "IPD": 65}}, {"year": 2025, "week": 19, "dateISO": "2025-05-05", "label": "26W19", "input": 639681, "output": 637698, "batches": 160, "yield": 99.69, "aty": 98.2646, "defects": {"BVDSS": 1656, "VTH < 1.5V": 347, "VTH > 6V": 580, "VFSD": 326, "IPD": 165}}, {"year": 2025, "week": 20, "dateISO": "2025-05-12", "label": "26W20", "input": 516039, "output": 514906, "batches": 129, "yield": 99.7804, "aty": 98.4102, "defects": {"BVDSS": 658, "VTH < 1.5V": 353, "VTH > 6V": 530, "VFSD": 526, "IPD": 111}}, {"year": 2025, "week": 21, "dateISO": "2025-05-19", "label": "26W21", "input": 483332, "output": 482046, "batches": 120, "yield": 99.7339, "aty": 99.0397, "defects": {"BVDSS": 425, "VTH < 1.5V": 454, "VTH > 6V": 556, "VFSD": 1066, "IPD": 131}}, {"year": 2025, "week": 22, "dateISO": "2025-05-26", "label": "26W22", "input": 397934, "output": 396836, "batches": 99, "yield": 99.7241, "aty": 98.8275, "defects": {"BVDSS": 252, "VTH < 1.5V": 300, "VTH > 6V": 756, "VFSD": 1353, "IPD": 91}}, {"year": 2025, "week": 23, "dateISO": "2025-06-02", "label": "26W23", "input": 609383, "output": 608269, "batches": 152, "yield": 99.8172, "aty": 98.663, "defects": {"BVDSS": 184, "VTH < 1.5V": 409, "VTH > 6V": 521, "VFSD": 677, "IPD": 69}}, {"year": 2025, "week": 24, "dateISO": "2025-06-09", "label": "26W24", "input": 379919, "output": 379635, "batches": 95, "yield": 99.9252, "aty": 98.5246, "defects": {"BVDSS": 182, "VTH < 1.5V": 237, "VTH > 6V": 256, "VFSD": 8, "IPD": 50}}, {"year": 2025, "week": 25, "dateISO": "2025-06-16", "label": "26W25", "input": 346870, "output": 346043, "batches": 86, "yield": 99.7616, "aty": 99.205, "defects": {"BVDSS": 1095, "VTH < 1.5V": 549, "VTH > 6V": 353, "VFSD": 142, "IPD": 217}}, {"year": 2025, "week": 26, "dateISO": "2025-06-23", "label": "26W26", "input": 359842, "output": 358297, "batches": 90, "yield": 99.5706, "aty": 98.1528, "defects": {"BVDSS": 3519, "VTH < 1.5V": 349, "VTH > 6V": 212, "VFSD": 167, "IPD": 47}}, {"year": 2025, "week": 27, "dateISO": "2025-06-30", "label": "26W27", "input": 523068, "output": 520924, "batches": 130, "yield": 99.5901, "aty": 98.7946, "defects": {"BVDSS": 2997, "VTH < 1.5V": 449, "VTH > 6V": 328, "VFSD": 165, "IPD": 146}}, {"year": 2025, "week": 28, "dateISO": "2025-07-07", "label": "26W28", "input": 442124, "output": 440702, "batches": 111, "yield": 99.6784, "aty": 97.8868, "defects": {"BVDSS": 2206, "VTH < 1.5V": 456, "VTH > 6V": 227, "VFSD": 193, "IPD": 107}}, {"year": 2025, "week": 29, "dateISO": "2025-07-14", "label": "26W29", "input": 20170, "output": 20142, "batches": 5, "yield": 99.8612, "aty": 99.3195, "defects": {"BVDSS": 149, "VTH < 1.5V": 447, "VTH > 6V": 447, "VFSD": 199, "IPD": 149}}, {"year": 2025, "week": 30, "dateISO": "2025-07-21", "label": "26W30", "input": 591186, "output": 590213, "batches": 147, "yield": 99.8354, "aty": 98.9905, "defects": {"BVDSS": 454, "VTH < 1.5V": 413, "VTH > 6V": 413, "VFSD": 122, "IPD": 154}}, {"year": 2025, "week": 31, "dateISO": "2025-07-28", "label": "26W31", "input": 447984, "output": 447224, "batches": 112, "yield": 99.8304, "aty": 98.4485, "defects": {"BVDSS": 159, "VTH < 1.5V": 606, "VTH > 6V": 698, "VFSD": 56, "IPD": 141}}, {"year": 2025, "week": 32, "dateISO": "2025-08-04", "label": "26W32", "input": 445962, "output": 444916, "batches": 111, "yield": 99.7655, "aty": 98.8228, "defects": {"BVDSS": 79, "VTH < 1.5V": 1072, "VTH > 6V": 661, "VFSD": 117, "IPD": 400}}, {"year": 2025, "week": 33, "dateISO": "2025-08-11", "label": "26W33", "input": 61979, "output": 61855, "batches": 16, "yield": 99.7999, "aty": 95.314, "defects": {"BVDSS": 32, "VTH < 1.5V": 598, "VTH > 6V": 501, "VFSD": 340, "IPD": 501}}, {"year": 2025, "week": 34, "dateISO": "2025-08-18", "label": "26W34", "input": 445090, "output": 444136, "batches": 111, "yield": 99.7857, "aty": 98.6495, "defects": {"BVDSS": 104, "VTH < 1.5V": 878, "VTH > 6V": 718, "VFSD": 52, "IPD": 360}}, {"year": 2025, "week": 35, "dateISO": "2025-08-25", "label": "26W35", "input": 526242, "output": 525173, "batches": 131, "yield": 99.7969, "aty": 98.8401, "defects": {"BVDSS": 112, "VTH < 1.5V": 889, "VTH > 6V": 790, "VFSD": 51, "IPD": 158}}, {"year": 2025, "week": 36, "dateISO": "2025-09-01", "label": "26W36", "input": 404103, "output": 403365, "batches": 101, "yield": 99.8174, "aty": 98.4643, "defects": {"BVDSS": 295, "VTH < 1.5V": 424, "VTH > 6V": 731, "VFSD": 154, "IPD": 206}}, {"year": 2025, "week": 37, "dateISO": "2025-09-08", "label": "26W37", "input": 518831, "output": 517546, "batches": 129, "yield": 99.7523, "aty": 98.9148, "defects": {"BVDSS": 786, "VTH < 1.5V": 508, "VTH > 6V": 663, "VFSD": 228, "IPD": 278}}, {"year": 2025, "week": 38, "dateISO": "2025-09-15", "label": "26W38", "input": 188352, "output": 187789, "batches": 47, "yield": 99.7011, "aty": 98.5086, "defects": {"BVDSS": 1571, "VTH < 1.5V": 559, "VTH > 6V": 554, "VFSD": 138, "IPD": 154}}, {"year": 2025, "week": 39, "dateISO": "2025-09-22", "label": "26W39", "input": 96910, "output": 96637, "batches": 24, "yield": 99.7183, "aty": 99.2737, "defects": {"BVDSS": 414, "VTH < 1.5V": 1190, "VTH > 6V": 559, "VFSD": 217, "IPD": 424}}, {"year": 2025, "week": 40, "dateISO": "2025-09-29", "label": "26W40", "input": 342574, "output": 341058, "batches": 85, "yield": 99.5575, "aty": 98.9262, "defects": {"BVDSS": 1680, "VTH < 1.5V": 1363, "VTH > 6V": 625, "VFSD": 199, "IPD": 560}}, {"year": 2025, "week": 41, "dateISO": "2025-10-06", "label": "26W41", "input": 505361, "output": 502177, "batches": 126, "yield": 99.37, "aty": 98.2626, "defects": {"BVDSS": 1276, "VTH < 1.5V": 3079, "VTH > 6V": 1165, "VFSD": 68, "IPD": 739}}, {"year": 2025, "week": 42, "dateISO": "2025-10-13", "label": "26W42", "input": 530452, "output": 526587, "batches": 136, "yield": 99.2714, "aty": 95.4626, "defects": {"BVDSS": 610, "VTH < 1.5V": 5275, "VTH > 6V": 743, "VFSD": 93, "IPD": 613}}, {"year": 2025, "week": 43, "dateISO": "2025-10-20", "label": "26W43", "input": 393139, "output": 391792, "batches": 99, "yield": 99.6574, "aty": 97.5714, "defects": {"BVDSS": 735, "VTH < 1.5V": 1613, "VTH > 6V": 459, "VFSD": 120, "IPD": 533}}, {"year": 2025, "week": 44, "dateISO": "2025-10-27", "label": "26W44", "input": 151984, "output": 151173, "batches": 38, "yield": 99.4664, "aty": 98.0828, "defects": {"BVDSS": 324, "VTH < 1.5V": 3751, "VTH > 6V": 807, "VFSD": 73, "IPD": 463}}, {"year": 2025, "week": 45, "dateISO": "2025-11-03", "label": "26W45", "input": 426712, "output": 424586, "batches": 110, "yield": 99.5018, "aty": 95.1645, "defects": {"BVDSS": 480, "VTH < 1.5V": 2916, "VTH > 6V": 1013, "VFSD": 203, "IPD": 370}}, {"year": 2025, "week": 46, "dateISO": "2025-11-10", "label": "26W46", "input": 478002, "output": 475402, "batches": 119, "yield": 99.4561, "aty": 98.4954, "defects": {"BVDSS": 536, "VTH < 1.5V": 3523, "VTH > 6V": 879, "VFSD": 158, "IPD": 351}}, {"year": 2025, "week": 47, "dateISO": "2025-11-17", "label": "26W47", "input": 185726, "output": 185269, "batches": 46, "yield": 99.7539, "aty": 99.2995, "defects": {"BVDSS": 270, "VTH < 1.5V": 702, "VTH > 6V": 1117, "VFSD": 297, "IPD": 76}}, {"year": 2025, "week": 48, "dateISO": "2025-11-24", "label": "26W48", "input": 322698, "output": 322116, "batches": 80, "yield": 99.8196, "aty": 99.2714, "defects": {"BVDSS": 413, "VTH < 1.5V": 447, "VTH > 6V": 714, "VFSD": 140, "IPD": 96}}, {"year": 2025, "week": 49, "dateISO": "2025-12-01", "label": "26W49", "input": 321732, "output": 320397, "batches": 80, "yield": 99.5851, "aty": 98.7417, "defects": {"BVDSS": 2022, "VTH < 1.5V": 718, "VTH > 6V": 771, "VFSD": 456, "IPD": 156}}, {"year": 2025, "week": 50, "dateISO": "2025-12-08", "label": "26W50", "input": 302166, "output": 301256, "batches": 75, "yield": 99.6988, "aty": 99.0322, "defects": {"BVDSS": 687, "VTH < 1.5V": 1321, "VTH > 6V": 534, "VFSD": 266, "IPD": 186}}, {"year": 2025, "week": 51, "dateISO": "2025-12-15", "label": "26W51", "input": 267543, "output": 266858, "batches": 67, "yield": 99.744, "aty": 98.1991, "defects": {"BVDSS": 1027, "VTH < 1.5V": 416, "VTH > 6V": 768, "VFSD": 221, "IPD": 112}}, {"year": 2025, "week": 52, "dateISO": "2025-12-22", "label": "26W52", "input": 354252, "output": 353535, "batches": 88, "yield": 99.7976, "aty": 99.0494, "defects": {"BVDSS": 569, "VTH < 1.5V": 402, "VTH > 6V": 639, "VFSD": 308, "IPD": 99}}, {"year": 2026, "week": 1, "dateISO": "2025-12-29", "label": "26W1", "input": 369172, "output": 368240, "batches": 92, "yield": 99.7475, "aty": 98.6836, "defects": {"BVDSS": 918, "VTH < 1.5V": 358, "VTH > 6V": 725, "VFSD": 394, "IPD": 133}}, {"year": 2026, "week": 2, "dateISO": "2026-01-05", "label": "26W2", "input": 509995, "output": 508129, "batches": 127, "yield": 99.6341, "aty": 98.6444, "defects": {"BVDSS": 1527, "VTH < 1.5V": 313, "VTH > 6V": 943, "VFSD": 762, "IPD": 104}}, {"year": 2026, "week": 3, "dateISO": "2026-01-12", "label": "26W3", "input": 91814, "output": 90830, "batches": 23, "yield": 98.9283, "aty": 97.3651, "defects": {"BVDSS": 5395, "VTH < 1.5V": 165, "VTH > 6V": 738, "VFSD": 473, "IPD": 44}}, {"year": 2026, "week": 4, "dateISO": "2026-01-19", "label": "26W4", "input": 8089, "output": 8073, "batches": 2, "yield": 99.8022, "aty": 99.5192, "defects": {"BVDSS": 867, "VTH < 1.5V": 124, "VTH > 6V": 372, "VFSD": 0, "IPD": 0}}, {"year": 2026, "week": 5, "dateISO": "2026-01-26", "label": "26W5", "input": 176124, "output": 174807, "batches": 44, "yield": 99.2522, "aty": 97.9508, "defects": {"BVDSS": 2935, "VTH < 1.5V": 538, "VTH > 6V": 749, "VFSD": 469, "IPD": 200}}, {"year": 2026, "week": 6, "dateISO": "2026-02-02", "label": "26W6", "input": 342112, "output": 339403, "batches": 85, "yield": 99.2082, "aty": 98.4462, "defects": {"BVDSS": 3344, "VTH < 1.5V": 654, "VTH > 6V": 678, "VFSD": 451, "IPD": 130}}, {"year": 2026, "week": 7, "dateISO": "2026-02-09", "label": "26W7", "input": 205275, "output": 203533, "batches": 52, "yield": 99.1514, "aty": 96.5014, "defects": {"BVDSS": 3773, "VTH < 1.5V": 260, "VTH > 6V": 1061, "VFSD": 501, "IPD": 103}}, {"year": 2026, "week": 9, "dateISO": "2026-02-23", "label": "26W9", "input": 575277, "output": 561910, "batches": 143, "yield": 97.6764, "aty": 96.8797, "defects": {"BVDSS": 2698, "VTH < 1.5V": 9886, "VTH > 6V": 949, "VFSD": 486, "IPD": 198}}, {"year": 2026, "week": 10, "dateISO": "2026-03-02", "label": "26W10", "input": 644572, "output": 635817, "batches": 161, "yield": 98.6417, "aty": 97.3662, "defects": {"BVDSS": 2350, "VTH < 1.5V": 3683, "VTH > 6V": 1373, "VFSD": 425, "IPD": 197}}, {"year": 2026, "week": 11, "dateISO": "2026-03-09", "label": "26W11", "input": 578000, "output": 566851, "batches": 145, "yield": 98.0711, "aty": 96.3836, "defects": {"BVDSS": 3488, "VTH < 1.5V": 4952, "VTH > 6V": 1625, "VFSD": 1032, "IPD": 178}}, {"year": 2026, "week": 12, "dateISO": "2026-03-16", "label": "26W12", "input": 325884, "output": 322981, "batches": 81, "yield": 99.1092, "aty": 98.3092, "defects": {"BVDSS": 3201, "VTH < 1.5V": 1229, "VTH > 6V": 1310, "VFSD": 697, "IPD": 130}}, {"year": 2026, "week": 13, "dateISO": "2026-03-23", "label": "26W13", "input": 291512, "output": 289703, "batches": 72, "yield": 99.3794, "aty": 99.2025, "defects": {"BVDSS": 1029, "VTH < 1.5V": 4346, "VTH > 6V": 677, "VFSD": 266, "IPD": 186}}, {"year": 2026, "week": 14, "dateISO": "2026-03-30", "label": "26W14", "input": 286678, "output": 285184, "batches": 72, "yield": 99.4789, "aty": 97.6551, "defects": {"BVDSS": 691, "VTH < 1.5V": 3791, "VTH > 6V": 540, "VFSD": 60, "IPD": 196}}, {"year": 2026, "week": 15, "dateISO": "2026-04-06", "label": "26W15", "input": 268660, "output": 267755, "batches": 67, "yield": 99.6631, "aty": 98.5292, "defects": {"BVDSS": 2416, "VTH < 1.5V": 814, "VTH > 6V": 512, "VFSD": 220, "IPD": 194}}, {"year": 2026, "week": 16, "dateISO": "2026-04-13", "label": "26W16", "input": 289389, "output": 287864, "batches": 72, "yield": 99.473, "aty": 98.5728, "defects": {"BVDSS": 4579, "VTH < 1.5V": 1282, "VTH > 6V": 563, "VFSD": 101, "IPD": 104}}, {"year": 2026, "week": 17, "dateISO": "2026-04-20", "label": "26W17", "input": 213209, "output": 211291, "batches": 53, "yield": 99.1004, "aty": 98.2895, "defects": {"BVDSS": 2281, "VTH < 1.5V": 6678, "VTH > 6V": 454, "VFSD": 279, "IPD": 213}}, {"year": 2026, "week": 18, "dateISO": "2026-04-27", "label": "26W18", "input": 364627, "output": 363255, "batches": 91, "yield": 99.6237, "aty": 98.4175, "defects": {"BVDSS": 3350, "VTH < 1.5V": 644, "VTH > 6V": 551, "VFSD": 176, "IPD": 129}}, {"year": 2026, "week": 19, "dateISO": "2026-05-04", "label": "26W19", "input": 669651, "output": 665072, "batches": 168, "yield": 99.3162, "aty": 97.6026, "defects": {"BVDSS": 5363, "VTH < 1.5V": 848, "VTH > 6V": 818, "VFSD": 370, "IPD": 616}}, {"year": 2026, "week": 20, "dateISO": "2026-05-11", "label": "26W20", "input": 277408, "output": 275894, "batches": 69, "yield": 99.4542, "aty": 98.5815, "defects": {"BVDSS": 5680, "VTH < 1.5V": 275, "VTH > 6V": 855, "VFSD": 671, "IPD": 953}}], "CC": [{"year": 2025, "week": 1, "dateISO": "2024-12-30", "label": "26W1", "input": 333269, "output": 331772, "batches": 83, "yield": 99.5508, "aty": 98.5516, "defects": {"IDSS": 169, "BVDSS": 286, "VTH > 6V": 1860, "VTH < 1.5V": 437, "IPD": 127}}, {"year": 2025, "week": 2, "dateISO": "2025-01-06", "label": "26W2", "input": 339527, "output": 338255, "batches": 85, "yield": 99.6254, "aty": 98.1132, "defects": {"IDSS": 30, "BVDSS": 95, "VTH > 6V": 2108, "VTH < 1.5V": 234, "IPD": 103}}, {"year": 2025, "week": 3, "dateISO": "2025-01-13", "label": "26W3", "input": 395449, "output": 394072, "batches": 99, "yield": 99.6518, "aty": 98.1392, "defects": {"IDSS": 43, "BVDSS": 91, "VTH > 6V": 1540, "VTH < 1.5V": 406, "IPD": 129}}, {"year": 2025, "week": 4, "dateISO": "2025-01-20", "label": "26W4", "input": 392222, "output": 389595, "batches": 98, "yield": 99.3302, "aty": 98.0143, "defects": {"IDSS": 226, "BVDSS": 259, "VTH > 6V": 2115, "VTH < 1.5V": 667, "IPD": 462}}, {"year": 2025, "week": 6, "dateISO": "2025-02-03", "label": "26W6", "input": 551441, "output": 547288, "batches": 138, "yield": 99.2469, "aty": 97.7775, "defects": {"IDSS": 93, "BVDSS": 250, "VTH > 6V": 2640, "VTH < 1.5V": 358, "IPD": 305}}, {"year": 2025, "week": 7, "dateISO": "2025-02-10", "label": "26W7", "input": 380090, "output": 377762, "batches": 96, "yield": 99.3875, "aty": 97.0173, "defects": {"IDSS": 48, "BVDSS": 161, "VTH > 6V": 2504, "VTH < 1.5V": 389, "IPD": 177}}, {"year": 2025, "week": 8, "dateISO": "2025-02-17", "label": "26W8", "input": 272750, "output": 271598, "batches": 70, "yield": 99.5776, "aty": 95.66, "defects": {"IDSS": 44, "BVDSS": 320, "VTH > 6V": 2095, "VTH < 1.5V": 236, "IPD": 122}}, {"year": 2025, "week": 9, "dateISO": "2025-02-24", "label": "26W9", "input": 361545, "output": 359766, "batches": 91, "yield": 99.5079, "aty": 97.4722, "defects": {"IDSS": 31, "BVDSS": 359, "VTH > 6V": 2213, "VTH < 1.5V": 114, "IPD": 75}}, {"year": 2025, "week": 10, "dateISO": "2025-03-03", "label": "26W10", "input": 529080, "output": 526619, "batches": 132, "yield": 99.5349, "aty": 98.3614, "defects": {"IDSS": 46, "BVDSS": 856, "VTH > 6V": 2229, "VTH < 1.5V": 311, "IPD": 127}}, {"year": 2025, "week": 11, "dateISO": "2025-03-10", "label": "26W11", "input": 402773, "output": 400538, "batches": 100, "yield": 99.4451, "aty": 98.752, "defects": {"IDSS": 40, "BVDSS": 1241, "VTH > 6V": 2756, "VTH < 1.5V": 255, "IPD": 75}}, {"year": 2025, "week": 12, "dateISO": "2025-03-17", "label": "26W12", "input": 482251, "output": 479892, "batches": 121, "yield": 99.5108, "aty": 97.7823, "defects": {"IDSS": 54, "BVDSS": 777, "VTH > 6V": 2705, "VTH < 1.5V": 398, "IPD": 98}}, {"year": 2025, "week": 13, "dateISO": "2025-03-24", "label": "26W13", "input": 386608, "output": 384638, "batches": 96, "yield": 99.4904, "aty": 98.7832, "defects": {"IDSS": 86, "BVDSS": 1219, "VTH > 6V": 2392, "VTH < 1.5V": 455, "IPD": 127}}, {"year": 2025, "week": 14, "dateISO": "2025-03-31", "label": "26W14", "input": 313624, "output": 312081, "batches": 78, "yield": 99.508, "aty": 98.6449, "defects": {"IDSS": 115, "BVDSS": 1589, "VTH > 6V": 1891, "VTH < 1.5V": 260, "IPD": 154}}, {"year": 2025, "week": 15, "dateISO": "2025-04-07", "label": "26W15", "input": 419498, "output": 417951, "batches": 105, "yield": 99.6312, "aty": 98.1382, "defects": {"IDSS": 45, "BVDSS": 720, "VTH > 6V": 1881, "VTH < 1.5V": 242, "IPD": 165}}, {"year": 2025, "week": 16, "dateISO": "2025-04-14", "label": "26W16", "input": 397939, "output": 396760, "batches": 99, "yield": 99.7037, "aty": 98.8086, "defects": {"IDSS": 53, "BVDSS": 716, "VTH > 6V": 1631, "VTH < 1.5V": 151, "IPD": 81}}, {"year": 2025, "week": 17, "dateISO": "2025-04-21", "label": "26W17", "input": 374449, "output": 373017, "batches": 94, "yield": 99.6176, "aty": 97.8369, "defects": {"IDSS": 35, "BVDSS": 1217, "VTH > 6V": 1193, "VTH < 1.5V": 97, "IPD": 113}}, {"year": 2025, "week": 18, "dateISO": "2025-04-28", "label": "26W18", "input": 410018, "output": 406749, "batches": 102, "yield": 99.2027, "aty": 98.3169, "defects": {"IDSS": 15, "BVDSS": 5030, "VTH > 6V": 1758, "VTH < 1.5V": 125, "IPD": 76}}, {"year": 2025, "week": 19, "dateISO": "2025-05-05", "label": "26W19", "input": 476258, "output": 473827, "batches": 119, "yield": 99.4896, "aty": 98.1691, "defects": {"IDSS": 27, "BVDSS": 2457, "VTH > 6V": 1847, "VTH < 1.5V": 342, "IPD": 76}}, {"year": 2025, "week": 20, "dateISO": "2025-05-12", "label": "26W20", "input": 481020, "output": 479806, "batches": 120, "yield": 99.7476, "aty": 98.5795, "defects": {"IDSS": 56, "BVDSS": 515, "VTH > 6V": 1207, "VTH < 1.5V": 200, "IPD": 85}}, {"year": 2025, "week": 21, "dateISO": "2025-05-19", "label": "26W21", "input": 382048, "output": 379893, "batches": 96, "yield": 99.4359, "aty": 97.5646, "defects": {"IDSS": 108, "BVDSS": 419, "VTH > 6V": 1561, "VTH < 1.5V": 2264, "IPD": 395}}, {"year": 2025, "week": 22, "dateISO": "2025-05-26", "label": "26W22", "input": 401512, "output": 400144, "batches": 100, "yield": 99.6593, "aty": 98.6548, "defects": {"IDSS": 22, "BVDSS": 445, "VTH > 6V": 1472, "VTH < 1.5V": 225, "IPD": 75}}, {"year": 2025, "week": 23, "dateISO": "2025-06-02", "label": "26W23", "input": 453838, "output": 452772, "batches": 113, "yield": 99.7651, "aty": 98.7878, "defects": {"IDSS": 9, "BVDSS": 289, "VTH > 6V": 1144, "VTH < 1.5V": 192, "IPD": 57}}, {"year": 2025, "week": 24, "dateISO": "2025-06-09", "label": "26W24", "input": 502859, "output": 501929, "batches": 126, "yield": 99.8151, "aty": 98.2141, "defects": {"IDSS": 159, "BVDSS": 193, "VTH > 6V": 751, "VTH < 1.5V": 189, "IPD": 546}}, {"year": 2025, "week": 25, "dateISO": "2025-06-16", "label": "26W25", "input": 659194, "output": 657848, "batches": 166, "yield": 99.7958, "aty": 97.7056, "defects": {"IDSS": 29, "BVDSS": 768, "VTH > 6V": 804, "VTH < 1.5V": 230, "IPD": 109}}, {"year": 2025, "week": 26, "dateISO": "2025-06-23", "label": "26W26", "input": 368817, "output": 366809, "batches": 93, "yield": 99.4556, "aty": 97.2432, "defects": {"IDSS": 237, "BVDSS": 3154, "VTH > 6V": 984, "VTH < 1.5V": 314, "IPD": 545}}, {"year": 2025, "week": 27, "dateISO": "2025-06-30", "label": "26W27", "input": 425938, "output": 423718, "batches": 106, "yield": 99.4788, "aty": 98.5537, "defects": {"IDSS": 19, "BVDSS": 3342, "VTH > 6V": 1331, "VTH < 1.5V": 219, "IPD": 85}}, {"year": 2025, "week": 28, "dateISO": "2025-07-07", "label": "26W28", "input": 485104, "output": 483153, "batches": 121, "yield": 99.5978, "aty": 98.4467, "defects": {"IDSS": 91, "BVDSS": 1848, "VTH > 6V": 1354, "VTH < 1.5V": 348, "IPD": 141}}, {"year": 2025, "week": 29, "dateISO": "2025-07-14", "label": "26W29", "input": 325305, "output": 324352, "batches": 81, "yield": 99.707, "aty": 98.7265, "defects": {"IDSS": 154, "BVDSS": 438, "VTH > 6V": 1597, "VTH < 1.5V": 361, "IPD": 182}}, {"year": 2025, "week": 30, "dateISO": "2025-07-21", "label": "26W30", "input": 281481, "output": 280583, "batches": 70, "yield": 99.681, "aty": 98.8247, "defects": {"IDSS": 64, "BVDSS": 499, "VTH > 6V": 1896, "VTH < 1.5V": 417, "IPD": 203}}, {"year": 2025, "week": 31, "dateISO": "2025-07-28", "label": "26W31", "input": 349321, "output": 348324, "batches": 87, "yield": 99.7146, "aty": 98.7111, "defects": {"IDSS": 29, "BVDSS": 405, "VTH > 6V": 1780, "VTH < 1.5V": 382, "IPD": 175}}, {"year": 2025, "week": 32, "dateISO": "2025-08-04", "label": "26W32", "input": 332283, "output": 331489, "batches": 83, "yield": 99.761, "aty": 98.4675, "defects": {"IDSS": 18, "BVDSS": 91, "VTH > 6V": 1587, "VTH < 1.5V": 365, "IPD": 136}}, {"year": 2025, "week": 33, "dateISO": "2025-08-11", "label": "26W33", "input": 48487, "output": 48383, "batches": 12, "yield": 99.7855, "aty": 99.4062, "defects": {"IDSS": 21, "BVDSS": 21, "VTH > 6V": 1405, "VTH < 1.5V": 310, "IPD": 41}}, {"year": 2025, "week": 34, "dateISO": "2025-08-18", "label": "26W34", "input": 484551, "output": 483129, "batches": 121, "yield": 99.7065, "aty": 98.4419, "defects": {"IDSS": 17, "BVDSS": 108, "VTH > 6V": 1457, "VTH < 1.5V": 898, "IPD": 381}}, {"year": 2025, "week": 35, "dateISO": "2025-08-25", "label": "26W35", "input": 329955, "output": 329189, "batches": 82, "yield": 99.7678, "aty": 98.9768, "defects": {"IDSS": 3, "BVDSS": 255, "VTH > 6V": 1294, "VTH < 1.5V": 519, "IPD": 197}}, {"year": 2025, "week": 36, "dateISO": "2025-09-01", "label": "26W36", "input": 241627, "output": 240914, "batches": 61, "yield": 99.7049, "aty": 97.372, "defects": {"IDSS": 29, "BVDSS": 66, "VTH > 6V": 1461, "VTH < 1.5V": 760, "IPD": 428}}, {"year": 2025, "week": 37, "dateISO": "2025-09-08", "label": "26W37", "input": 364743, "output": 363841, "batches": 91, "yield": 99.7527, "aty": 98.5763, "defects": {"IDSS": 22, "BVDSS": 143, "VTH > 6V": 1388, "VTH < 1.5V": 473, "IPD": 236}}, {"year": 2025, "week": 38, "dateISO": "2025-09-15", "label": "26W38", "input": 399042, "output": 398200, "batches": 99, "yield": 99.789, "aty": 99.1672, "defects": {"IDSS": 15, "BVDSS": 359, "VTH > 6V": 972, "VTH < 1.5V": 427, "IPD": 151}}, {"year": 2025, "week": 39, "dateISO": "2025-09-22", "label": "26W39", "input": 645435, "output": 643001, "batches": 162, "yield": 99.6229, "aty": 97.8585, "defects": {"IDSS": 22, "BVDSS": 876, "VTH > 6V": 1602, "VTH < 1.5V": 854, "IPD": 308}}, {"year": 2025, "week": 40, "dateISO": "2025-09-29", "label": "26W40", "input": 385389, "output": 383058, "batches": 96, "yield": 99.3952, "aty": 98.3774, "defects": {"IDSS": 8, "BVDSS": 1078, "VTH > 6V": 1109, "VTH < 1.5V": 3057, "IPD": 663}}, {"year": 2025, "week": 41, "dateISO": "2025-10-06", "label": "26W41", "input": 180449, "output": 179008, "batches": 45, "yield": 99.2014, "aty": 98.0758, "defects": {"IDSS": 17, "BVDSS": 1056, "VTH > 6V": 1810, "VTH < 1.5V": 4045, "IPD": 1056}}, {"year": 2025, "week": 42, "dateISO": "2025-10-13", "label": "26W42", "input": 428486, "output": 425928, "batches": 107, "yield": 99.403, "aty": 98.1419, "defects": {"IDSS": 5, "BVDSS": 742, "VTH > 6V": 1641, "VTH < 1.5V": 3012, "IPD": 477}}, {"year": 2025, "week": 43, "dateISO": "2025-10-20", "label": "26W43", "input": 314923, "output": 313554, "batches": 78, "yield": 99.5653, "aty": 99.1105, "defects": {"IDSS": 16, "BVDSS": 705, "VTH > 6V": 1186, "VTH < 1.5V": 1776, "IPD": 593}}, {"year": 2025, "week": 44, "dateISO": "2025-10-27", "label": "26W44", "input": 685004, "output": 680874, "batches": 171, "yield": 99.3971, "aty": 98.1686, "defects": {"IDSS": 22, "BVDSS": 419, "VTH > 6V": 1724, "VTH < 1.5V": 3426, "IPD": 429}}, {"year": 2025, "week": 45, "dateISO": "2025-11-03", "label": "26W45", "input": 434200, "output": 431249, "batches": 110, "yield": 99.3204, "aty": 96.6579, "defects": {"IDSS": 65, "BVDSS": 417, "VTH > 6V": 1839, "VTH < 1.5V": 3917, "IPD": 378}}, {"year": 2025, "week": 46, "dateISO": "2025-11-10", "label": "26W46", "input": 407721, "output": 405802, "batches": 103, "yield": 99.5293, "aty": 97.1357, "defects": {"IDSS": 20, "BVDSS": 525, "VTH > 6V": 1848, "VTH < 1.5V": 1747, "IPD": 266}}, {"year": 2025, "week": 47, "dateISO": "2025-11-17", "label": "26W47", "input": 145308, "output": 143559, "batches": 36, "yield": 98.7963, "aty": 98.3173, "defects": {"IDSS": 111, "BVDSS": 2724, "VTH > 6V": 1679, "VTH < 1.5V": 7119, "IPD": 104}}, {"year": 2025, "week": 48, "dateISO": "2025-11-24", "label": "26W48", "input": 273573, "output": 272949, "batches": 68, "yield": 99.7719, "aty": 98.9634, "defects": {"IDSS": 4, "BVDSS": 260, "VTH > 6V": 1656, "VTH < 1.5V": 216, "IPD": 33}}, {"year": 2025, "week": 49, "dateISO": "2025-12-01", "label": "26W49", "input": 293706, "output": 292195, "batches": 73, "yield": 99.4855, "aty": 98.6852, "defects": {"IDSS": 27, "BVDSS": 811, "VTH > 6V": 1571, "VTH < 1.5V": 2187, "IPD": 181}}, {"year": 2025, "week": 50, "dateISO": "2025-12-08", "label": "26W50", "input": 315478, "output": 314277, "batches": 79, "yield": 99.6193, "aty": 98.0816, "defects": {"IDSS": 25, "BVDSS": 1088, "VTH > 6V": 1986, "VTH < 1.5V": 150, "IPD": 54}}, {"year": 2025, "week": 51, "dateISO": "2025-12-15", "label": "26W51", "input": 340866, "output": 339965, "batches": 85, "yield": 99.7357, "aty": 98.6092, "defects": {"IDSS": 6, "BVDSS": 509, "VTH > 6V": 1538, "VTH < 1.5V": 206, "IPD": 68}}, {"year": 2025, "week": 52, "dateISO": "2025-12-22", "label": "26W52", "input": 280659, "output": 279942, "batches": 70, "yield": 99.7445, "aty": 98.5989, "defects": {"IDSS": 4, "BVDSS": 679, "VTH > 6V": 1250, "VTH < 1.5V": 175, "IPD": 43}}, {"year": 2026, "week": 1, "dateISO": "2025-12-29", "label": "26W1", "input": 23995, "output": 23888, "batches": 6, "yield": 99.5541, "aty": 98.1591, "defects": {"IDSS": 0, "BVDSS": 1884, "VTH > 6V": 1047, "VTH < 1.5V": 209, "IPD": 84}}, {"year": 2026, "week": 2, "dateISO": "2026-01-05", "label": "26W2", "input": 183250, "output": 181844, "batches": 46, "yield": 99.2327, "aty": 97.4638, "defects": {"IDSS": 11, "BVDSS": 874, "VTH > 6V": 1325, "VTH < 1.5V": 4845, "IPD": 126}}, {"year": 2026, "week": 3, "dateISO": "2026-01-12", "label": "26W3", "input": 778244, "output": 773163, "batches": 195, "yield": 99.3471, "aty": 97.7549, "defects": {"IDSS": 4, "BVDSS": 1326, "VTH > 6V": 1410, "VTH < 1.5V": 193, "IPD": 84}}, {"year": 2026, "week": 4, "dateISO": "2026-01-19", "label": "26W4", "input": 139970, "output": 139057, "batches": 35, "yield": 99.3477, "aty": 97.9551, "defects": {"IDSS": 14, "BVDSS": 1215, "VTH > 6V": 1489, "VTH < 1.5V": 137, "IPD": 79}}, {"year": 2026, "week": 5, "dateISO": "2026-01-26", "label": "26W5", "input": 153323, "output": 152017, "batches": 38, "yield": 99.1482, "aty": 98.6304, "defects": {"IDSS": 0, "BVDSS": 2460, "VTH > 6V": 1934, "VTH < 1.5V": 211, "IPD": 72}}, {"year": 2026, "week": 6, "dateISO": "2026-02-02", "label": "26W6", "input": 519955, "output": 515574, "batches": 130, "yield": 99.1574, "aty": 97.7799, "defects": {"IDSS": 33, "BVDSS": 2783, "VTH > 6V": 1775, "VTH < 1.5V": 194, "IPD": 85}}, {"year": 2026, "week": 7, "dateISO": "2026-02-09", "label": "26W7", "input": 531859, "output": 525842, "batches": 132, "yield": 98.8687, "aty": 98.2163, "defects": {"IDSS": 46, "BVDSS": 3682, "VTH > 6V": 1712, "VTH < 1.5V": 842, "IPD": 160}}, {"year": 2026, "week": 9, "dateISO": "2026-02-23", "label": "26W9", "input": 76740, "output": 75710, "batches": 19, "yield": 98.6578, "aty": 98.243, "defects": {"IDSS": 0, "BVDSS": 5389, "VTH > 6V": 1413, "VTH < 1.5V": 330, "IPD": 40}}, {"year": 2026, "week": 10, "dateISO": "2026-03-02", "label": "26W10", "input": 221770, "output": 217419, "batches": 56, "yield": 98.0381, "aty": 95.7219, "defects": {"IDSS": 230, "BVDSS": 1099, "VTH > 6V": 1821, "VTH < 1.5V": 7359, "IPD": 193}}, {"year": 2026, "week": 11, "dateISO": "2026-03-09", "label": "26W11", "input": 165155, "output": 162852, "batches": 41, "yield": 98.6056, "aty": 97.929, "defects": {"IDSS": 37, "BVDSS": 5563, "VTH > 6V": 1990, "VTH < 1.5V": 233, "IPD": 92}}, {"year": 2026, "week": 12, "dateISO": "2026-03-16", "label": "26W12", "input": 478904, "output": 473996, "batches": 119, "yield": 98.9752, "aty": 98.2041, "defects": {"IDSS": 99, "BVDSS": 3196, "VTH > 6V": 1447, "VTH < 1.5V": 3101, "IPD": 114}}, {"year": 2026, "week": 13, "dateISO": "2026-03-23", "label": "26W13", "input": 607002, "output": 602737, "batches": 151, "yield": 99.2974, "aty": 98.4131, "defects": {"IDSS": 86, "BVDSS": 876, "VTH > 6V": 1083, "VTH < 1.5V": 4982, "IPD": 216}}, {"year": 2026, "week": 14, "dateISO": "2026-03-30", "label": "26W14", "input": 377578, "output": 375850, "batches": 94, "yield": 99.5423, "aty": 98.58, "defects": {"IDSS": 74, "BVDSS": 809, "VTH > 6V": 641, "VTH < 1.5V": 3105, "IPD": 146}}, {"year": 2026, "week": 15, "dateISO": "2026-04-06", "label": "26W15", "input": 448530, "output": 446215, "batches": 112, "yield": 99.4839, "aty": 98.2264, "defects": {"IDSS": 29, "BVDSS": 1593, "VTH > 6V": 740, "VTH < 1.5V": 3218, "IPD": 182}}, {"year": 2026, "week": 16, "dateISO": "2026-04-13", "label": "26W16", "input": 353912, "output": 352750, "batches": 88, "yield": 99.6717, "aty": 98.8295, "defects": {"IDSS": 9, "BVDSS": 3637, "VTH > 6V": 590, "VTH < 1.5V": 235, "IPD": 74}}, {"year": 2026, "week": 17, "dateISO": "2026-04-20", "label": "26W17", "input": 228462, "output": 227764, "batches": 57, "yield": 99.6945, "aty": 98.5172, "defects": {"IDSS": 9, "BVDSS": 2178, "VTH > 6V": 689, "VTH < 1.5V": 426, "IPD": 75}}, {"year": 2026, "week": 18, "dateISO": "2026-04-27", "label": "26W18", "input": 293139, "output": 291824, "batches": 75, "yield": 99.5514, "aty": 95.9316, "defects": {"IDSS": 134, "BVDSS": 3297, "VTH > 6V": 1330, "VTH < 1.5V": 391, "IPD": 425}}, {"year": 2026, "week": 19, "dateISO": "2026-05-04", "label": "26W19", "input": 645294, "output": 642481, "batches": 163, "yield": 99.5641, "aty": 97.1795, "defects": {"IDSS": 935, "BVDSS": 4237, "VTH > 6V": 830, "VTH < 1.5V": 356, "IPD": 389}}, {"year": 2026, "week": 20, "dateISO": "2026-05-11", "label": "26W20", "input": 244157, "output": 242442, "batches": 61, "yield": 99.2976, "aty": 97.9896, "defects": {"IDSS": 2681, "BVDSS": 5968, "VTH > 6V": 965, "VTH < 1.5V": 243, "IPD": 1048}}]};
-
-function loadPrecomputedStrip() {
-  const rows = [];
-  ['AC','CC'].forEach(type => {
-    PRECOMPUTED_STRIP[type].forEach(wkData => {
-      // Reconstruct a synthetic row for computeStripData
-      const dateStr = wkData.dateISO.replace(/-/g,'').slice(0,8) + '-00:0000';
-      const row = {
-        'Test Date/ Time': dateStr,
-        'Report Date': wkData.dateISO,
-        'Lot No.': `SYN_W${wkData.week}${type}`,
-        'Input':  wkData.input,
-        'Output': wkData.output,
-        'Yield':  wkData.output / wkData.input,
-        '_batches': wkData.batches,
-      };
-      // Defects: convert PPM back to counts (ppm = count/output*1e6)
-      const colMap = {
-        'BVDSS':      [['BVDSS 2', 0.5], ['BVDSS 1', 0.5]],
-        'VTH < 1.5V': [['VTH < 1.5 V', 1]],
-        'VTH > 6V':   [['VTH > 6 V', 1]],
-        'VFSD':       [['VFSD', 1]],
-        'IPD':        [['IPD-10V', 1]],
-        'IDSS':       [['IDSS1', 0.34], ['IDSS2', 0.33], ['IDSS3', 0.33]],
-      };
-      Object.entries(wkData.defects).forEach(([k, ppm]) => {
-        const totalCount = Math.round(ppm * wkData.output / 1e6);
-        const cols = colMap[k] || [];
-        cols.forEach(([col, frac]) => { row[col] = Math.round(totalCount * frac); });
-      });
-      rows.push(row);
-    });
-  });
-  return rows;
-}
 
 // ─── localStorage Persistence (store aggregated summaries, not raw rows) ──────
 const STORAGE_KEY = 'cpYieldReport_v12';
@@ -3421,8 +3886,8 @@ function handleImportJSON(event) {
 function saveToStorage() {
   try {
     // Build compact summaries — avoid saving raw rows
-    const acSummary = buildStripSummary(stripData || loadPrecomputedStrip(), 'AC');
-    const ccSummary = buildStripSummary(stripData || loadPrecomputedStrip(), 'CC');
+    const acSummary = buildStripSummary(stripData, 'AC');
+    const ccSummary = buildStripSummary(stripData, 'CC');
     const cpSummary = buildCPSummary();
 
     const payload = {
@@ -3635,7 +4100,7 @@ function exportExcel() {
 
   // ── Helper: get Strip trend rows ──
   function getStripTrendRows(type) {
-    const { monthlyPts, weeklyPts } = computeStripData(stripData || loadPrecomputedStrip(), type);
+    const { monthlyPts, weeklyPts } = computeStripData(stripData, type);
     const defs = STRIP_DEFECT_DEFS[type];
     const defKeys = defs.map(d => d.key);
     const header = ['Period','Type','Input (ea)','Output (ea)','Strip Yield (%)','Strip ATY (%)',
@@ -3655,7 +4120,7 @@ function exportExcel() {
 
   // ── Helper: get Strip pareto rows (last 5 weeks) ──
   function getStripParetoRows(type) {
-    const { weeklyPts } = computeStripData(stripData || loadPrecomputedStrip(), type);
+    const { weeklyPts } = computeStripData(stripData, type);
     const defs = STRIP_DEFECT_DEFS[type];
     const defKeys = defs.map(d => d.key);
     const header = ['Week','Total Output', ...defKeys.map(k=>k+' (ea)'), ...defKeys.map(k=>k+' PPM')];
@@ -3686,6 +4151,94 @@ function exportExcel() {
     return { header, rows };
   }
 
+  // ── Helper: get Discount/Reject lot lists for CP tab ──
+  function getCPDiscountRejectRows(tabIdx) {
+    const cfg = TAB_CONFIG[tabIdx];
+    const thr = TAB_THRESHOLDS[tabIdx];
+    const yieldKey = 'Final yield[With AOI] (%)';
+    const rows = (dailyData || []).filter(r => {
+      if (!watData) return true;
+      const dev = watData[String(r['Lot Num']||'').trim()];
+      return dev && cfg.devices.includes(dev);
+    });
+    const weekRows = getLastWeekRows(rows, yieldKey);
+    const header = ['Lot No.', 'Final Yield (%)', 'Test Date', 'Category'];
+    const dataRows = weekRows.filter(r => {
+      const y = parseFloat(r[yieldKey]);
+      return !isNaN(y) && y < thr.discountHi;
+    }).map(r => {
+      const y = parseFloat(r[yieldKey]);
+      const cat = y < thr.reject ? `Reject (Yield < ${thr.reject}%)` : `Discount (${thr.discountLo}% ≤ Yield < ${thr.discountHi}%)`;
+      return [String(r['Lot Num']||'').trim(), +y.toFixed(4), String(r['Test Date']||'').slice(0,10), cat];
+    }).sort((a,b) => a[1]-b[1]);
+    return { header, rows: dataRows, discountHi: thr.discountHi, discountLo: thr.discountLo, reject: thr.reject };
+  }
+
+  // ── Helper: get ULLD Discount/Reject lot lists ──
+  function getULLDDiscountRejectRows() {
+    if (!ulldData) return { header:[], rows:[] };
+    const thr = TAB_THRESHOLDS['ulld'];
+    const yieldKey = 'Final Yield';
+    const lotKey   = 'Lot Num #';
+    const allRows  = ulldData.yieldRows;
+    function isoWeekKey(d) {
+      const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+      const y0 = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+      return `${tmp.getUTCFullYear()}-W${String(Math.ceil(((tmp-y0)/86400000+1)/7)).padStart(2,'0')}`;
+    }
+    let latestWk = null;
+    allRows.forEach(r => {
+      const dv = r['Test  Date'] || r['Test Date'];
+      if (!dv) return;
+      let d;
+      if (dv instanceof Date) d = dv;
+      else if (typeof dv === 'number') d = new Date(Math.round((dv-25569)*86400*1000));
+      else d = new Date(dv);
+      if (!d || isNaN(d)) return;
+      const wk = isoWeekKey(d);
+      if (!latestWk || wk > latestWk) latestWk = wk;
+    });
+    const weekRows = !latestWk ? [] : allRows.filter(r => {
+      const dv = r['Test  Date'] || r['Test Date'];
+      if (!dv) return false;
+      let d;
+      if (dv instanceof Date) d = dv;
+      else if (typeof dv === 'number') d = new Date(Math.round((dv-25569)*86400*1000));
+      else d = new Date(dv);
+      if (!d || isNaN(d)) return false;
+      return isoWeekKey(d) === latestWk && !isNaN(parseFloat(r[yieldKey]));
+    });
+    const header = ['Lot No.', 'Final Yield (%)', 'Test Date', 'Category'];
+    const dataRows = weekRows.filter(r => {
+      const y = parseFloat(r[yieldKey]);
+      return !isNaN(y) && y < thr.discountHi;
+    }).map(r => {
+      const y = parseFloat(r[yieldKey]);
+      const dv = r['Test  Date'] || r['Test Date'];
+      let dateStr = '';
+      if (dv instanceof Date) dateStr = dv.toISOString().slice(0,10);
+      else if (typeof dv === 'number') dateStr = new Date(Math.round((dv-25569)*86400*1000)).toISOString().slice(0,10);
+      else dateStr = String(dv||'').slice(0,10);
+      const cat = y < thr.reject ? `Reject (Yield < ${thr.reject}%)` : `Discount (${thr.discountLo}% ≤ Yield < ${thr.discountHi}%)`;
+      return [String(r[lotKey]||'').trim(), +y.toFixed(4), dateStr, cat];
+    }).sort((a,b) => a[1]-b[1]);
+    return { header, rows: dataRows, discountHi: thr.discountHi, discountLo: thr.discountLo, reject: thr.reject };
+  }
+
+  // ── Helper: get Strip Discount/Reject lot lists ──
+  function getStripDiscountRejectRows(type) {
+    const thrKey = `strip${type}`;
+    const thr = TAB_THRESHOLDS[thrKey];
+    const weekRows = computeStripLastWeekLots(type);
+    const header = ['Lot No.', 'Strip Yield (%)', 'Category'];
+    const dataRows = weekRows.filter(r => r._yield != null && r._yield < thr.discountHi).map(r => {
+      const cat = r._yield < thr.reject ? `Reject (Yield < ${thr.reject}%)` : `Discount (${thr.discountLo}% ≤ Yield < ${thr.discountHi}%)`;
+      return [r.lot, +r._yield.toFixed(4), cat];
+    }).sort((a,b) => a[1]-b[1]);
+    return { header, rows: dataRows, discountHi: thr.discountHi, discountLo: thr.discountLo, reject: thr.reject };
+  }
+
   // ── TAB_LABELS: exactly matches the 7 HTML tab labels ──
   const TAB_SHEET_NAMES = [
     '35A (570mV)',
@@ -3707,6 +4260,9 @@ function exportExcel() {
 
     const pareto = getCPParetoRows(tabData);
     appendSection(aoa, `【${TAB_SHEET_NAMES[i]}】Defect Pareto (Last 10 Weeks)`, pareto.header, pareto.rows);
+
+    const dr = getCPDiscountRejectRows(i);
+    appendSection(aoa, `【${TAB_SHEET_NAMES[i]}】當周 Discount / Reject Lot List (Discount: ${dr.discountLo}%~${dr.discountHi}%, Reject: <${dr.reject}%)`, dr.header, dr.rows);
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = Array(20).fill({ wch: 18 });
@@ -3833,6 +4389,9 @@ function exportExcel() {
         ];
       });
       appendSection(aoa, '【ULLD】Defect Pareto (Last 10 Weeks)', paretoHdr, paretoRows);
+
+      const ulldDR = getULLDDiscountRejectRows();
+      appendSection(aoa, `【ULLD】當周 Discount / Reject Lot List (Discount: ${ulldDR.discountLo}%~${ulldDR.discountHi}%, Reject: <${ulldDR.reject}%)`, ulldDR.header, ulldDR.rows);
     }
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -3851,6 +4410,9 @@ function exportExcel() {
 
     const pareto = getStripParetoRows(type);
     appendSection(aoa, `【${tabLabel}】Defect Pareto (Last 5 Weeks)`, pareto.header, pareto.rows);
+
+    const sdr = getStripDiscountRejectRows(type);
+    appendSection(aoa, `【${tabLabel}】當周 Discount / Reject Lot List (Discount: ${sdr.discountLo}%~${sdr.discountHi}%, Reject: <${sdr.reject}%)`, sdr.header, sdr.rows);
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = Array(20).fill({ wch: 16 });
@@ -3905,21 +4467,10 @@ window.addEventListener('DOMContentLoaded', () => {
   // Initialize toggle UI
   updateToggleUI();
 
-  // Auto-load pre-embedded Strip data
-  stripData = loadPrecomputedStrip();
-
   // Merge with any localStorage-saved data (new import rows win over stored)
   const restored = loadFromStorage();
 
-  const statusEl = document.getElementById('statusStrip');
-  if (statusEl) {
-    const acCount = (stripData||[]).filter(r => r['Lot No.'] && String(r['Lot No.']).trim().endsWith('AC')).length;
-    const ccCount = (stripData||[]).filter(r => r['Lot No.'] && String(r['Lot No.']).trim().endsWith('CC')).length;
-    statusEl.textContent = restored
-      ? `Strip: ${(stripData||[]).length} rows (pre-loaded + saved data, AC:${acCount} CC:${ccCount})`
-      : `Strip: StripTest_Summary_20260515.xlsx (pre-loaded, ${(stripData||[]).length} rows)`;
-    statusEl.className = 'file-status ok';
-  }
+
   renderStripAC();
   renderStripCC();
 });

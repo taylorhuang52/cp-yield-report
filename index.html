@@ -5003,11 +5003,18 @@ function handleVerifyFile(file) {
       const payload = JSON.parse(ev.target.result);
       if (!payload.version || !payload.savedAt) throw new Error('Invalid JSON (missing version/savedAt)');
       const TODAY = new Date().toISOString().slice(0,10);
+      // Parse any date-like value → "YYYY-MM-DD" string (or null)
       function toYMD(v) {
         if (!v) return null;
         if (typeof v === 'number') return new Date(Math.round((v-25569)*86400*1000)).toISOString().slice(0,10);
         if (v instanceof Date) return v.toISOString().slice(0,10);
-        return String(v).slice(0,10);
+        const s = String(v).trim();
+        // ISO / standard: starts with YYYY-MM-DD
+        if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+        // Strip compact format: YYYYMMDD-HH:MMss  or  YYYYMMDD  (8 leading digits)
+        const m8 = s.match(/^(\d{4})(\d{2})(\d{2})/);
+        if (m8) return `${m8[1]}-${m8[2]}-${m8[3]}`;
+        return null;
       }
       // Extract full datetime string (YYYY-MM-DD HH:MM) when time info is present
       function toDateTime(v) {
@@ -5020,9 +5027,15 @@ function handleVerifyFile(file) {
           const pad = n => String(n).padStart(2,'0');
           return `${v.getFullYear()}-${pad(v.getMonth()+1)}-${pad(v.getDate())} ${pad(v.getHours())}:${pad(v.getMinutes())}`;
         }
-        const s = String(v);
-        // If string has time component (e.g. "2026-05-19 14:32" or "2026-05-19T14:32")
-        if (s.length > 10) return s.slice(0,16).replace('T',' ');
+        const s = String(v).trim();
+        // ISO format: "2026-05-21T20:37:14.000Z" or "2026-05-21 20:37"
+        if (/^\d{4}-\d{2}-\d{2}[T ]/.test(s)) return s.slice(0,16).replace('T',' ');
+        // Strip compact: "20260521-20:3714" → date "2026-05-21", time "20:37"
+        const mc = s.match(/^(\d{4})(\d{2})(\d{2})-(\d{2}):(\d{2})/);
+        if (mc) return `${mc[1]}-${mc[2]}-${mc[3]} ${mc[4]}:${mc[5]}`;
+        // Date only compact: "20260521"
+        const m8 = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+        if (m8) return `${m8[1]}-${m8[2]}-${m8[3]}`;
         return s.slice(0,10);
       }
       function maxDate(arr) { const d=arr.map(toYMD).filter(Boolean).sort(); return d.length?d[d.length-1]:null; }
@@ -5048,11 +5061,17 @@ function handleVerifyFile(file) {
       const ulldDateVals = (payload.ulldYield||[]).map(r => r['Test  Date'] || r['Test Date'] || r['Date']);
       const stripDateVals = (payload.stripRaw||[]).map(r => r['Test Date/ Time'] || r['Report Date']);
       const dailyDateVals = (payload.dailyRaw||[]).map(r => r['Test Date']);
+      // WAT Summary: device !== 'ULLD'; ULLD WAT Summary: device === 'ULLD'
+      const watYieldRows = (payload.watYieldRaw||[]);
+      const watDateVals     = watYieldRows.filter(r => r.device !== 'ULLD').map(r => r.runOn);
+      const ulldWatDateVals = watYieldRows.filter(r => r.device === 'ULLD').map(r => r.runOn);
       const rows = [
-        { label:'存檔時間 (savedAt)', date: savedYMD, dt: savedDT },
-        { label:'Daily 最新日期',  date: maxDate(dailyDateVals),  dt: maxDateTime(dailyDateVals) },
-        { label:'Strip 最新日期',  date: maxDate(stripDateVals),  dt: maxDateTime(stripDateVals) },
-        { label:'ULLD 最新日期',   date: maxDate(ulldDateVals),   dt: maxDateTime(ulldDateVals) },
+        { label:'存檔時間 (savedAt)',       date: savedYMD,                    dt: savedDT },
+        { label:'Daily 最新日期',           date: maxDate(dailyDateVals),       dt: maxDateTime(dailyDateVals) },
+        { label:'WAT Summary 最新日期',     date: maxDate(watDateVals),         dt: maxDateTime(watDateVals) },
+        { label:'Strip 最新日期',           date: maxDate(stripDateVals),       dt: maxDateTime(stripDateVals) },
+        { label:'ULLD 最新日期',            date: maxDate(ulldDateVals),        dt: maxDateTime(ulldDateVals) },
+        { label:'ULLD WAT Summary 最新日期',date: maxDate(ulldWatDateVals),     dt: maxDateTime(ulldWatDateVals) },
       ];
       let html = '';
       rows.forEach(r => {
@@ -5060,12 +5079,16 @@ function handleVerifyFile(file) {
         html += '<div class="vm-row"><span class="vm-label">'+r.label+'</span><span class="vm-val '+b.cls+'" style="text-align:right">'+b.text+'</span></div>';
       });
       document.getElementById('vmRows').innerHTML = html;
+      const watCount     = watYieldRows.filter(r => r.device !== 'ULLD').length;
+      const ulldWatCount = watYieldRows.filter(r => r.device === 'ULLD').length;
       document.getElementById('vmCounts').textContent =
-        'Daily: '+(payload.dailyRaw||[]).length+' 筆 ・ WAT: '+(payload.watRaw||[]).length+' lots ・ ULLD: '+(payload.ulldYield||[]).length+' 筆 ・ Strip: '+(payload.stripRaw||[]).length+' 筆';
+        'Daily: '+(payload.dailyRaw||[]).length+' 筆 ・ WAT: '+(payload.watRaw||[]).length+' lots ・ WAT yield: '+watCount+' pts ・ ULLD WAT: '+ulldWatCount+' pts ・ ULLD: '+(payload.ulldYield||[]).length+' 筆 ・ Strip: '+(payload.stripRaw||[]).length+' 筆';
       const allMax = [
         maxDate(dailyDateVals),
+        maxDate(watDateVals),
         maxDate(stripDateVals),
-        maxDate(ulldDateVals)
+        maxDate(ulldDateVals),
+        maxDate(ulldWatDateVals)
       ].filter(Boolean).sort();
       const latest = allMax[allMax.length-1];
       const banner = document.getElementById('vmBanner');

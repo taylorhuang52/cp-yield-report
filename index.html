@@ -610,13 +610,16 @@
   }
 
   /* ── RWD Mobile ─────────────────────────────────────────────────────────── */
+  /* mobile-json-label: hidden on desktop, shown only on mobile via media query below */
+  .mobile-json-label { display: none; width: 100%; text-align: center; font-size: 15px; padding: 11px; border-radius: 8px; }
+
   @media (max-width: 768px) {
     .app-header { padding: 10px 12px; gap: 8px; flex-direction: column; align-items: flex-start; }
     .app-title { font-size: 14px; }
     .app-title span { display: block; margin-left: 0; font-size: 11px; }
     .import-area { width: 100%; gap: 6px; }
     .mobile-hide { display: none !important; }
-    .mobile-json-label { display: block; width: 100%; text-align: center; font-size: 15px; padding: 11px; border-radius: 8px; }
+    .mobile-json-label { display: block; }
     .mobile-status { font-size: 11px; width: 100%; }
     .tabs-bar { display: none !important; }
     #reportModeBar { display: none !important; }
@@ -761,12 +764,13 @@
   <div class="import-area">
     <!-- Import 按鈕（桌面：點擊開拖放視窗）-->
     <button class="import-btn mobile-hide" onclick="openDropModal('daily')">📂 DailyRpt</button>
-    <button class="import-btn mobile-hide" onclick="openDropModal('wat')">📂 WAT_CP</button>
+    <button class="import-btn mobile-hide" onclick="openDropModal('wat')">📂 WAT</button>
     <button class="import-btn ulld-import-btn mobile-hide" onclick="openDropModal('ulld')">📂 ULLD</button>
     <button class="import-btn mobile-hide" onclick="openDropModal('strip')">📂 Strip</button>
     <!-- 隱藏 file inputs -->
     <input type="file" id="inputDailyReport" accept=".xls,.xlsx" onchange="handleDailyReport(event)" style="display:none">
     <input type="file" id="inputWAT"         accept=".csv,.xlsx" onchange="handleWAT(event)"         style="display:none">
+    <input type="file" id="inputULLDWAT"     accept=".csv,.xlsx" onchange="handleULLDWAT(event)"     style="display:none">
     <input type="file" id="inputULLD"        accept=".xls,.xlsx" onchange="handleULLD(event)"        style="display:none">
     <input type="file" id="inputStrip"       accept=".xls,.xlsx" onchange="handleStrip(event)"       style="display:none">
     <!-- Date filter -->
@@ -782,13 +786,14 @@
     <button class="import-btn mobile-hide" style="background:#ede6ff;border-color:#9070d8;color:#3a1a7a;" onclick="openVerifyModal()" title="驗證 JSON 檔案日期是否 up-to-date">🔍 Verify JSON</button>
     <button class="import-btn mobile-hide" style="background:#e6f5e6;border-color:#6ab86a;color:#1e5c1e;" onclick="openDropModal('json')" title="Import a previously saved .json file">📥 Import JSON</button>
     <!-- 手機版專用 Import JSON 按鈕 -->
-    <label class="import-btn mobile-json-label" style="display:none;background:#e6f5e6;border:1.5px solid #6ab86a;color:#1e5c1e;cursor:pointer;" title="Import a previously saved .json file">📥 Import JSON<input type="file" accept=".json" onchange="handleImportJSON(event)" style="display:none"></label>
+    <label class="import-btn mobile-json-label" style="background:#e6f5e6;border:1.5px solid #6ab86a;color:#1e5c1e;cursor:pointer;" title="Import a previously saved .json file">📥 Import JSON<input type="file" accept=".json" onchange="handleImportJSON(event)" style="display:none"></label>
     <input type="file" id="inputJSON" accept=".json" onchange="handleImportJSON(event)" style="display:none">
     <button class="import-btn mobile-hide" style="background:#fff0e6;border-color:#d08850;color:#7a3800;" onclick="exportExcel()" title="Export 7-sheet Excel matching HTML tabs">📤 Export Excel</button>
     <button class="import-btn mobile-hide" style="background:#fff0f0;border-color:#d07070;color:#7a0000;" onclick="clearStorage()" title="Clear browser saved storage">🗑 Clear</button>
     <div class="mobile-status" style="display:flex;flex-direction:column;gap:3px;">
       <span class="file-status" id="statusDaily">DailyReport: not loaded</span>
       <span class="file-status" id="statusWAT">WAT/CP Summary: not loaded</span>
+      <span class="file-status" id="statusULLDWAT">ULLD WAT Summary: not loaded</span>
       <span class="file-status" id="statusULLD">ULLD DB: not loaded</span>
       <span class="file-status" id="statusStrip">Strip: not loaded</span>
       <span class="file-status" id="statusJSON" style="display:none"></span>
@@ -1039,6 +1044,64 @@ function handleWAT(e) {
 }
 
 // ─── ULLD File Handler ────────────────────────────────────────────────────────
+// ─── ULLD WAT Summary Handler ────────────────────────────────────────────────
+function handleULLDWAT(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const st = document.getElementById('statusULLDWAT');
+  if (st) { st.textContent = `Loading ${file.name}...`; st.className = 'file-status'; }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      let rows;
+      if (file.name.endsWith('.csv')) {
+        const text = new TextDecoder('utf-8').decode(ev.target.result);
+        const wb = XLSX.read(text, {type:'string'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(ws);
+      } else {
+        const wb = XLSX.read(ev.target.result, {type:'array'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(ws);
+      }
+      // ULLD_WAT_Summary columns: Lot_No, RUN_ON, Yield(%)
+      if (!watYieldData) watYieldData = [];
+      let added = 0;
+      const existingLots = new Set(watYieldData.map(r => r.lot));
+      rows.forEach(r => {
+        const lot = r['Lot_No'] || r['Lot no.'] || r['Lot No'] || r['Lot'];
+        const runOnRaw = r['RUN_ON'] || r['RUN ON'];
+        const yldRaw   = r['Yield(%)'];
+        if (!lot || runOnRaw == null || yldRaw == null) return;
+        const lotStr = String(lot).trim();
+        let runOn = null;
+        if (runOnRaw instanceof Date) {
+          runOn = runOnRaw;
+        } else if (typeof runOnRaw === 'number') {
+          runOn = new Date(Math.round((runOnRaw - 25569) * 86400 * 1000));
+        } else {
+          const s = String(runOnRaw).trim();
+          const m = s.match(/^(\d{4})(\d{2})(\d{2})/);
+          if (m) runOn = new Date(+m[1], +m[2]-1, +m[3]);
+        }
+        const yld = parseFloat(yldRaw);
+        if (runOn && !isNaN(runOn) && !isNaN(yld) && !existingLots.has(lotStr)) {
+          watYieldData.push({ lot: lotStr, runOn, yield: yld, device: 'ULLD' });
+          existingLots.add(lotStr);
+          added++;
+        }
+      });
+      if (st) { st.textContent = `✓ ${file.name} (${added} lots added)`; st.className = 'file-status ok'; }
+      // Auto-refresh ULLD chart so WAT trend line appears immediately
+      if (ulldData) renderULLDTab();
+    } catch(err) {
+      if (st) { st.textContent = `✗ Error: ${err.message}`; st.className = 'file-status err'; }
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+
 function handleULLD(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -2842,8 +2905,12 @@ function renderULLDTab() {
     // Destroy old instances if exist
     [cpId, edgeId, p1Id, p2Id].forEach(id => { if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; } });
 
-    // CP yield combo chart (Input bars + Final Yield line + CP Yield line)
-    chartInstances[cpId] = makeULLDComboChart(cpId, labels, inputData, finalYData, cpYData, TARGET_YIELD);
+    // Compute ULLD WAT yield trend (device = 'ULLD')
+    const ulldWatTrend = computeWatYield(combined, ['ULLD'], false);
+    const hasUlldWat   = ulldWatTrend.some(v => v != null);
+
+    // CP yield combo chart (Input bars + Final Yield line + CP Yield line + WAT Yield line)
+    chartInstances[cpId] = makeULLDComboChart(cpId, labels, inputData, finalYData, cpYData, TARGET_YIELD, hasUlldWat ? ulldWatTrend : null);
 
     // Extra die (edge die) chart: dice(pcs) bars + dice Yield(%) line
     chartInstances[edgeId] = makeULLDEdgeChart(edgeId, labels, dicePcsData, diceYieldData);
@@ -2853,31 +2920,44 @@ function renderULLDTab() {
   });
 }
 
-function makeULLDComboChart(id, labels, barData, finalYData, cpYData, target) {
+function makeULLDComboChart(id, labels, barData, finalYData, cpYData, target, watYieldTrend) {
   const ctx = document.getElementById(id).getContext('2d');
-  return new Chart(ctx, {
-    data: {
-      labels,
-      datasets: [
-        {
-          type: 'bar', label: 'Input (pcs)', data: barData,
-          backgroundColor: 'rgba(100,160,230,0.55)', borderColor: 'rgba(100,160,230,0.8)',
-          borderWidth: 1, yAxisID: 'yBar', order: 3
-        },
-        {
-          type: 'line', label: 'Final Yield (%)', data: finalYData,
-          borderColor: '#2a6ab0', backgroundColor: 'rgba(42,106,176,0.10)',
-          borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#2a6ab0',
-          yAxisID: 'yYield', tension: 0.3, order: 1, spanGaps: false
-        },
-        {
-          type: 'line', label: 'CP Yield (%)', data: cpYData,
-          borderColor: '#e8a020', backgroundColor: 'transparent',
-          borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#e8a020',
-          borderDash: [5,3], yAxisID: 'yYield', tension: 0.3, order: 2, spanGaps: false
-        }
-      ]
+
+  const datasets = [
+    {
+      type: 'bar', label: 'Input (pcs)', data: barData,
+      backgroundColor: 'rgba(100,160,230,0.55)', borderColor: 'rgba(100,160,230,0.8)',
+      borderWidth: 1, yAxisID: 'yBar', order: 4
     },
+    {
+      type: 'line', label: 'Final Yield (%)', data: finalYData,
+      borderColor: '#2a6ab0', backgroundColor: 'rgba(42,106,176,0.10)',
+      borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#2a6ab0',
+      yAxisID: 'yYield', tension: 0.3, order: 1, spanGaps: false
+    },
+    {
+      type: 'line', label: 'CP Yield (%)', data: cpYData,
+      borderColor: '#e8a020', backgroundColor: 'transparent',
+      borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#e8a020',
+      borderDash: [5,3], yAxisID: 'yYield', tension: 0.3, order: 2, spanGaps: false
+    }
+  ];
+
+  // WAT Yield line — same style as CP tabs (yellow, triangle points)
+  if (watYieldTrend && watYieldTrend.some(v => v != null)) {
+    datasets.push({
+      type: 'line', label: 'WAT Yield (%)', data: watYieldTrend,
+      borderColor: '#f9ca24', backgroundColor: 'transparent',
+      borderWidth: 2, borderDash: [5,3],
+      pointRadius: 4, pointStyle: 'triangle', pointBackgroundColor: '#f9ca24',
+      yAxisID: 'yYield', tension: 0.1, order: 3, spanGaps: false
+    });
+  }
+
+  const allYields = [...(finalYData||[]), ...(cpYData||[]), ...(watYieldTrend||[])].filter(v => v != null);
+
+  return new Chart(ctx, {
+    data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
@@ -2902,20 +2982,14 @@ function makeULLDComboChart(id, labels, barData, finalYData, cpYData, target) {
         yYield: {
           type: 'linear', position: 'left',
           min: (() => {
-            const allVals = [...(finalYData||[]),...(cpYData||[])].filter(v=>v!=null);
-            if (!allVals.length) return 88;
-            return Math.floor((Math.min(...allVals) - 1.5) * 2) / 2;
+            if (!allYields.length) return 88;
+            return Math.floor((Math.min(...allYields) - 1.5) * 2) / 2;
           })(),
           max: (() => {
-            const allVals = [...(finalYData||[]),...(cpYData||[])].filter(v=>v!=null);
-            if (!allVals.length) return 96;
-            return Math.ceil((Math.max(...allVals) + 1.5) * 2) / 2;
+            if (!allYields.length) return 96;
+            return Math.ceil((Math.max(...allYields) + 1.5) * 2) / 2;
           })(),
-          ticks: {
-            font: { size: 10 },
-            stepSize: 0.5,
-            callback: v => v.toFixed(1)+'%'
-          },
+          ticks: { font: { size: 10 }, stepSize: 0.5, callback: v => v.toFixed(1)+'%' },
           title: { display: true, text: 'Yield (%)', font: { size: 10 } },
           grid: { color: 'rgba(42,106,176,0.08)' }
         }
@@ -4042,11 +4116,12 @@ function saveToJSON() {
     const a    = document.createElement('a');
     a.href = url; a.download = name; a.click();
     URL.revokeObjectURL(url);
-    const daily = (dailyData||[]).length;
-    const wat   = Object.keys(watData||{}).length;
-    const ulld  = (ulldData?.yieldRows||[]).length;
-    const strip = (stripData||[]).length;
-    alert(`✅ Downloaded: ${name}\nSize: ~${sizeKB} KB\nDaily: ${daily} rows | WAT: ${wat} lots | ULLD: ${ulld} rows | Strip: ${strip} rows`);
+    const daily    = (dailyData||[]).length;
+    const wat      = Object.keys(watData||{}).length;
+    const ulldWat  = (watYieldData||[]).filter(r => r.device === 'ULLD').length;
+    const ulld     = (ulldData?.yieldRows||[]).length;
+    const strip    = (stripData||[]).length;
+    alert(`✅ Downloaded: ${name}\nSize: ~${sizeKB} KB\nDaily: ${daily} rows | WAT: ${wat} lots | ULLD WAT: ${ulldWat} lots | ULLD: ${ulld} rows | Strip: ${strip} rows`);
   } catch(e) {
     alert('❌ Save failed: ' + e.message);
   }
@@ -4108,6 +4183,12 @@ function handleImportJSON(event) {
             }
           }
         });
+        // Update ULLD WAT status if any ULLD entries were restored
+        const ulldWatCount = watYieldData.filter(r => r.device === 'ULLD').length;
+        if (ulldWatCount > 0) {
+          const stUW = document.getElementById('statusULLDWAT');
+          if (stUW) { stUW.textContent = `\u2713 ULLD WAT: ${ulldWatCount} lots (from JSON)`; stUW.className = 'file-status ok'; }
+        }
       }
 
       // Merge ULLD
@@ -4261,6 +4342,8 @@ function clearStorage() {
   document.getElementById('statusDaily').className   = 'file-status';
   document.getElementById('statusWAT').textContent   = 'WAT/CP Summary: not loaded';
   document.getElementById('statusWAT').className     = 'file-status';
+  const stUW = document.getElementById('statusULLDWAT');
+  if (stUW) { stUW.textContent = 'ULLD WAT Summary: not loaded'; stUW.className = 'file-status'; }
   document.getElementById('statusULLD').textContent  = 'ULLD DB: not loaded';
   document.getElementById('statusULLD').className    = 'file-status';
   document.getElementById('statusStrip').textContent = 'Strip: not loaded';
@@ -4777,28 +4860,81 @@ function exportPagePNG(pageId, filename) {
 
 // ─── Drop Import Modal ────────────────────────────────────────────────────────
 const DROP_CFG = {
-  daily: { title:'📂 Import DailyReport',     sub:'DailyReport_*.xls / *.xlsx',          accept:'.xls,.xlsx', inputId:'inputDailyReport' },
-  wat:   { title:'📂 Import WAT_CP Summary',  sub:'WAT_CP_Summary_*.csv / *.xlsx',        accept:'.csv,.xlsx', inputId:'inputWAT' },
-  ulld:  { title:'📂 Import ULLD_DataBase',   sub:'ULLD_DataBase_*.xls（需含兩個分頁）',   accept:'.xls,.xlsx', inputId:'inputULLD' },
-  strip: { title:'📂 Import Strip Test',      sub:'StripTest_Summary_*.xls / *.xlsx',     accept:'.xls,.xlsx', inputId:'inputStrip' },
-  json:  { title:'📥 Import JSON',            sub:'CP_Report_Data_*.json',                accept:'.json',      inputId:'inputJSON' },
+  daily:    { title:'📂 Import DailyReport',      sub:'DailyReport_*.xls / *.xlsx',          accept:'.xls,.xlsx', inputId:'inputDailyReport' },
+  wat:      { title:'📂 Import WAT Summary',       sub:'WAT_Summary_*.xlsx',                  accept:'.csv,.xlsx', inputId:'inputWAT', dual: true },
+  ulld_wat: { title:'📂 Import ULLD WAT Summary',  sub:'ULLD_WAT_Summary_*.xlsx',             accept:'.csv,.xlsx', inputId:'inputULLDWAT' },
+  ulld:     { title:'📂 Import ULLD_DataBase',     sub:'ULLD_DataBase_*.xls（需含兩個分頁）',  accept:'.xls,.xlsx', inputId:'inputULLD' },
+  strip:    { title:'📂 Import Strip Test',        sub:'StripTest_Summary_*.xls / *.xlsx',    accept:'.xls,.xlsx', inputId:'inputStrip' },
+  json:     { title:'📥 Import JSON',              sub:'CP_Report_Data_*.json',               accept:'.json',      inputId:'inputJSON' },
 };
 let _dropKey = null;
 
 function openDropModal(key) {
   _dropKey = key;
   const cfg = DROP_CFG[key];
-  document.getElementById('dropModalTitle').textContent = cfg.title;
-  document.getElementById('dropModalSub').textContent   = cfg.sub;
-  document.getElementById('dropZoneAccept').textContent = cfg.accept;
-  document.getElementById('dropStatus').textContent     = '';
-  document.getElementById('dropStatus').className       = 'drop-status';
-  const zone = document.getElementById('dropZone');
-  zone.innerHTML = '<div class="drop-zone-icon">📁</div><div class="drop-zone-label">拖曳檔案到這裡<br><strong>或點擊選擇檔案</strong></div><div class="drop-zone-accept" id="dropZoneAccept">' + cfg.accept + '</div>';
+  const overlay = document.getElementById('dropOverlay');
+  const modal   = overlay.querySelector('.drop-modal');
+
+  // ── WAT: 雙欄模式 ─────────────────────────────────────────────────────────
+  if (cfg.dual) {
+    modal.style.width    = '680px';
+    modal.style.maxWidth = '96vw';
+    modal.innerHTML = `
+      <div class="drop-modal-title">📂 Import WAT Summary</div>
+      <div class="drop-modal-sub">左右兩欄可同時或分別匯入</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div>
+          <div style="font-size:12.5px;font-weight:700;color:#1e5c1e;margin-bottom:6px;">🟢 WAT_Summary</div>
+          <div class="drop-zone" id="dropZoneLeft" style="padding:16px 10px;">
+            <div class="drop-zone-icon">📁</div>
+            <div class="drop-zone-label">拖曳 或 點擊選擇<br><strong>WAT_Summary_*.xlsx</strong></div>
+            <div class="drop-zone-accept">.csv / .xlsx</div>
+          </div>
+          <div class="drop-status" id="dropStatusLeft" style="min-height:18px;margin-top:6px;font-size:11.5px;"></div>
+        </div>
+        <div>
+          <div style="font-size:12.5px;font-weight:700;color:#1a3e80;margin-bottom:6px;">🔵 ULLD_WAT_Summary</div>
+          <div class="drop-zone" id="dropZoneRight" style="padding:16px 10px;">
+            <div class="drop-zone-icon">📁</div>
+            <div class="drop-zone-label">拖曳 或 點擊選擇<br><strong>ULLD_WAT_Summary_*.xlsx</strong></div>
+            <div class="drop-zone-accept">.csv / .xlsx</div>
+          </div>
+          <div class="drop-status" id="dropStatusRight" style="min-height:18px;margin-top:6px;font-size:11.5px;"></div>
+        </div>
+      </div>
+      <button class="drop-close-btn" onclick="closeDropModal()">✕ 關閉</button>
+    `;
+    _wireDropZone('dropZoneLeft',  'dropStatusLeft',  'wat');
+    _wireDropZone('dropZoneRight', 'dropStatusRight', 'ulld_wat');
+    overlay.classList.remove('hidden');
+    return;
+  }
+
+  // ── 標準單欄模式 ──────────────────────────────────────────────────────────
+  modal.style.width    = '';
+  modal.style.maxWidth = '';
+  modal.innerHTML = `
+    <div class="drop-modal-title">${cfg.title}</div>
+    <div class="drop-modal-sub">${cfg.sub}</div>
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-zone-icon">📁</div>
+      <div class="drop-zone-label">拖曳檔案到這裡<br><strong>或點擊選擇檔案</strong></div>
+      <div class="drop-zone-accept">${cfg.accept}</div>
+    </div>
+    <div class="drop-status" id="dropStatus"></div>
+    <button class="drop-close-btn" onclick="closeDropModal()">✕ 關閉</button>
+  `;
+  _wireDropZone('dropZone', 'dropStatus', key);
+  overlay.classList.remove('hidden');
+}
+
+function _wireDropZone(zoneId, statusId, key) {
+  const zone = document.getElementById(zoneId);
+  const cfg  = DROP_CFG[key];
   zone.onclick = () => {
     const inp = document.createElement('input');
     inp.type = 'file'; inp.accept = cfg.accept;
-    inp.onchange = e => { if (e.target.files[0]) _dropDispatch(e.target.files[0]); };
+    inp.onchange = e => { if (e.target.files[0]) _dropDispatch(e.target.files[0], key, statusId); };
     inp.click();
   };
   zone.ondragover  = e => { e.preventDefault(); zone.classList.add('dragover'); };
@@ -4806,43 +4942,43 @@ function openDropModal(key) {
   zone.ondrop      = e => {
     e.preventDefault(); zone.classList.remove('dragover');
     const f = e.dataTransfer.files[0];
-    if (f) _dropDispatch(f);
+    if (f) _dropDispatch(f, key, statusId);
   };
-  document.getElementById('dropOverlay').classList.remove('hidden');
 }
 
 function closeDropModal() {
-  document.getElementById('dropOverlay').classList.add('hidden');
+  const overlay = document.getElementById('dropOverlay');
+  overlay.classList.add('hidden');
+  const modal = overlay.querySelector('.drop-modal');
+  if (modal) { modal.style.width = ''; modal.style.maxWidth = ''; }
   _dropKey = null;
 }
 
-function _dropDispatch(file) {
-  const cfg = DROP_CFG[_dropKey];
-  const st  = document.getElementById('dropStatus');
-  st.textContent = '⏳ 載入 ' + file.name + '…';
-  st.className   = 'drop-status';
-  // Inject file into the real hidden input and fire its onchange
+function _dropDispatch(file, key, statusId) {
+  key      = key      || _dropKey;
+  statusId = statusId || 'dropStatus';
+  const cfg = DROP_CFG[key];
+  const st  = document.getElementById(statusId);
+  if (st) { st.textContent = '⏳ 載入 ' + file.name + '…'; st.className = 'drop-status'; }
   const inp = document.getElementById(cfg.inputId);
   const dt  = new DataTransfer();
   dt.items.add(file);
   inp.files = dt.files;
   inp.dispatchEvent(new Event('change', { bubbles: true }));
-  // Wait a tick then read the status element that the handler updates
   setTimeout(() => {
-    const statusMap = { daily:'statusDaily', wat:'statusWAT', ulld:'statusULLD', strip:'statusStrip', json:'statusJSON' };
-    const sid = statusMap[_dropKey];
+    const statusMap = { daily:'statusDaily', wat:'statusWAT', ulld_wat:'statusULLDWAT', ulld:'statusULLD', strip:'statusStrip', json:'statusJSON' };
+    const sid = statusMap[key];
     const statusEl = sid ? document.getElementById(sid) : null;
     if (statusEl && statusEl.classList.contains('ok')) {
-      st.textContent = '✅ ' + statusEl.textContent;
-      st.className   = 'drop-status ok';
+      if (st) { st.textContent = '✅ ' + statusEl.textContent; st.className = 'drop-status ok'; }
     } else if (statusEl && statusEl.classList.contains('err')) {
-      st.textContent = '❌ ' + statusEl.textContent;
-      st.className   = 'drop-status err';
+      if (st) { st.textContent = '❌ ' + statusEl.textContent; st.className = 'drop-status err'; }
     } else {
-      st.textContent = '處理中，請稍候...';
+      if (st) st.textContent = '處理中，請稍候...';
     }
   }, 800);
 }
+
 
 // ─── Verify JSON Modal ────────────────────────────────────────────────────────
 function openVerifyModal() {
@@ -4947,16 +5083,8 @@ function handleVerifyFile(file) {
 </script>
 <!-- Drop Import Modal -->
 <div class="drop-overlay hidden" id="dropOverlay" onclick="if(event.target===this)closeDropModal()">
-  <div class="drop-modal">
-    <div class="drop-modal-title" id="dropModalTitle">📂 Import File</div>
-    <div class="drop-modal-sub" id="dropModalSub">支援的格式</div>
-    <div class="drop-zone" id="dropZone">
-      <div class="drop-zone-icon">📁</div>
-      <div class="drop-zone-label">拖曳檔案到這裡<br><strong>或點擊選擇檔案</strong></div>
-      <div class="drop-zone-accept" id="dropZoneAccept">.xls / .xlsx</div>
-    </div>
-    <div class="drop-status" id="dropStatus"></div>
-    <button class="drop-close-btn" onclick="closeDropModal()">✕ 關閉</button>
+  <div class="drop-modal" style="transition:width 0.15s;">
+    <!-- content injected by openDropModal() -->
   </div>
 </div>
 <!-- Verify JSON Modal -->

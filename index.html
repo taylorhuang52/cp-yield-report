@@ -303,6 +303,25 @@
   /* #page6 .stat-value color inherited from .good/.warn/.bad classes */
 
 
+  /* Discount/Reject panel — follow page theme background */
+  /* ULLD (page4): light blue */
+  #page4 .yield-lot-panel       { background: #f4f9ff; border-color: #b0d0f0; }
+  #page4 .yield-lot-list        { background: #e8f2ff; border-color: #b0d0f0; }
+  #page4 .yield-lot-panel-title::before { background: #2a6ab0; }
+  #page4 .yield-threshold-input { background: #f4f9ff; border-color: #b0d0f0; }
+  #page4 .yield-threshold-row   { color: #3a6a9a; }
+  #page4 .yield-threshold-row label { color: #1a4a8a; }
+
+  /* Strip AC (page5) / Strip CC (page6): light yellow */
+  #page5 .yield-lot-panel, #page6 .yield-lot-panel { background: #fffdf0; border-color: #e8d880; }
+  #page5 .yield-lot-list,  #page6 .yield-lot-list  { background: #fff8d0; border-color: #e8d880; }
+  #page5 .yield-lot-panel-title::before, #page6 .yield-lot-panel-title::before { background: #c09000; }
+  #page5 .yield-threshold-input, #page6 .yield-threshold-input { background: #fffdf0; border-color: #e8d880; }
+  #page5 .yield-threshold-row,   #page6 .yield-threshold-row   { color: #9a7a00; }
+  #page5 .yield-threshold-row label, #page6 .yield-threshold-row label { color: #7a5a00; }
+  #page5 .yield-lot-apply-btn, #page6 .yield-lot-apply-btn { background: #c09000; }
+  #page5 .yield-lot-apply-btn:hover, #page6 .yield-lot-apply-btn:hover { background: #9a7200; }
+
   /* Strip sub-tab bar */
   .strip-subtabs {
     display: flex; gap: 4px; margin-bottom: 16px;
@@ -1235,9 +1254,20 @@ function handleULLD(e) {
       const wsY  = getSheet('Yield Summary');
       const rawY = XLSX.utils.sheet_to_json(wsY, { header: 1, defval: null });
       const hdrsY = rawY[2];
+      // ULLD DB has two #01~#25 blocks with identical header names:
+      //   Col 11~35 = CP(RT) Yield  → correct block to use for wafer-level classification
+      //   Col 36~60 = CP(RT)+AOI Yield → duplicate names; must be skipped to avoid overwrite
+      // Strategy: track which col index each header name is FIRST seen; on second occurrence skip it.
       const yieldRows = rawY.slice(3).map(row => {
         const obj = {};
-        hdrsY.forEach((h, i) => { if (h != null) obj[String(h).trim()] = row[i]; });
+        const seen = {};
+        hdrsY.forEach((h, i) => {
+          if (h == null) return;
+          const key = String(h).trim();
+          if (seen[key]) return;   // skip duplicate header (AOI block)
+          seen[key] = true;
+          obj[key] = row[i];
+        });
         return obj;
       }).filter(r => r['Lot Num #']);
 
@@ -2123,7 +2153,7 @@ function getLastMonthRows(rows, yieldKey) {
 //
 // A lot appears once per test row; rows are already filtered to the current week.
 function getCPWeekLotsWaferLevel(weekRows, lotKey, yieldKey, discountLo, discountHi, reject) {
-  // Detect column keys from the first available row
+  // Read Discount/Reject directly from DB columns — no threshold calculation needed.
   const sampleRow = weekRows[0];
   const discCol = sampleRow ? getDiscountCol(sampleRow) : null;
   const rejCol  = sampleRow ? getRejectCol(sampleRow)   : null;
@@ -2141,21 +2171,21 @@ function getCPWeekLotsWaferLevel(weekRows, lotKey, yieldKey, discountLo, discoun
   const rejectLots   = [];
 
   Object.entries(lotMap).forEach(([lot, rows]) => {
-    // Check if any row for this lot has Discount or Reject die
-    let hasDiscDie = false;
-    let hasRejDie  = false;
+    // Sum Discount / Reject pcs directly from DB columns
+    let totalDisc = 0;
+    let totalRej  = 0;
     rows.forEach(r => {
-      if (discCol && (parseFloat(r[discCol]) || 0) > 0) hasDiscDie = true;
-      if (rejCol  && (parseFloat(r[rejCol])  || 0) > 0) hasRejDie  = true;
+      if (discCol) totalDisc += parseFloat(r[discCol]) || 0;
+      if (rejCol)  totalRej  += parseFloat(r[rejCol])  || 0;
     });
 
-    if (!hasDiscDie && !hasRejDie) return;  // no fail die → skip
+    // Only show lots that actually have Discount or Reject die recorded in DB
+    if (totalDisc === 0 && totalRej === 0) return;
 
-    // Lot-average Final yield — try the passed yieldKey first, fallback to Initial CP yield
+    // Lot yield for display only
     const lastRow = rows[rows.length - 1];
     let lotYld = parseFloat(lastRow[yieldKey]);
     if (isNaN(lotYld) || lotYld === 0) {
-      // Fallback: Initial CP yield or With AEC-Q yield
       for (const k of Object.keys(lastRow)) {
         if (k && k.toLowerCase().includes('initial cp yield')) {
           const v = parseFloat(lastRow[k]);
@@ -2164,24 +2194,16 @@ function getCPWeekLotsWaferLevel(weekRows, lotKey, yieldKey, discountLo, discoun
       }
     }
 
-    // Classify by Reject/Discount die presence and lot yield band
-    if (hasRejDie && !isNaN(lotYld) && lotYld < reject) {
-      rejectLots.push({ lot, lotYld, hasDiscDie, hasRejDie });
-    } else if (!isNaN(lotYld) && lotYld >= discountLo && lotYld < discountHi) {
-      discountLots.push({ lot, lotYld, hasDiscDie, hasRejDie });
+    // Reject takes priority; otherwise Discount
+    if (totalRej > 0) {
+      rejectLots.push({ lot, lotYld, totalDisc, totalRej });
     } else {
-      // Lot yield is outside both bands (e.g. lot avg ≥ discountHi but one wafer is bad)
-      // → show in Discount; use Reject bucket only if explicitly Reject die triggered
-      if (hasRejDie) {
-        rejectLots.push({ lot, lotYld, hasDiscDie, hasRejDie });
-      } else {
-        discountLots.push({ lot, lotYld, hasDiscDie, hasRejDie });
-      }
+      discountLots.push({ lot, lotYld, totalDisc, totalRej });
     }
   });
 
-  discountLots.sort((a, b) => a.lotYld - b.lotYld);
-  rejectLots.sort((a, b) => a.lotYld - b.lotYld);
+  discountLots.sort((a, b) => (a.lotYld || 999) - (b.lotYld || 999));
+  rejectLots.sort((a, b) => (a.lotYld || 999) - (b.lotYld || 999));
   return { discountLots, rejectLots };
 }
 
@@ -2303,17 +2325,7 @@ function getULLDWeekLotsWaferLevel(weekRows, discountLo, discountHi, reject) {
   const rejectLots   = [];
 
   Object.entries(lotMap).forEach(([lot, rows]) => {
-    // Sum Discount / Reject wafer counts across all rows for this lot
-    let totalDisc = 0;
-    let totalRej  = 0;
-    rows.forEach(r => {
-      totalDisc += parseFloat(r['Discount']) || 0;
-      totalRej  += parseFloat(r['Reject'])   || 0;
-    });
-
-    if (totalDisc === 0 && totalRej === 0) return;  // no triggered wafers → skip
-
-    // Min wafer yield from #01~#25 for display
+    // Collect per-wafer yields from #01~#25 (direct % values from CP RT block, e.g. 83.5)
     const waferYields = [];
     rows.forEach(r => {
       for (let i = 1; i <= 25; i++) {
@@ -2322,13 +2334,31 @@ function getULLDWeekLotsWaferLevel(weekRows, discountLo, discountHi, reject) {
         if (!isNaN(v) && v > 0) waferYields.push(v);
       }
     });
-    const minWaferYld = waferYields.length ? Math.min(...waferYields) : null;
+
     const lotYld = parseFloat(rows[rows.length - 1][yieldKey]);
 
-    if (totalRej > 0) {
-      rejectLots.push({ lot, lotYld, minWaferYld, totalDisc, totalRej });
+    if (waferYields.length > 0) {
+      // PRIMARY: per-wafer yield vs user-defined thresholds (requires XLS to be imported)
+      const rejWafers  = waferYields.filter(y => y < reject);
+      const discWafers = waferYields.filter(y => y >= discountLo && y < discountHi);
+      if (!rejWafers.length && !discWafers.length) return;
+
+      const minWaferYld = Math.min(...waferYields);
+      const entry = { lot, lotYld, minWaferYld, rejWaferCount: rejWafers.length, discWaferCount: discWafers.length };
+      if (rejWafers.length > 0) rejectLots.push(entry);
+      else discountLots.push(entry);
+
     } else {
-      discountLots.push({ lot, lotYld, minWaferYld, totalDisc, totalRej });
+      // FALLBACK: no per-wafer data (JSON-only session) → use DB Discount/Reject columns
+      let totalDisc = 0, totalRej = 0;
+      rows.forEach(r => {
+        totalDisc += parseFloat(r['Discount']) || 0;
+        totalRej  += parseFloat(r['Reject'])   || 0;
+      });
+      if (totalDisc === 0 && totalRej === 0) return;
+      const entry = { lot, lotYld, minWaferYld: null, rejWaferCount: totalRej, discWaferCount: totalDisc };
+      if (totalRej > 0) rejectLots.push(entry);
+      else discountLots.push(entry);
     }
   });
 
@@ -3348,9 +3378,9 @@ function makeULLDEdgeChart(id, labels, dicePcsData, diceYieldData) {
         yYield: {
           type: 'linear', position: 'left',
           min: minY, max: maxY,
-          title: { display: true, text: 'Extra Die Yield (%)', font: { size: 10 }, color: '#e8a020' },
-          ticks: { font: { size: 10 }, color: '#e8a020', callback: v => v.toFixed(0)+'%' },
-          grid: { color: 'rgba(232,160,32,0.12)' }
+          title: { display: true, text: 'Extra Die Yield (%)', font: { size: 10 }, color: '#000000' },
+          ticks: { font: { size: 10 }, color: '#000000', callback: v => v.toFixed(0)+'%' },
+          grid: { color: 'rgba(200,200,210,0.4)' }
         }
       }
     }
@@ -4148,6 +4178,9 @@ async function generateReport() {
   loadingEl.classList.remove('hidden');
   await new Promise(r => setTimeout(r, 30));
 
+  // Remember which tab the user is currently on
+  const currentActiveTab = [...document.querySelectorAll('.tab')].findIndex(t => t.classList.contains('active'));
+
   try {
     if (dailyData) {
       processedTabs = await processData(undefined);
@@ -4155,11 +4188,14 @@ async function generateReport() {
       await new Promise(r => setTimeout(r, 20));
     }
     renderAllTabs();
-    // 若沒有 DailyReport，自動切到有資料的分頁
+    // 若沒有 DailyReport，自動切到有資料的分頁（首次進入）
     if (!dailyData && ulldData) {
       switchTab(4);
     } else if (!dailyData && !ulldData && stripData) {
       switchTab(5);
+    } else if (currentActiveTab >= 0) {
+      // Restore the tab the user was on before re-render
+      switchTab(currentActiveTab);
     }
   } catch(e) {
     alert('Error processing data: ' + e.message);
@@ -4351,9 +4387,15 @@ function handleImportJSON(event) {
       }
 
       // Merge ULLD
+      // NOTE: JSON may contain old ulldYield rows where #01~#25 were overwritten by the AOI block
+      // (a parse bug that has since been fixed). Strip the per-wafer cols from JSON rows so they
+      // cannot pollute the data; the correct values come only from re-importing the XLS.
+      const WAFER_KEYS = Array.from({length:25},(_,i)=>`#${String(i+1).padStart(2,'0')}`);
       if (Array.isArray(payload.ulldYield) && payload.ulldYield.length > 0) {
         const existingLots = new Set((ulldData?.yieldRows||[]).map(r=>String(r['Lot Num #']||r['Lot Num']||'').trim()));
-        const newY = payload.ulldYield.filter(r => !existingLots.has(String(r['Lot Num #']||r['Lot Num']||'').trim()));
+        const newY = payload.ulldYield
+          .filter(r => !existingLots.has(String(r['Lot Num #']||r['Lot Num']||'').trim()))
+          .map(r => { const c = {...r}; WAFER_KEYS.forEach(k => delete c[k]); return c; });
         const newD = (payload.ulldDetail||[]).filter(r => !existingLots.has(String(r['Lot Num #']||r['Lot Num']||'').trim()));
         if (!ulldData) ulldData = { yieldRows:[], detailRows:[] };
         ulldData.yieldRows  = [...newY, ...ulldData.yieldRows];
@@ -4723,20 +4765,39 @@ function exportExcel() {
       if (!d || isNaN(d)) return false;
       return isoWeekKey(d) === latestWk && !isNaN(parseFloat(r[yieldKey]));
     });
-    const header = ['Lot No.', 'Final Yield (%)', 'Test Date', 'Category'];
-    const dataRows = weekRows.filter(r => {
-      const y = parseFloat(r[yieldKey]);
-      return !isNaN(y) && y < thr.discountHi;
-    }).map(r => {
-      const y = parseFloat(r[yieldKey]);
+    // Use the same per-wafer classification as the UI panel
+    const { discountLots, rejectLots } = getULLDWeekLotsWaferLevel(weekRows, thr.discountLo, thr.discountHi, thr.reject);
+
+    // Build a lookup: lot → test date string
+    const lotDateMap = {};
+    weekRows.forEach(r => {
+      const lot = String(r[lotKey]||'').trim();
+      if (!lot || lotDateMap[lot]) return;
       const dv = r['Test  Date'] || r['Test Date'];
       let dateStr = '';
       if (dv instanceof Date) dateStr = dv.toISOString().slice(0,10);
       else if (typeof dv === 'number') dateStr = new Date(Math.round((dv-25569)*86400*1000)).toISOString().slice(0,10);
       else dateStr = String(dv||'').slice(0,10);
-      const cat = y < thr.reject ? `Reject (Yield < ${thr.reject}%)` : `Discount (${thr.discountLo}% ≤ Yield < ${thr.discountHi}%)`;
-      return [String(r[lotKey]||'').trim(), +y.toFixed(4), dateStr, cat];
-    }).sort((a,b) => a[1]-b[1]);
+      lotDateMap[lot] = dateStr;
+    });
+
+    const header = ['Lot No.', 'Final Yield (%)', 'Min Wafer Yield (%)', 'Test Date', 'Category'];
+    const dataRows = [
+      ...rejectLots.map(l => [
+        l.lot,
+        isNaN(l.lotYld) ? '' : +l.lotYld.toFixed(4),
+        l.minWaferYld != null ? +l.minWaferYld.toFixed(4) : '',
+        lotDateMap[l.lot] || '',
+        `Reject (Wafer Yield < ${thr.reject}%)`
+      ]),
+      ...discountLots.map(l => [
+        l.lot,
+        isNaN(l.lotYld) ? '' : +l.lotYld.toFixed(4),
+        l.minWaferYld != null ? +l.minWaferYld.toFixed(4) : '',
+        lotDateMap[l.lot] || '',
+        `Discount (${thr.discountLo}% ≤ Wafer Yield < ${thr.discountHi}%)`
+      ]),
+    ];
     return { header, rows: dataRows, discountHi: thr.discountHi, discountLo: thr.discountLo, reject: thr.reject };
   }
 

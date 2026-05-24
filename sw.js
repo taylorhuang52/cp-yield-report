@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cp-yield-report-v3';
+const CACHE_NAME = 'cp-yield-report-v4';
 const STATIC_ASSETS = [
   'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',

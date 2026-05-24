@@ -273,7 +273,7 @@
   #page4 .stat-card { background: #e8f2ff; border-color: #b0d0f0; }
   #page4 .target-note { color: #c03030; }
   #page4 .stat-label { color: #3a6a9a; }
-  #page4 .stat-value { color: #1a3a6a; }
+  /* #page4 .stat-value color inherited from .good/.warn/.bad classes */
 
   /* Strip tab – amber accent */
   .tab-strip { color: #a07000; }
@@ -289,7 +289,7 @@
   #page5 .stat-card { background: #fff8d0; border-color: #e8d880; }
   #page5 .target-note { color: #c03030; }
   #page5 .stat-label { color: #9a7a00; }
-  #page5 .stat-value { color: #5a3a00; }
+  /* #page5 .stat-value color inherited from .good/.warn/.bad classes */
 
   /* Strip CC page – light yellow theme */
   #page6 { background: transparent; }
@@ -300,7 +300,7 @@
   #page6 .stat-card { background: #fff8d0; border-color: #e8d880; }
   #page6 .target-note { color: #c03030; }
   #page6 .stat-label { color: #9a7a00; }
-  #page6 .stat-value { color: #5a3a00; }
+  /* #page6 .stat-value color inherited from .good/.warn/.bad classes */
 
 
   /* Strip sub-tab bar */
@@ -796,7 +796,7 @@
   ">
     <div style="font-size:36px; margin-bottom:12px;">🔒</div>
     <div style="font-size:20px; font-weight:700; color:#1a3a38; margin-bottom:6px;">CP Yield Report</div>
-    <div style="font-size:13px; color:#4a7a75; margin-bottom:24px;">請輸入密碼以繼續</div>
+    <div style="font-size:13px; color:#4a7a75; margin-bottom:24px;">Enter password to continue</div>
     <input id="pw-input" type="password" placeholder="Password" style="
       width:100%; padding:10px 14px; font-size:15px;
       border:1.5px solid #a8d8d0; border-radius:8px;
@@ -808,7 +808,7 @@
       width:100%; padding:10px; font-size:15px; font-weight:600;
       background:#00827f; color:#fff; border:none; border-radius:8px;
       cursor:pointer; margin-top:4px;
-    ">進入</button>
+    ">Enter</button>
     <div id="pw-error" style="color:#d94f4f; font-size:13px; margin-top:10px; min-height:18px;"></div>
   </div>
 </div>
@@ -822,7 +822,7 @@
     if (input === CORRECT_PASSWORD) {
       document.getElementById('pw-overlay').style.display = 'none';
     } else {
-      document.getElementById('pw-error').textContent = '密碼錯誤，請再試一次';
+      document.getElementById('pw-error').textContent = 'Incorrect password, please try again';
       document.getElementById('pw-input').value = '';
       document.getElementById('pw-input').focus();
     }
@@ -837,9 +837,9 @@
 
 <div id="watWarning" style="display:none;position:fixed;top:0;left:0;right:0;z-index:999;background:#fff3cd;border-bottom:2px solid #f0ad4e;padding:8px 20px;font-size:12px;color:#856404;align-items:center;gap:10px;">
   <span>⚠️</span>
-  <strong>WAT/CP Summary 未載入：</strong>
-  50A 550mV_27V (SEG) 和 35A 570mV_27V (Valeo) 無法與一般批次區分。50A (550+530+580mV) 將包含 SEG 批次，35A (570mV) 將包含 Valeo 批次。請先匯入 WAT_CP_Summary_*.xlsx。
-  <button onclick="document.getElementById('watWarning').style.display='none'" style="margin-left:auto;background:none;border:1px solid #856404;border-radius:4px;padding:2px 8px;cursor:pointer;color:#856404;font-size:11px;">✕ 關閉</button>
+  <strong>WAT/CP Summary not loaded:</strong>
+  50A 550mV_27V (SEG) and 35A 570mV_27V (Valeo) cannot be distinguished from general lots. 50A (550+530+580mV) will include SEG lots, 35A (570mV) will include Valeo lots. Import WAT_CP_Summary_*.xlsx。
+  <button onclick="document.getElementById('watWarning').style.display='none'" style="margin-left:auto;background:none;border:1px solid #856404;border-radius:4px;padding:2px 8px;cursor:pointer;color:#856404;font-size:11px;">✕ Close</button>
 </div>
 
 <div class="modal-overlay hidden" id="modalOverlay">
@@ -883,7 +883,7 @@
     </div>
     <button class="import-btn primary mobile-hide" onclick="generateReport()">▶ Generate Report</button>
     <button class="import-btn mobile-hide" style="background:#e6f0ff;border-color:#6a9ee0;color:#1a3e80;" onclick="saveToJSON()" title="Download all data as .json file for cross-device sharing">💾 Save JSON</button>
-    <button class="import-btn mobile-hide" style="background:#ede6ff;border-color:#9070d8;color:#3a1a7a;" onclick="openVerifyModal()" title="驗證 JSON 檔案日期是否 up-to-date">🔍 Verify JSON</button>
+    <button class="import-btn mobile-hide" style="background:#ede6ff;border-color:#9070d8;color:#3a1a7a;" onclick="openVerifyModal()" title="Verify JSON file date is up-to-date">🔍 Verify JSON</button>
     <button class="import-btn mobile-hide" style="background:#e6f5e6;border-color:#6ab86a;color:#1e5c1e;" onclick="openDropModal('json')" title="Import a previously saved .json file">📥 Import JSON</button>
     <!-- 手機版專用 Import JSON 按鈕 -->
     <label class="import-btn mobile-json-label" style="background:#e6f5e6;border:1.5px solid #6ab86a;color:#1e5c1e;cursor:pointer;" title="Import a previously saved .json file">📥 Import JSON<input type="file" accept=".json" onchange="handleImportJSON(event)" style="display:none"></label>
@@ -914,20 +914,20 @@
   <div id="reportModeBar" style="margin-left:auto;display:flex;align-items:center;gap:8px;padding:0 16px;">
     <!-- Low Yield Threshold Slider -->
     <div class="threshold-wrap">
-      <span class="threshold-label">排除低良率 &lt;</span>
+      <span class="threshold-label">Exclude low yield &lt;</span>
       <input type="range" class="threshold-slider" id="thresholdSlider"
              min="0" max="100" step="1" value="60"
              oninput="onThresholdChange(this.value)"
-             title="調整低良率排除門檻">
+             title="Adjust low-yield exclusion threshold">
       <span class="threshold-value" id="thresholdValue">60%</span>
     </div>
     <div class="toggle-switch-wrap">
-      <span class="toggle-label active" id="labelWeekly" onclick="setReportMode('weekly')" style="cursor:pointer;">周報</span>
-      <label class="toggle-switch" title="切換周報/月報">
+      <span class="toggle-label active" id="labelWeekly" onclick="setReportMode('weekly')" style="cursor:pointer;">Weekly</span>
+      <label class="toggle-switch" title="Toggle Weekly / Monthly">
         <input type="checkbox" id="reportModeToggle" onchange="onReportModeChange(this.checked)">
         <span class="toggle-slider"></span>
       </label>
-      <span class="toggle-label" id="labelMonthly" onclick="setReportMode('monthly')" style="cursor:pointer;">月報</span>
+      <span class="toggle-label" id="labelMonthly" onclick="setReportMode('monthly')" style="cursor:pointer;">Monthly</span>
     </div>
   </div>
 </div>
@@ -1214,14 +1214,14 @@ function handleULLD(e) {
     try {
       const wb = XLSX.read(ev.target.result, { type: 'array', cellDates: true });
 
-      // ── 驗證是否為正確檔案 (需含 Yield Summary 分頁) ──
+      // ── 驗證是否為正確檔案 (must contain 'Yield Summary' sheet) ──
       const sheetNames = wb.SheetNames.map(n => n.trim());
       const hasYield  = sheetNames.some(n => n.toLowerCase() === 'yield summary');
       const hasDetail = sheetNames.some(n => n.toLowerCase() === 'detail yield summary');
       if (!hasYield || !hasDetail) {
         throw new Error(
-          `請上傳 ULLD_DataBase_xxxx.xls，而非 "${file.name}"。` +
-          `\n此檔分頁: [${wb.SheetNames.join(', ')}]`
+          `Please upload ULLD_DataBase_xxxx.xls, not "${file.name}"。` +
+          `\nFile sheets: [${wb.SheetNames.join(', ')}]`
         );
       }
 
@@ -1893,7 +1893,7 @@ function renderTabPageWeekly(tabIdx, tabData, tabCfg) {
   const prevP = lastPeriods.length >= 2 ? lastPeriods[lastPeriods.length-2] : null;
   const lastP = lastPeriods.length >= 1 ? lastPeriods[lastPeriods.length-1] : null;
 
-  _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData, cpYieldData, gainData, edgeYieldData, prevP, lastP, '周報');
+  _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData, cpYieldData, gainData, edgeYieldData, prevP, lastP, 'Weekly');
 }
 
 function renderTabPageMonthly(tabIdx, tabData, tabCfg) {
@@ -1928,7 +1928,7 @@ function renderTabPageMonthly(tabIdx, tabData, tabCfg) {
   const prevP = months.find(m => m._monthKey === prevMKey) || null;
   const lastP = months.find(m => m._monthKey === curMK)   || months.slice(-1)[0] || null;
 
-  _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData, cpYieldData, gainData, edgeYieldData, prevP, lastP, '月報', true);
+  _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData, cpYieldData, gainData, edgeYieldData, prevP, lastP, 'Monthly', true);
 }
 
 // ─── Compute WAT Yield trend aligned to a combined timeline ──────────────────
@@ -2198,7 +2198,7 @@ function buildCPLotPanelHTML(tabIdx, rows, yieldKey, lotKey, weekRows) {
   const pfxD = `cpThr_${tabIdx}`;
 
   function lotItemsHTML(lots) {
-    if (!lots.length) return `<div class="yield-lot-none">— 無 —</div>`;
+    if (!lots.length) return `<div class="yield-lot-none">— None —</div>`;
     return lots.map(l => {
       const yldStr = !isNaN(l.lotYld) ? l.lotYld.toFixed(2) + '%' : '—';
       return `<div class="lot-item"><span class="lot-no">${l.lot}</span><span class="lot-yld">${yldStr}</span></div>`;
@@ -2207,19 +2207,19 @@ function buildCPLotPanelHTML(tabIdx, rows, yieldKey, lotKey, weekRows) {
 
   return `
   <div class="yield-lot-panel" id="${pfxD}_panel">
-    <div class="yield-lot-panel-title">Discount / Reject 清單</div>
+    <div class="yield-lot-panel-title">Discount / Reject List</div>
     <div class="yield-threshold-row">
       <label>Discount</label>
-      <input class="yield-threshold-input" id="${pfxD}_discLo" type="number" min="0" max="100" step="1" value="${discountLo}" title="Discount 下限">
+      <input class="yield-threshold-input" id="${pfxD}_discLo" type="number" min="0" max="100" step="1" value="${discountLo}" title="Discount lower bound">
       %
       &lt; Lot Yield &lt;
-      <input class="yield-threshold-input" id="${pfxD}_discHi" type="number" min="0" max="100" step="1" value="${discountHi}" title="Discount 上限">
+      <input class="yield-threshold-input" id="${pfxD}_discHi" type="number" min="0" max="100" step="1" value="${discountHi}" title="Discount upper bound">
       %
       &nbsp;&nbsp;
       <label>Reject: Lot Yield &lt;</label>
-      <input class="yield-threshold-input" id="${pfxD}_rej" type="number" min="0" max="100" step="1" value="${reject}" title="Reject 門檻">
+      <input class="yield-threshold-input" id="${pfxD}_rej" type="number" min="0" max="100" step="1" value="${reject}" title="Reject threshold">
       %
-      <button class="yield-lot-apply-btn" onclick="refreshCPLotPanel(${tabIdx})">套用</button>
+      <button class="yield-lot-apply-btn" onclick="refreshCPLotPanel(${tabIdx})">Apply</button>
     </div>
     <div class="yield-lot-grid">
       <div class="yield-lot-section">
@@ -2264,7 +2264,7 @@ function refreshCPLotPanel(tabIdx) {
   const { discountLots, rejectLots } = getCPWeekLotsWaferLevel(weekRows, 'Lot Num', yieldKey, discountLo, discountHi, reject);
 
   function lotItemsHTML(lots) {
-    if (!lots.length) return `<div class="yield-lot-none">— 無 —</div>`;
+    if (!lots.length) return `<div class="yield-lot-none">— None —</div>`;
     return lots.map(l => {
       const yldStr = !isNaN(l.lotYld) ? l.lotYld.toFixed(2) + '%' : '—';
       return `<div class="lot-item"><span class="lot-no">${l.lot}</span><span class="lot-yld">${yldStr}</span></div>`;
@@ -2349,7 +2349,7 @@ function buildULLDLotPanelHTML(weekRows) {
   const { discountLots, rejectLots } = getULLDWeekLotsWaferLevel(weekRows, discountLo, discountHi, reject);
 
   function lotItemsHTML(lots) {
-    if (!lots.length) return `<div class="yield-lot-none">— 無 —</div>`;
+    if (!lots.length) return `<div class="yield-lot-none">— None —</div>`;
     return lots.map(l => {
       const minStr = l.minWaferYld != null ? `min ${l.minWaferYld.toFixed(1)}%` : '';
       const lotStr = !isNaN(l.lotYld) ? `Lot ${l.lotYld.toFixed(1)}%` : '';
@@ -2360,19 +2360,19 @@ function buildULLDLotPanelHTML(weekRows) {
 
   return `
   <div class="yield-lot-panel" id="ulldThr_panel">
-    <div class="yield-lot-panel-title">Discount / Reject 清單</div>
+    <div class="yield-lot-panel-title">Discount / Reject List</div>
     <div class="yield-threshold-row">
       <label>Discount</label>
-      <input class="yield-threshold-input" id="ulldThr_discLo" type="number" min="0" max="100" step="1" value="${discountLo}" title="Discount 下限">
+      <input class="yield-threshold-input" id="ulldThr_discLo" type="number" min="0" max="100" step="1" value="${discountLo}" title="Discount lower bound">
       %
       &lt; Wafer Yield &lt;
-      <input class="yield-threshold-input" id="ulldThr_discHi" type="number" min="0" max="100" step="1" value="${discountHi}" title="Discount 上限">
+      <input class="yield-threshold-input" id="ulldThr_discHi" type="number" min="0" max="100" step="1" value="${discountHi}" title="Discount upper bound">
       %
       &nbsp;&nbsp;
       <label>Reject: Wafer Yield &lt;</label>
-      <input class="yield-threshold-input" id="ulldThr_rej" type="number" min="0" max="100" step="1" value="${reject}" title="Reject 門檻">
+      <input class="yield-threshold-input" id="ulldThr_rej" type="number" min="0" max="100" step="1" value="${reject}" title="Reject threshold">
       %
-      <button class="yield-lot-apply-btn" onclick="refreshULLDLotPanel()">套用</button>
+      <button class="yield-lot-apply-btn" onclick="refreshULLDLotPanel()">Apply</button>
     </div>
     <div class="yield-lot-grid">
       <div class="yield-lot-section">
@@ -2428,7 +2428,7 @@ function refreshULLDLotPanel() {
   const { discountLots, rejectLots } = getULLDWeekLotsWaferLevel(weekRows, discLo, discHi, rej);
 
   function lotItemsHTML(lots) {
-    if (!lots.length) return `<div class="yield-lot-none">— 無 —</div>`;
+    if (!lots.length) return `<div class="yield-lot-none">— None —</div>`;
     return lots.map(l => {
       const minStr = l.minWaferYld != null ? `min ${l.minWaferYld.toFixed(1)}%` : '';
       const lotStr = !isNaN(l.lotYld) ? `Lot ${l.lotYld.toFixed(1)}%` : '';
@@ -2571,7 +2571,7 @@ function computeStripPeriodLots(type) {
 // weekRows: output of computeStripLastWeekLots()
 // For each lot, gather ALL wafer yields from all rows of that lot.
 // A lot enters Reject if any wafer < reject%; Discount if any wafer in (discountLo%, discountHi%).
-// Display: "Lot No. + 片號" for each triggered wafer.
+// Display: "Lot No. + Wafer No." for each triggered wafer.
 function getStripWeekLotsWaferLevel(weekRows, discountLo, discountHi, reject) {
   // Group rows by lot
   const lotMap = {};
@@ -2624,10 +2624,10 @@ function getStripWeekLotsWaferLevel(weekRows, discountLo, discountHi, reject) {
 }
 
 // Build the lot+wafer detail HTML for the Strip lot panel
-// Shows: LotNo (片號: 01/99.41%, 02/98.82%, …) for triggered wafers
+// Shows: LotNo (Wafer: 01/99.41%, 02/98.82%, …) for triggered wafers
 function buildStripLotItemsHTML(lots, bucketLabel) {
-  if (!lots.length) return `<div class="yield-lot-none">— 無 —</div>`;
-  // Flatten: one line per (Lot No. + 片號) combination, sorted by yield asc
+  if (!lots.length) return `<div class="yield-lot-none">— None —</div>`;
+  // Flatten: one line per (Lot No. + Wafer No.) combination, sorted by yield asc
   const lines = [];
   lots.forEach(l => {
     const triggeredWafers = bucketLabel === 'reject' ? l.rejWafers : l.discWafers;
@@ -2641,7 +2641,7 @@ function buildStripLotItemsHTML(lots, bucketLabel) {
   const tagColor = bucketLabel === 'reject' ? '#a00000' : '#7a5200';
   return lines.map(line =>
     `<div class="lot-item">` +
-    `<span class="lot-no">${line.lot} <span style="background:${tagBg};color:${tagColor};border-radius:3px;padding:1px 5px;font-size:11px;font-weight:700;">片${line.waferNo}</span></span>` +
+    `<span class="lot-no">${line.lot} <span style="background:${tagBg};color:${tagColor};border-radius:3px;padding:1px 5px;font-size:11px;font-weight:700;">W${line.waferNo}</span></span>` +
     `<span class="lot-yld" style="color:${tagColor};font-weight:600;">${line.waferYld.toFixed(2)}%</span>` +
     `</div>`
   ).join('');
@@ -2660,27 +2660,27 @@ function buildStripLotPanelHTML(type, weekRows) {
   const pfx = `stripThr_${type}`;
   return `
   <div class="yield-lot-panel" id="${pfx}_panel">
-    <div class="yield-lot-panel-title">Discount / Reject 清單</div>
+    <div class="yield-lot-panel-title">Discount / Reject List</div>
     <div class="yield-threshold-row">
       <label>Discount</label>
-      <input class="yield-threshold-input" id="${pfx}_discLo" type="number" min="0" max="100" step="1" value="${discountLo}" title="Discount 下限">
+      <input class="yield-threshold-input" id="${pfx}_discLo" type="number" min="0" max="100" step="1" value="${discountLo}" title="Discount lower bound">
       %
-      &lt; 片 Yield &lt;
-      <input class="yield-threshold-input" id="${pfx}_discHi" type="number" min="0" max="100" step="1" value="${discountHi}" title="Discount 上限">
+      &lt; Wafer Yield &lt;
+      <input class="yield-threshold-input" id="${pfx}_discHi" type="number" min="0" max="100" step="1" value="${discountHi}" title="Discount upper bound">
       %
       &nbsp;&nbsp;
-      <label>Reject: 片 Yield &lt;</label>
-      <input class="yield-threshold-input" id="${pfx}_rej" type="number" min="0" max="100" step="1" value="${reject}" title="Reject 門檻">
+      <label>Reject: Wafer Yield &lt;</label>
+      <input class="yield-threshold-input" id="${pfx}_rej" type="number" min="0" max="100" step="1" value="${reject}" title="Reject threshold">
       %
-      <button class="yield-lot-apply-btn" onclick="refreshStripLotPanel('${type}')">套用</button>
+      <button class="yield-lot-apply-btn" onclick="refreshStripLotPanel('${type}')">Apply</button>
     </div>
     <div class="yield-lot-grid">
       <div class="yield-lot-section">
-        <div class="yield-lot-section-title discount" id="${pfx}_discTitle">Discount ${discountLo}% &lt; 片 Yield &lt; ${discountHi}%</div>
+        <div class="yield-lot-section-title discount" id="${pfx}_discTitle">Discount ${discountLo}% &lt; Wafer Yield &lt; ${discountHi}%</div>
         <div class="yield-lot-list" id="${pfx}_discList">${buildStripLotItemsHTML(discountLots, 'discount')}</div>
       </div>
       <div class="yield-lot-section">
-        <div class="yield-lot-section-title reject" id="${pfx}_rejTitle">Reject: 片 Yield &lt; ${reject}%</div>
+        <div class="yield-lot-section-title reject" id="${pfx}_rejTitle">Reject: Wafer Yield &lt; ${reject}%</div>
         <div class="yield-lot-list" id="${pfx}_rejList">${buildStripLotItemsHTML(rejectLots, 'reject')}</div>
       </div>
     </div>
@@ -2699,9 +2699,9 @@ function refreshStripLotPanel(type) {
   const weekRows = computeStripPeriodLots(type);
   const { discountLots, rejectLots } = getStripWeekLotsWaferLevel(weekRows, discLo, discHi, rej);
 
-  const dT=document.getElementById(`${pfx}_discTitle`); if(dT) dT.textContent=`Discount ${discLo}% < 片 Yield < ${discHi}%`;
+  const dT=document.getElementById(`${pfx}_discTitle`); if(dT) dT.textContent=`Discount ${discLo}% < Wafer Yield < ${discHi}%`;
   const dL=document.getElementById(`${pfx}_discList`);  if(dL) dL.innerHTML=buildStripLotItemsHTML(discountLots, 'discount');
-  const rT=document.getElementById(`${pfx}_rejTitle`);  if(rT) rT.textContent=`Reject: 片 Yield < ${rej}%`;
+  const rT=document.getElementById(`${pfx}_rejTitle`);  if(rT) rT.textContent=`Reject: Wafer Yield < ${rej}%`;
   const rL=document.getElementById(`${pfx}_rejList`);   if(rL) rL.innerHTML=buildStripLotItemsHTML(rejectLots, 'reject');
 }
 
@@ -2734,8 +2734,8 @@ function _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData
     if (!p) return fallback;
     return p.label || fallback;
   }
-  const prevLabel = isMonthly ? periodLabel(prevP, '上個月') + ' (月)' : periodLabel(prevP, 'N/A');
-  const lastLabel = isMonthly ? periodLabel(lastP, '本月') + ' (月)'   : periodLabel(lastP, 'N/A');
+  const prevLabel = isMonthly ? periodLabel(prevP, 'Prev Month') + ' (M)' : periodLabel(prevP, 'N/A');
+  const lastLabel = isMonthly ? periodLabel(lastP, 'This Month') + ' (M)'   : periodLabel(lastP, 'N/A');
 
   const modeBadge = `<span style="font-size:11px;font-weight:600;background:${isMonthly?'#eef5ff':'#f0faf9'};color:${isMonthly?'#1a4a8a':'#007a6e'};border:1px solid ${isMonthly?'#b0d0f0':'#a8d8d0'};border-radius:4px;padding:2px 8px;margin-left:8px;">${modeLabel}</span>`;
 
@@ -2744,8 +2744,8 @@ function _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData
   // Quarterly/Monthly divider hint for chart subtitle
   const chartSubtitle = isMonthly
     ? `<div style="display:flex;gap:8px;justify-content:center;margin-bottom:4px;">
-        <span style="font-size:11px;background:#fff8d0;color:#9a7a00;border:1px solid #e8d880;border-radius:4px;padding:1px 7px;">◀ 近5季</span>
-        <span style="font-size:11px;background:#eef5ff;color:#1a4a8a;border:1px solid #b0d0f0;border-radius:4px;padding:1px 7px;">近5月 ▶</span>
+        <span style="font-size:11px;background:#fff8d0;color:#9a7a00;border:1px solid #e8d880;border-radius:4px;padding:1px 7px;">◀ Last 5 Qtrs</span>
+        <span style="font-size:11px;background:#eef5ff;color:#1a4a8a;border:1px solid #b0d0f0;border-radius:4px;padding:1px 7px;">Last 5 Mo ▶</span>
       </div>`
     : '';
 
@@ -3556,7 +3556,7 @@ function getWeekPPM(weekBuckets, wkKey, type) {
 function renderStripPage(pageId, type) {
   const page = document.getElementById(pageId);
   if (!stripData || stripData.length === 0) {
-    page.innerHTML = `<div class="no-data">請匯入 StripTest_Summary_*.xlsx 檔案<div class="hint">點擊上方 📊 Strip 按鈕</div></div>`;
+    page.innerHTML = `<div class="no-data">Import StripTest_Summary_*.xlsx to load data<div class="hint">Click the 📊 Strip button above</div></div>`;
     return;
   }
 
@@ -3889,7 +3889,7 @@ function computeStripQuarterly(rows, type) {
 function renderStripPageMonthly(pageId, type) {
   const page = document.getElementById(pageId);
   if (!stripData || stripData.length === 0) {
-    page.innerHTML = `<div class="no-data">請匯入 StripTest_Summary_*.xlsx 檔案<div class="hint">點擊上方 📊 Strip 按鈕</div></div>`;
+    page.innerHTML = `<div class="no-data">Import StripTest_Summary_*.xlsx to load data<div class="hint">Click the 📊 Strip button above</div></div>`;
     return;
   }
 
@@ -3961,10 +3961,10 @@ function renderStripPageMonthly(pageId, type) {
 
     <div class="chart-row">
       <div class="chart-card">
-        <div class="chart-card-title">ULLD strip test ${type} yield chart — 月報 (季趨勢 + 月趨勢)</div>
+        <div class="chart-card-title">ULLD strip test ${type} yield chart — Monthly (Quarterly + Monthly trend)</div>
         <div style="display:flex;gap:8px;align-items:center;justify-content:center;margin-bottom:6px;">
-          <span style="font-size:11px;color:#9a7a00;background:#fff8d0;border:1px solid #e8d880;border-radius:4px;padding:2px 8px;">◀ 近5季</span>
-          <span style="font-size:11px;color:#1a4a8a;background:#eef5ff;border:1px solid #b0d0f0;border-radius:4px;padding:2px 8px;">近5月 ▶</span>
+          <span style="font-size:11px;color:#9a7a00;background:#fff8d0;border:1px solid #e8d880;border-radius:4px;padding:2px 8px;">◀ Last 5 Qtrs</span>
+          <span style="font-size:11px;color:#1a4a8a;background:#eef5ff;border:1px solid #b0d0f0;border-radius:4px;padding:2px 8px;">Last 5 Mo ▶</span>
         </div>
         <div class="chart-wrap" style="height:300px"><canvas id="${chartId}"></canvas></div>
         <div class="target-note">— 2026 target ${TARGET}%</div>
@@ -3973,11 +3973,11 @@ function renderStripPageMonthly(pageId, type) {
 
     <div class="pareto-row">
       <div class="chart-card">
-        <div class="chart-card-title" style="color:#9a7a00">${monthLabel(prevMonthKey)} Defect Pareto (上個月)</div>
+        <div class="chart-card-title" style="color:#9a7a00">${monthLabel(prevMonthKey)} Defect Pareto (Prev Month)</div>
         <div class="chart-wrap" style="height:260px"><canvas id="${p1Id}"></canvas></div>
       </div>
       <div class="chart-card">
-        <div class="chart-card-title" style="color:#1a4a8a">${monthLabel(curMonthKey)} Defect Pareto (本月)</div>
+        <div class="chart-card-title" style="color:#1a4a8a">${monthLabel(curMonthKey)} Defect Pareto (This Month)</div>
         <div class="chart-wrap" style="height:260px"><canvas id="${p2Id}"></canvas></div>
       </div>
     </div>
@@ -4043,7 +4043,7 @@ function renderStripPageMonthly(pageId, type) {
               dividerLine: {
                 type: 'line', xMin: qCount - 0.5, xMax: qCount - 0.5,
                 borderColor: '#e8d880', borderWidth: 2, borderDash: [4,4],
-                label: { content: '季 ↔ 月', display: true, position: 'start', font: { size: 10 }, color: '#9a7a00', backgroundColor: 'rgba(255,250,220,0.8)' }
+                label: { content: 'Qtr ↔ Mo', display: true, position: 'start', font: { size: 10 }, color: '#9a7a00', backgroundColor: 'rgba(255,250,220,0.8)' }
               }
             }
           }
@@ -4140,7 +4140,7 @@ function renderStripCC() {
 // ─── Main Generate ─────────────────────────────────────────────────────────────
 async function generateReport() {
   if (!dailyData && !ulldData && !stripData) {
-    alert('請先匯入至少一個資料檔案（DailyReport、ULLD_DataBase 或 Strip）。');
+    alert('Please import at least one data file (DailyReport, ULLD_DataBase, or Strip).');
     return;
   }
 
@@ -4477,7 +4477,7 @@ function loadFromStorage() {
 }
 
 function clearStorage() {
-  if (!confirm('清除所有已載入的資料並重置頁面？')) return;
+  if (!confirm('Clear all loaded data and reset the page?')) return;
 
   // Clear localStorage
   localStorage.removeItem(STORAGE_KEY);
@@ -4746,15 +4746,15 @@ function exportExcel() {
     const thr = TAB_THRESHOLDS[thrKey];
     const weekRows = computeStripLastWeekLots(type);
     const { discountLots, rejectLots } = getStripWeekLotsWaferLevel(weekRows, thr.discountLo, thr.discountHi, thr.reject);
-    const header = ['Lot No.', 'Lot Avg Yield (%)', 'Min 片 Yield (%)', 'Triggered 片號', 'Category'];
+    const header = ['Lot No.', 'Lot Avg Yield (%)', 'Min Wafer Yield (%)', 'Triggered Wafer No.', 'Category'];
     const toRows = (lots, cat) => lots.map(l => {
       const triggered = cat === 'Reject' ? l.rejWafers : l.discWafers;
-      const waferStr = triggered.map(w => `片${w.waferNo}(${w.yield.toFixed(2)}%)`).join(', ');
+      const waferStr = triggered.map(w => `W${w.waferNo}(${w.yield.toFixed(2)}%)`).join(', ');
       return [l.lot, l.lotYld!=null?+l.lotYld.toFixed(4):'', +l.minWaferYld.toFixed(4), waferStr, cat];
     });
     const dataRows = [
-      ...toRows(rejectLots,   `Reject (片 Yield < ${thr.reject}%)`),
-      ...toRows(discountLots, `Discount (${thr.discountLo}% ≤ 片 Yield < ${thr.discountHi}%)`),
+      ...toRows(rejectLots,   `Reject (Wafer Yield < ${thr.reject}%)`),
+      ...toRows(discountLots, `Discount (${thr.discountLo}% ≤ Wafer Yield < ${thr.discountHi}%)`),
     ].sort((a,b) => (a[2]||0) - (b[2]||0));
     return { header, rows: dataRows, discountHi: thr.discountHi, discountLo: thr.discountLo, reject: thr.reject };
   }
@@ -4782,7 +4782,7 @@ function exportExcel() {
     appendSection(aoa, `【${TAB_SHEET_NAMES[i]}】Defect Pareto (Last 10 Weeks)`, pareto.header, pareto.rows);
 
     const dr = getCPDiscountRejectRows(i);
-    appendSection(aoa, `【${TAB_SHEET_NAMES[i]}】當周 Discount / Reject Lot List (Discount: ${dr.discountLo}%~${dr.discountHi}%, Reject: <${dr.reject}%)`, dr.header, dr.rows);
+    appendSection(aoa, `【${TAB_SHEET_NAMES[i]}】Discount / Reject Lot List (Discount: ${dr.discountLo}%~${dr.discountHi}%, Reject: <${dr.reject}%)`, dr.header, dr.rows);
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = Array(20).fill({ wch: 18 });
@@ -4911,7 +4911,7 @@ function exportExcel() {
       appendSection(aoa, '【ULLD】Defect Pareto (Last 10 Weeks)', paretoHdr, paretoRows);
 
       const ulldDR = getULLDDiscountRejectRows();
-      appendSection(aoa, `【ULLD】當周 Discount / Reject Lot List (Discount: ${ulldDR.discountLo}%~${ulldDR.discountHi}%, Reject: <${ulldDR.reject}%)`, ulldDR.header, ulldDR.rows);
+      appendSection(aoa, `【ULLD】Discount / Reject Lot List (Discount: ${ulldDR.discountLo}%~${ulldDR.discountHi}%, Reject: <${ulldDR.reject}%)`, ulldDR.header, ulldDR.rows);
     }
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -4932,12 +4932,45 @@ function exportExcel() {
     appendSection(aoa, `【${tabLabel}】Defect Pareto (Last 5 Weeks)`, pareto.header, pareto.rows);
 
     const sdr = getStripDiscountRejectRows(type);
-    appendSection(aoa, `【${tabLabel}】當周 Discount / Reject Lot List (Discount: ${sdr.discountLo}%~${sdr.discountHi}%, Reject: <${sdr.reject}%)`, sdr.header, sdr.rows);
+    appendSection(aoa, `【${tabLabel}】Discount / Reject Lot List (Discount: ${sdr.discountLo}%~${sdr.discountHi}%, Reject: <${sdr.reject}%)`, sdr.header, sdr.rows);
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = Array(20).fill({ wch: 16 });
     XLSX.utils.book_append_sheet(wb, ws, tabLabel);
   });
+
+  // ── Sheet 8: Discount / Reject Summary (all tabs combined) ──
+  {
+    const aoa = [];
+    const hdrCP    = ['Tab', 'Lot No.', 'Final Yield (%)', 'Category'];
+    const hdrULLD  = ['Tab', 'Lot No.', 'Final Yield (%)', 'Test Date', 'Category'];
+    const hdrStrip = ['Tab', 'Lot No.', 'Lot Avg Yield (%)', 'Min Wafer Yield (%)', 'Triggered Wafer No.', 'Category'];
+
+    // CP tabs 0-3
+    const cpRows = [];
+    TAB_CONFIG.forEach((cfg, i) => {
+      const dr = getCPDiscountRejectRows(i);
+      dr.rows.forEach(r => cpRows.push([TAB_SHEET_NAMES[i], ...r]));
+    });
+    appendSection(aoa, 'CP Discount / Reject Lot List', hdrCP, cpRows);
+
+    // ULLD
+    const ulldDR = getULLDDiscountRejectRows();
+    const ulldRows = ulldDR.rows.map(r => ['ULLD', ...r]);
+    appendSection(aoa, 'ULLD Discount / Reject Lot List', hdrULLD, ulldRows);
+
+    // Strip AC + CC
+    const stripRows = [];
+    ['AC','CC'].forEach(type => {
+      const sdr = getStripDiscountRejectRows(type);
+      sdr.rows.forEach(r => stripRows.push([`Strip ${type}`, ...r]));
+    });
+    appendSection(aoa, 'Strip Discount / Reject Lot List', hdrStrip, stripRows);
+
+    const wsDR = XLSX.utils.aoa_to_sheet(aoa);
+    wsDR['!cols'] = Array(8).fill({ wch: 22 });
+    XLSX.utils.book_append_sheet(wb, wsDR, 'Discount-Reject');
+  }
 
   const date = new Date().toISOString().slice(0,10).replace(/-/g,'');
   XLSX.writeFile(wb, `CP_Yield_Report_${date}.xlsx`);
@@ -5039,7 +5072,7 @@ async function exportPPT() {
   });
 
   if (pages.length === 0) {
-    alert('請先 Generate Report 後再 Export PPT。');
+    alert('Please run Generate Report before Export PPT.');
     return;
   }
 
@@ -5053,7 +5086,7 @@ async function exportPPT() {
   });
   document.body.appendChild(toast);
   const updateToast = msg => { toast.textContent = msg; };
-  updateToast('🖼 Export PPT 準備中…');
+  updateToast('🖼 Preparing Export PPT…');
 
   // Remember active tab
   const activeTabIdx = [...document.querySelectorAll('.tab')].findIndex(t => t.classList.contains('active'));
@@ -5084,7 +5117,7 @@ async function exportPPT() {
 
     for (let i = 0; i < pages.length; i++) {
       const def = pages[i];
-      updateToast('📸 擷取頁面 ' + (i + 1) + ' / ' + pages.length + '：' + def.title);
+      updateToast('📸 Capturing page ' + (i + 1) + ' / ' + pages.length + '：' + def.title);
 
       // Switch tab and wait for charts to fully render
       switchTab(def.idx);
@@ -5171,15 +5204,15 @@ async function exportPPT() {
       });
     }
 
-    updateToast('💾 產生 PPTX 檔案…');
+    updateToast('💾 Generating PPTX file…');
     const dateTag = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     await pptx.writeFile({ fileName: 'CP_Yield_Report_' + dateTag + '.pptx' });
-    updateToast('✅ 完成！已下載 CP_Yield_Report_' + dateTag + '.pptx');
+    updateToast('✅ Done! Downloaded CP_Yield_Report_' + dateTag + '.pptx');
     setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 400); }, 3500);
 
   } catch (err) {
     if (captureStyle.parentNode) captureStyle.parentNode.removeChild(captureStyle);
-    updateToast('❌ Export PPT 失敗：' + err.message);
+    updateToast('❌ Export PPT failed: ' + err.message);
     setTimeout(() => toast.remove(), 4500);
     console.error('exportPPT error:', err);
   } finally {
@@ -5191,7 +5224,7 @@ const DROP_CFG = {
   daily:    { title:'📂 Import DailyReport',      sub:'DailyReport_*.xls / *.xlsx',          accept:'.xls,.xlsx', inputId:'inputDailyReport' },
   wat:      { title:'📂 Import WAT Summary',       sub:'WAT_Summary_*.xlsx',                  accept:'.csv,.xlsx', inputId:'inputWAT', dual: true },
   ulld_wat: { title:'📂 Import ULLD WAT Summary',  sub:'ULLD_WAT_Summary_*.xlsx',             accept:'.csv,.xlsx', inputId:'inputULLDWAT' },
-  ulld:     { title:'📂 Import ULLD_DataBase',     sub:'ULLD_DataBase_*.xls（需含兩個分頁）',  accept:'.xls,.xlsx', inputId:'inputULLD' },
+  ulld:     { title:'📂 Import ULLD_DataBase',     sub:'ULLD_DataBase_*.xls (requires two sheets)',  accept:'.xls,.xlsx', inputId:'inputULLD' },
   strip:    { title:'📂 Import Strip Test',        sub:'StripTest_Summary_*.xls / *.xlsx',    accept:'.xls,.xlsx', inputId:'inputStrip' },
   json:     { title:'📥 Import JSON',              sub:'CP_Report_Data_*.json',               accept:'.json',      inputId:'inputJSON' },
 };
@@ -5209,13 +5242,13 @@ function openDropModal(key) {
     modal.style.maxWidth = '96vw';
     modal.innerHTML = `
       <div class="drop-modal-title">📂 Import WAT Summary</div>
-      <div class="drop-modal-sub">左右兩欄可同時或分別匯入</div>
+      <div class="drop-modal-sub">Import both or individually in left/right columns</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
         <div>
           <div style="font-size:12.5px;font-weight:700;color:#1e5c1e;margin-bottom:6px;">🟢 WAT_Summary</div>
           <div class="drop-zone" id="dropZoneLeft" style="padding:16px 10px;">
             <div class="drop-zone-icon">📁</div>
-            <div class="drop-zone-label">拖曳 或 點擊選擇<br><strong>WAT_Summary_*.xlsx</strong></div>
+            <div class="drop-zone-label">Drag &amp; drop or click to select<br><strong>WAT_Summary_*.xlsx</strong></div>
             <div class="drop-zone-accept">.csv / .xlsx</div>
           </div>
           <div class="drop-status" id="dropStatusLeft" style="min-height:18px;margin-top:6px;font-size:11.5px;"></div>
@@ -5224,13 +5257,13 @@ function openDropModal(key) {
           <div style="font-size:12.5px;font-weight:700;color:#1a3e80;margin-bottom:6px;">🔵 ULLD_WAT_Summary</div>
           <div class="drop-zone" id="dropZoneRight" style="padding:16px 10px;">
             <div class="drop-zone-icon">📁</div>
-            <div class="drop-zone-label">拖曳 或 點擊選擇<br><strong>ULLD_WAT_Summary_*.xlsx</strong></div>
+            <div class="drop-zone-label">Drag &amp; drop or click to select<br><strong>ULLD_WAT_Summary_*.xlsx</strong></div>
             <div class="drop-zone-accept">.csv / .xlsx</div>
           </div>
           <div class="drop-status" id="dropStatusRight" style="min-height:18px;margin-top:6px;font-size:11.5px;"></div>
         </div>
       </div>
-      <button class="drop-close-btn" onclick="closeDropModal()">✕ 關閉</button>
+      <button class="drop-close-btn" onclick="closeDropModal()">✕ Close</button>
     `;
     _wireDropZone('dropZoneLeft',  'dropStatusLeft',  'wat');
     _wireDropZone('dropZoneRight', 'dropStatusRight', 'ulld_wat');
@@ -5246,11 +5279,11 @@ function openDropModal(key) {
     <div class="drop-modal-sub">${cfg.sub}</div>
     <div class="drop-zone" id="dropZone">
       <div class="drop-zone-icon">📁</div>
-      <div class="drop-zone-label">拖曳檔案到這裡<br><strong>或點擊選擇檔案</strong></div>
+      <div class="drop-zone-label">Drag file here<br><strong>or click to select</strong></div>
       <div class="drop-zone-accept">${cfg.accept}</div>
     </div>
     <div class="drop-status" id="dropStatus"></div>
-    <button class="drop-close-btn" onclick="closeDropModal()">✕ 關閉</button>
+    <button class="drop-close-btn" onclick="closeDropModal()">✕ Close</button>
   `;
   _wireDropZone('dropZone', 'dropStatus', key);
   overlay.classList.remove('hidden');
@@ -5287,7 +5320,7 @@ function _dropDispatch(file, key, statusId) {
   statusId = statusId || 'dropStatus';
   const cfg = DROP_CFG[key];
   const st  = document.getElementById(statusId);
-  if (st) { st.textContent = '⏳ 載入 ' + file.name + '…'; st.className = 'drop-status'; }
+  if (st) { st.textContent = '⏳ Loading ' + file.name + '…'; st.className = 'drop-status'; }
   const inp = document.getElementById(cfg.inputId);
   const dt  = new DataTransfer();
   dt.items.add(file);
@@ -5302,7 +5335,7 @@ function _dropDispatch(file, key, statusId) {
     } else if (statusEl && statusEl.classList.contains('err')) {
       if (st) { st.textContent = '❌ ' + statusEl.textContent; st.className = 'drop-status err'; }
     } else {
-      if (st) st.textContent = '處理中，請稍候...';
+      if (st) st.textContent = 'Processing, please wait...';
     }
   }, 800);
 }
@@ -5312,7 +5345,7 @@ function _dropDispatch(file, key, statusId) {
 function openVerifyModal() {
   document.getElementById('verifyOverlay').classList.remove('hidden');
   document.getElementById('verifyResults').style.display = 'none';
-  document.getElementById('verifyDrop').textContent = '📂 點擊或拖曳 JSON 檔案到這裡';
+  document.getElementById('verifyDrop').textContent = '📂 Click or drag JSON file here';
   document.getElementById('verifyFileInput').value = '';
   const drop = document.getElementById('verifyDrop');
   drop.ondragover = e => { e.preventDefault(); drop.classList.add('drag'); };
@@ -5377,11 +5410,11 @@ function handleVerifyFile(file) {
       function badge(date, latestDT) {
         const ymd = date ? toYMD(date) : null;
         // Sub-line: show time if available and different from date-only
-        const timeSuffix = latestDT && latestDT.length > 10 ? '<br><span style="font-size:11px;font-weight:400;color:#5a8a80">最近測試: '+latestDT+'</span>' : '';
-        if (!ymd) return { text:'無資料', cls:'vm-warn' };
-        if (ymd >= TODAY) return { text:'✓ '+ymd+' (今天)'+timeSuffix, cls:'vm-ok' };
+        const timeSuffix = latestDT && latestDT.length > 10 ? '<br><span style="font-size:11px;font-weight:400;color:#5a8a80">Latest test: '+latestDT+'</span>' : '';
+        if (!ymd) return { text:'No data', cls:'vm-warn' };
+        if (ymd >= TODAY) return { text:'✓ '+ymd+' (today)'+timeSuffix, cls:'vm-ok' };
         const diff = Math.round((new Date(TODAY)-new Date(ymd))/86400000);
-        return { text: ymd + '  落後 '+diff+' 天'+timeSuffix, cls: diff<=3?'vm-warn':'vm-err' };
+        return { text: ymd + '  behind by '+diff+' day(s)'+timeSuffix, cls: diff<=3?'vm-warn':'vm-err' };
       }
       const savedYMD = new Date(payload.savedAt).toISOString().slice(0,10);
       const savedDT  = new Date(payload.savedAt).toISOString().slice(0,16).replace('T',' ');
@@ -5394,12 +5427,12 @@ function handleVerifyFile(file) {
       const watDateVals     = watYieldRows.filter(r => r.device !== 'ULLD').map(r => r.runOn);
       const ulldWatDateVals = watYieldRows.filter(r => r.device === 'ULLD').map(r => r.runOn);
       const rows = [
-        { label:'存檔時間 (savedAt)',       date: savedYMD,                    dt: savedDT },
-        { label:'Daily 最新日期',           date: maxDate(dailyDateVals),       dt: maxDateTime(dailyDateVals) },
-        { label:'WAT Summary 最新日期',     date: maxDate(watDateVals),         dt: maxDateTime(watDateVals) },
-        { label:'Strip 最新日期',           date: maxDate(stripDateVals),       dt: maxDateTime(stripDateVals) },
-        { label:'ULLD 最新日期',            date: maxDate(ulldDateVals),        dt: maxDateTime(ulldDateVals) },
-        { label:'ULLD WAT Summary 最新日期',date: maxDate(ulldWatDateVals),     dt: maxDateTime(ulldWatDateVals) },
+        { label:'Saved at (savedAt)',       date: savedYMD,                    dt: savedDT },
+        { label:'Daily latest date',           date: maxDate(dailyDateVals),       dt: maxDateTime(dailyDateVals) },
+        { label:'WAT Summary latest date',     date: maxDate(watDateVals),         dt: maxDateTime(watDateVals) },
+        { label:'Strip latest date',           date: maxDate(stripDateVals),       dt: maxDateTime(stripDateVals) },
+        { label:'ULLD latest date',            date: maxDate(ulldDateVals),        dt: maxDateTime(ulldDateVals) },
+        { label:'ULLD WAT Summary latest date',date: maxDate(ulldWatDateVals),     dt: maxDateTime(ulldWatDateVals) },
       ];
       let html = '';
       rows.forEach(r => {
@@ -5410,7 +5443,7 @@ function handleVerifyFile(file) {
       const watCount     = watYieldRows.filter(r => r.device !== 'ULLD').length;
       const ulldWatCount = watYieldRows.filter(r => r.device === 'ULLD').length;
       document.getElementById('vmCounts').textContent =
-        'Daily: '+(payload.dailyRaw||[]).length+' 筆 ・ WAT: '+(payload.watRaw||[]).length+' lots ・ WAT yield: '+watCount+' pts ・ ULLD WAT: '+ulldWatCount+' pts ・ ULLD: '+(payload.ulldYield||[]).length+' 筆 ・ Strip: '+(payload.stripRaw||[]).length+' 筆';
+        'Daily: '+(payload.dailyRaw||[]).length+' rows · WAT: '+(payload.watRaw||[]).length+' lots · WAT yield: '+watCount+' pts · ULLD WAT: '+ulldWatCount+' pts · ULLD: '+(payload.ulldYield||[]).length+' rows · Strip: '+(payload.stripRaw||[]).length+' rows';
       const allMax = [
         maxDate(dailyDateVals),
         maxDate(watDateVals),
@@ -5420,12 +5453,12 @@ function handleVerifyFile(file) {
       ].filter(Boolean).sort();
       const latest = allMax[allMax.length-1];
       const banner = document.getElementById('vmBanner');
-      if (!latest) { banner.className='vm-banner na'; banner.textContent='找不到任何日期資料'; }
-      else if (latest >= TODAY) { banner.className='vm-banner ok'; banner.textContent='✅ 資料已包含今天（'+TODAY+'），up-to-date！'; }
-      else { const d=Math.round((new Date(TODAY)-new Date(latest))/86400000); banner.className='vm-banner warn'; banner.textContent='⚠ 最新資料為 '+latest+'，落後今天 '+d+' 天'; }
+      if (!latest) { banner.className='vm-banner na'; banner.textContent='No date data found'; }
+      else if (latest >= TODAY) { banner.className='vm-banner ok'; banner.textContent='✅ Data includes today ('+TODAY+'), up-to-date!'; }
+      else { const d=Math.round((new Date(TODAY)-new Date(latest))/86400000); banner.className='vm-banner warn'; banner.textContent='⚠ Latest data: '+latest+', behind today by '+d+' day(s)'; }
       document.getElementById('verifyResults').style.display = 'block';
     } catch(e) {
-      document.getElementById('verifyDrop').textContent = '❌ 解析失敗：' + e.message;
+      document.getElementById('verifyDrop').textContent = '❌ Parse failed: ' + e.message;
     }
   };
   reader.readAsText(file);
@@ -5441,10 +5474,10 @@ function handleVerifyFile(file) {
 <!-- Verify JSON Modal -->
 <div class="verify-overlay hidden" id="verifyOverlay" onclick="if(event.target===this)closeVerifyModal()">
   <div class="verify-modal">
-    <h3>🔍 Verify JSON — 日期檢查</h3>
-    <p class="vm-sub">拖曳或選擇 CP_Report_Data_*.json，檢查資料是否包含今天</p>
+    <h3>🔍 Verify JSON — Date Check</h3>
+    <p class="vm-sub">Drag or select CP_Report_Data_*.json to check if data includes today</p>
     <div class="verify-drop" id="verifyDrop" onclick="document.getElementById('verifyFileInput').click()">
-      📂 點擊或拖曳 JSON 檔案到這裡
+      📂 Click or drag JSON file here
     </div>
     <input type="file" id="verifyFileInput" accept=".json" style="display:none" onchange="handleVerifyFile(this.files[0])">
     <div id="verifyResults" style="display:none">
@@ -5452,7 +5485,7 @@ function handleVerifyFile(file) {
       <p id="vmCounts" class="vm-counts"></p>
       <div id="vmBanner" class="vm-banner na"></div>
     </div>
-    <button class="vm-close-btn" onclick="closeVerifyModal()">✕ 關閉</button>
+    <button class="vm-close-btn" onclick="closeVerifyModal()">✕ Close</button>
   </div>
 </div>
 <!-- PWA Service Worker 註冊 -->

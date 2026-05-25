@@ -1511,6 +1511,14 @@ function computeTabs(rows, fyKey, inputKey, excludeLots) {
     const subset = filtered.filter(r => tab.devices.includes(r._device));
     result[tab.key] = computeWeeklyMonthly(subset, fyKey, inputKey);
   });
+  // ── Extra: per-device edge die breakdown for tab2 (50A) ──
+  const TAB2_DEVICE_KEYS = ['50A550mV', '50A530mV', '50A580mV'];
+  const tab2ByDev = {};
+  TAB2_DEVICE_KEYS.forEach(dev => {
+    const subset = filtered.filter(r => r._device === dev);
+    tab2ByDev[dev] = computeWeeklyMonthly(subset, fyKey, inputKey);
+  });
+  result['_50A_byDevice'] = tab2ByDev;
   return result;
 }
 
@@ -2800,9 +2808,12 @@ function _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData
 
     <div class="chart-row">
       <div class="chart-card">
-        <div class="chart-card-title">${tabCfg.label.replace('CP Test Yield','CP edge die yield')} chart${modeBadge} &nbsp;<span style="font-size:11px;font-weight:400;color:var(--text2)">(Yield &lt; 40% lots excluded)</span></div>
+        ${tabIdx === 2
+          ? `<div class="chart-card-title">50A CP Edge Die Yield by Device Type${modeBadge} &nbsp;<span style="font-size:11px;font-weight:400;color:var(--text2)">(550mV excl. 550mV_27V_SEG &nbsp;|&nbsp; Yield &lt; 40% excluded)</span></div>`
+          : `<div class="chart-card-title">${tabCfg.label.replace('CP Test Yield','CP edge die yield')} chart${modeBadge} &nbsp;<span style="font-size:11px;font-weight:400;color:var(--text2)">(Yield &lt; 40% lots excluded)</span></div>`
+        }
         ${chartSubtitle}
-        <div class="chart-wrap"><canvas id="${edgeChartId}"></canvas></div>
+        <div class="chart-wrap"><canvas id="${tabIdx === 2 ? `edgeChart_50A_combined_${tabIdx}` : edgeChartId}"></canvas></div>
       </div>
     </div>
 
@@ -2838,7 +2849,12 @@ function _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData
       'rgba(74,124,255,0.5)', '#4a7cff', null,
       hasWat ? watTrend : null, 'WAT Yield (%)', '#f9ca24');
 
-    makeEdgeDieChart(edgeChartId, labels, gainData, edgeYieldData, tabCfg);
+    if (tabIdx === 2 && tabData._byDevice) {
+      // 50A: combined bar+3-line chart
+      make50ACombinedEdgeChart(`edgeChart_50A_combined_${tabIdx}`, labels, tabData._byDevice);
+    } else {
+      makeEdgeDieChart(edgeChartId, labels, gainData, edgeYieldData, tabCfg);
+    }
 
     if (prevP) makeParetoChart(paretoPrevId, paretoLabels, getParetoData(prevP));
     if (lastP)  makeParetoChart(paretoLastId, paretoLabels, getParetoData(lastP));
@@ -3323,6 +3339,174 @@ function makeEdgeDieChart(canvasId, labels, gainData, edgeYieldData, tabCfg) {
           min: minY,
           max: maxY,
           title: { display: true, text: 'Edge Die Yield (%)', color: '#000000', font: { size: 10 } }
+        }
+      }
+    }
+  });
+}
+
+
+// ─── 50A Combined Edge Die Chart: stacked bars (550/530/580) + 3 yield lines ───
+function make50ACombinedEdgeChart(canvasId, labels, byDevData) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+
+  const DEV_CFG = [
+    { key: '50A550mV', label: '550mV', barColor: 'rgba(192,80,32,0.55)',  barBorder: 'rgba(192,80,32,0.85)',  lineColor: '#c05020', dash: [] },
+    { key: '50A530mV', label: '530mV', barColor: 'rgba(26,138,74,0.55)',   barBorder: 'rgba(26,138,74,0.85)',   lineColor: '#1a8a4a', dash: [6,3] },
+    { key: '50A580mV', label: '580mV', barColor: 'rgba(26,74,138,0.55)',   barBorder: 'rgba(26,74,138,0.85)',   lineColor: '#1a4a8a', dash: [2,3] },
+  ];
+
+  const isMonthlyMode = (() => {
+    const tog = document.getElementById('reportModeToggle');
+    return tog ? tog.checked : false;
+  })();
+
+  // Build label→{edgeYield, gainDie} for each device
+  function buildMap(devData) {
+    const m = {};
+    if (!devData) return m;
+    const pts = isMonthlyMode
+      ? [...(devData.quarters||[]), ...(devData.months||[])]
+      : [...(devData.monthlyPoints||[]), ...(devData.recentWeeks||[])];
+    pts.forEach(p => {
+      if (p && p.label) m[p.label] = { edgeYield: p.edgeYield ?? null, gainDie: p.gainDie ?? 0 };
+    });
+    return m;
+  }
+
+  const maps = {};
+  DEV_CFG.forEach(dc => { maps[dc.key] = buildMap(byDevData[dc.key]); });
+
+  const datasets = [];
+
+  // ── Bar datasets (stacked, right axis) ──
+  DEV_CFG.forEach(dc => {
+    datasets.push({
+      type: 'bar',
+      label: `${dc.label} Gain Die (ea)`,
+      data: labels.map(l => l === '' ? null : (maps[dc.key][l]?.gainDie ?? 0)),
+      backgroundColor: dc.barColor,
+      borderColor: dc.barBorder,
+      borderWidth: 1,
+      yAxisID: 'yBar',
+      order: 3,
+      stack: 'gainDie',
+      datalabels: { display: false },
+    });
+  });
+
+  // ── Total gain die label on top of stack ──
+  // (we use a transparent "total" bar with datalabels on to show the sum)
+  datasets.push({
+    type: 'bar',
+    label: '_totalLabel',
+    data: labels.map(l => {
+      if (l === '') return null;
+      return DEV_CFG.reduce((s, dc) => s + (maps[dc.key][l]?.gainDie ?? 0), 0);
+    }),
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
+    borderWidth: 0,
+    yAxisID: 'yBar',
+    order: 2,
+    stack: 'totalLabel',
+    datalabels: {
+      display: true,
+      anchor: 'end', align: 'top',
+      color: '#446090',
+      font: { size: 9, weight: '600' },
+      formatter: v => (v > 0) ? v.toLocaleString() : '',
+    },
+  });
+
+  // ── Line datasets (3 yield lines, left axis) ──
+  DEV_CFG.forEach(dc => {
+    datasets.push({
+      type: 'line',
+      label: `${dc.label} Edge Die Yield (%)`,
+      data: labels.map(l => l === '' ? null : (maps[dc.key][l]?.edgeYield ?? null)),
+      borderColor: dc.lineColor,
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      borderDash: dc.dash,
+      pointRadius: 4,
+      pointBackgroundColor: dc.lineColor,
+      yAxisID: 'yLine',
+      order: 1,
+      tension: 0.1,
+      spanGaps: false,
+      datalabels: {
+        display: true,
+        anchor: 'top', align: 'top', offset: 3,
+        color: dc.lineColor,
+        font: { size: 9, weight: '700' },
+        formatter: v => v != null ? v.toFixed(1)+'%' : '',
+      },
+    });
+  });
+
+  // ── Y-axis range ──
+  const allYields = DEV_CFG.flatMap(dc =>
+    labels.map(l => maps[dc.key][l]?.edgeYield ?? null).filter(v => v != null)
+  );
+  const minY = allYields.length ? Math.max(40, Math.floor(Math.min(...allYields) - 3)) : 40;
+
+  const allGains = DEV_CFG.flatMap(dc =>
+    labels.map(l => maps[dc.key][l]?.gainDie ?? 0)
+  );
+  // Stack max per label
+  const stackMaxes = labels.map(l =>
+    DEV_CFG.reduce((s, dc) => s + (maps[dc.key][l]?.gainDie ?? 0), 0)
+  ).filter(v => v > 0);
+  const maxBar = stackMaxes.length ? Math.max(...stackMaxes) : 0;
+  const barMax = maxBar > 0 ? Math.ceil(maxBar * 1.25 / 10000) * 10000 : 100000;
+
+  chartInstances[canvasId] = new Chart(ctx.getContext('2d'), {
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: {
+            color: '#000000', font: { size: 11 }, boxWidth: 14,
+            filter: item => item.text !== '_totalLabel',
+          }
+        },
+        tooltip: {
+          backgroundColor: '#1a1d27', borderColor: '#2e3350', borderWidth: 1,
+          titleColor: '#e8eaf0', bodyColor: '#c8cad8',
+          callbacks: {
+            label: ctx2 => {
+              if (ctx2.dataset.label === '_totalLabel') return '';
+              const v = ctx2.parsed.y;
+              if (v == null || v === 0) return '';
+              return ctx2.dataset.yAxisID === 'yLine'
+                ? `${ctx2.dataset.label}: ${v.toFixed(2)}%`
+                : `${ctx2.dataset.label}: ${v.toLocaleString()}`;
+            }
+          }
+        },
+        datalabels: {}
+      },
+      scales: {
+        x: { ticks: { color: '#000000', font: { size: 10 } }, grid: { color: 'rgba(200,200,210,0.4)' } },
+        yBar: {
+          position: 'right',
+          stacked: true,
+          min: 0, max: barMax,
+          ticks: { color: '#000000', font: { size: 10 }, callback: v => v.toLocaleString() },
+          grid: { display: false },
+          title: { display: true, text: 'Gain Die (ea)', color: '#000000', font: { size: 10 } },
+        },
+        yLine: {
+          position: 'left',
+          min: minY, max: 101,
+          ticks: { color: '#000000', font: { size: 10 }, callback: v => v.toFixed(0)+'%' },
+          grid: { color: 'rgba(200,200,210,0.4)' },
+          title: { display: true, text: 'Edge Die Yield (%)', color: '#000000', font: { size: 10 } },
         }
       }
     }
@@ -3825,6 +4009,7 @@ function onReportModeChange(isMonthly) {
   if (processedTabs) {
     TAB_CONFIG.forEach((cfg, i) => {
       const data = processedTabs[cfg.key];
+      if (i === 2 && processedTabs['_50A_byDevice']) data._byDevice = processedTabs['_50A_byDevice'];
       if (data && data.weeks && data.weeks.length > 0) renderTabPage(i, data, cfg);
     });
   }
@@ -4216,6 +4401,10 @@ function renderAllTabs() {
     if (!data || data.weeks.length === 0) {
       renderNoData(i, `No data for ${cfg.label}`);
     } else {
+      // Attach per-device breakdown for tab2 (50A)
+      if (i === 2 && processedTabs['_50A_byDevice']) {
+        data._byDevice = processedTabs['_50A_byDevice'];
+      }
       renderTabPage(i, data, cfg);
     }
   });
@@ -4720,8 +4909,9 @@ function exportExcel() {
       const dev = watData[String(r['Lot Num']||'').trim()];
       return dev && cfg.devices.includes(dev);
     });
-    const weekRows = getLastWeekRows(rows, yieldKey);
-    const { discountLots, rejectLots } = getCPWeekLotsWaferLevel(weekRows, 'Lot Num', yieldKey, thr.discountLo, thr.discountHi, thr.reject);
+    const periodRows = getReportModeRows(rows, yieldKey);
+    const { discountLots, rejectLots } = getCPWeekLotsWaferLevel(periodRows, 'Lot Num', yieldKey, thr.discountLo, thr.discountHi, thr.reject);
+    const periodLabel = reportMode === 'monthly' ? 'Month' : 'Week';
     const header = ['Lot No.', 'Final Yield (%)', 'Category'];
     const dataRows = [
       ...rejectLots.map(l => [l.lot, isNaN(l.lotYld) ? '' : +l.lotYld.toFixed(4), `Reject (Lot Yield < ${thr.reject}%)`]),
@@ -4743,28 +4933,45 @@ function exportExcel() {
       const y0 = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
       return `${tmp.getUTCFullYear()}-W${String(Math.ceil(((tmp-y0)/86400000+1)/7)).padStart(2,'0')}`;
     }
-    let latestWk = null;
-    allRows.forEach(r => {
-      const dv = r['Test  Date'] || r['Test Date'];
-      if (!dv) return;
+    function monthKey(d) {
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    }
+    function parseDv(dv) {
+      if (!dv) return null;
       let d;
       if (dv instanceof Date) d = dv;
       else if (typeof dv === 'number') d = new Date(Math.round((dv-25569)*86400*1000));
       else d = new Date(dv);
-      if (!d || isNaN(d)) return;
-      const wk = isoWeekKey(d);
-      if (!latestWk || wk > latestWk) latestWk = wk;
-    });
-    const weekRows = !latestWk ? [] : allRows.filter(r => {
-      const dv = r['Test  Date'] || r['Test Date'];
-      if (!dv) return false;
-      let d;
-      if (dv instanceof Date) d = dv;
-      else if (typeof dv === 'number') d = new Date(Math.round((dv-25569)*86400*1000));
-      else d = new Date(dv);
-      if (!d || isNaN(d)) return false;
-      return isoWeekKey(d) === latestWk && !isNaN(parseFloat(r[yieldKey]));
-    });
+      return (!d || isNaN(d)) ? null : d;
+    }
+    let weekRows;
+    if (reportMode === 'monthly') {
+      let latestMk = null;
+      allRows.forEach(r => {
+        const d = parseDv(r['Test  Date'] || r['Test Date']);
+        if (!d) return;
+        const mk = monthKey(d);
+        if (!latestMk || mk > latestMk) latestMk = mk;
+      });
+      weekRows = !latestMk ? [] : allRows.filter(r => {
+        const d = parseDv(r['Test  Date'] || r['Test Date']);
+        if (!d) return false;
+        return monthKey(d) === latestMk && !isNaN(parseFloat(r[yieldKey]));
+      });
+    } else {
+      let latestWk = null;
+      allRows.forEach(r => {
+        const d = parseDv(r['Test  Date'] || r['Test Date']);
+        if (!d) return;
+        const wk = isoWeekKey(d);
+        if (!latestWk || wk > latestWk) latestWk = wk;
+      });
+      weekRows = !latestWk ? [] : allRows.filter(r => {
+        const d = parseDv(r['Test  Date'] || r['Test Date']);
+        if (!d) return false;
+        return isoWeekKey(d) === latestWk && !isNaN(parseFloat(r[yieldKey]));
+      });
+    }
     // Use the same per-wafer classification as the UI panel
     const { discountLots, rejectLots } = getULLDWeekLotsWaferLevel(weekRows, thr.discountLo, thr.discountHi, thr.reject);
 
@@ -4805,7 +5012,7 @@ function exportExcel() {
   function getStripDiscountRejectRows(type) {
     const thrKey = `strip${type}`;
     const thr = TAB_THRESHOLDS[thrKey];
-    const weekRows = computeStripLastWeekLots(type);
+    const weekRows = computeStripPeriodLots(type);
     const { discountLots, rejectLots } = getStripWeekLotsWaferLevel(weekRows, thr.discountLo, thr.discountHi, thr.reject);
     const header = ['Lot No.', 'Lot Avg Yield (%)', 'Min Wafer Yield (%)', 'Triggered Wafer No.', 'Category'];
     const toRows = (lots, cat) => lots.map(l => {

@@ -1803,10 +1803,11 @@ function makeParetoChart(canvasId, labels, barData) {
   destroyChart(canvasId);
   const ctx = document.getElementById(canvasId).getContext('2d');
 
-  // Sort descending by PPM — proper Pareto order
+  // Sort descending by PPM — proper Pareto order, show top 5
   const paired = labels.map((l,i) => ({ label: l, ppm: barData[i]||0 }))
                        .filter(p => p.ppm > 0)
-                       .sort((a,b) => b.ppm - a.ppm);
+                       .sort((a,b) => b.ppm - a.ppm)
+                       .slice(0, 5);
 
   if (paired.length === 0) {
     ctx.canvas.parentElement.innerHTML = '<div class="no-data" style="padding:20px">No defect data for this period</div>';
@@ -3205,16 +3206,24 @@ function makeULLDComboChart(id, labels, barData, finalYData, cpYData, target, wa
 
 function makeULLDParetoChart(id, labels, ppmData) {
   const ctx = document.getElementById(id).getContext('2d');
-  const total = ppmData.reduce((a,b)=>a+b,0);
+
+  // Sort descending and keep top 5
+  const paired = labels.map((l,i) => ({ label: l, ppm: ppmData[i]||0 }))
+                       .sort((a,b) => b.ppm - a.ppm)
+                       .slice(0, 5);
+  const sortedLabels = paired.map(p => p.label);
+  const sortedPPM    = paired.map(p => p.ppm);
+
+  const total = sortedPPM.reduce((a,b)=>a+b,0);
   let cum = 0;
-  const cumPct = ppmData.map(v => { cum += v; return total > 0 ? parseFloat((cum/total*100).toFixed(1)) : 0; });
+  const cumPct = sortedPPM.map(v => { cum += v; return total > 0 ? parseFloat((cum/total*100).toFixed(1)) : 0; });
 
   return new Chart(ctx, {
     data: {
-      labels,
+      labels: sortedLabels,
       datasets: [
         {
-          type: 'bar', label: 'Defect rate (PPM)', data: ppmData,
+          type: 'bar', label: 'Defect rate (PPM)', data: sortedPPM,
           backgroundColor: 'rgba(100,160,230,0.6)', borderColor: 'rgba(42,106,176,0.8)',
           borderWidth: 1, yAxisID: 'yPPM', order: 2
         },
@@ -3927,13 +3936,14 @@ function renderStripPage(pageId, type) {
     // Pareto charts
     function makeStripPareto(canvasId, ppmArr) {
       const ctx2 = document.getElementById(canvasId).getContext('2d');
-      const total = ppmArr.reduce((a,b)=>a+b,0);
-      // Sort by PPM descending
+      // Sort by PPM descending, top 5
       const sorted = paretoKeys.map((k,i)=>({ k, v: ppmArr[i], color: paretoColors[i] }))
-                               .sort((a,b)=>b.v-a.v);
+                               .sort((a,b)=>b.v-a.v)
+                               .slice(0, 5);
       const sortedLabels = sorted.map(s=>s.k);
       const sortedPPM    = sorted.map(s=>s.v);
       const sortedColors = sorted.map(s=>s.color);
+      const total = sortedPPM.reduce((a,b)=>a+b,0);
 
       let cum = 0;
       const cumPct = sortedPPM.map(v => { cum += v; return total>0 ? parseFloat((cum/total*100).toFixed(1)) : 0; });
@@ -4288,12 +4298,13 @@ function renderStripPageMonthly(pageId, type) {
     // ── Pareto charts (monthly) ──
     function makeMonthlyPareto(canvasId, ppmArr, bgColor) {
       const ctx2 = document.getElementById(canvasId).getContext('2d');
-      const total = ppmArr.reduce((a,b)=>a+b,0);
       const sorted = paretoKeys.map((k,i)=>({ k, v: ppmArr[i], color: paretoColors[i] }))
-                               .sort((a,b)=>b.v-a.v);
+                               .sort((a,b)=>b.v-a.v)
+                               .slice(0, 5);
       const sortedLabels = sorted.map(s=>s.k);
       const sortedPPM    = sorted.map(s=>s.v);
       const sortedColors = sorted.map(s=>s.color);
+      const total = sortedPPM.reduce((a,b)=>a+b,0);
       let cum = 0;
       const cumPct = sortedPPM.map(v => { cum += v; return total>0 ? parseFloat((cum/total*100).toFixed(1)) : 0; });
       return new Chart(ctx2, {

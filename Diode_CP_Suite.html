@@ -232,16 +232,19 @@
     /* Per-tab active colours */
     .tab-btn.active { font-weight: 700; color: #fff; }
 
-    /* WAT CP Suite — blue → teal gradient */
-    .tab-btn[data-tab="watcpsuite"]:hover  { color: #a0d4f5; }
+    /* WAT CP Suite — 藍 → 藍綠 */
+    .tab-btn[data-tab="watcpsuite"]        { background: linear-gradient(90deg, #1565c0 0%, #0e9980 100%); color: #fff; border-bottom-color: #4dc8b0; }
+    .tab-btn[data-tab="watcpsuite"]:hover  { background: linear-gradient(90deg, #1a72d4 0%, #10aa8e 100%); color: #fff; border-bottom-color: #6edcc8; }
     .tab-btn[data-tab="watcpsuite"].active { background: linear-gradient(90deg, #1565c0 0%, #0e6655 100%); border-bottom-color: #7ecbbd; color: #fff; }
 
-    /* Strip Test Suite — teal → green gradient */
-    .tab-btn[data-tab="strip"]:hover  { color: #6ee9c0; }
+    /* Strip Test Suite — 藍綠 純色 */
+    .tab-btn[data-tab="strip"]        { background: #0e9980; color: #fff; border-bottom-color: #4dc8b0; }
+    .tab-btn[data-tab="strip"]:hover  { background: #10aa8e; color: #fff; border-bottom-color: #6edcc8; }
     .tab-btn[data-tab="strip"].active { background: linear-gradient(90deg, #0e6655 0%, #166534 100%); border-bottom-color: #4ade80; color: #fff; }
 
-    /* CP Yield Report — green → dark green gradient */
-    .tab-btn[data-tab="cpreport"]:hover  { color: #6ee9c0; }
+    /* CP Yield Report — 藍綠 → 藍 */
+    .tab-btn[data-tab="cpreport"]        { background: linear-gradient(90deg, #0e9980 0%, #1565c0 100%); color: #fff; border-bottom-color: #4aabdc; }
+    .tab-btn[data-tab="cpreport"]:hover  { background: linear-gradient(90deg, #10aa8e 0%, #1a72d4 100%); color: #fff; border-bottom-color: #6ac8f0; }
     .tab-btn[data-tab="cpreport"].active { background: linear-gradient(90deg, #166534 0%, #14532d 100%); border-bottom-color: #34d399; color: #fff; }
 
     /* LLD WAT Monitor — deep blue */
@@ -2415,6 +2418,12 @@
       <div class="section-divider" style="border-top:1px solid #d8e4de; margin:10px 0 8px;"></div>
 
       <h2 style="margin-top:0;">Heatmap</h2>
+      <div id="hmProductBanner" style="display:none;background:#e8f5f1;border:1px solid #7ecbbd;border-radius:5px;padding:5px 8px;margin-bottom:8px;font-size:11px;color:#1a5c50;">
+        <span style="font-weight:700;">📋 Product:</span>
+        <span id="hmProductModel" style="font-weight:700;color:#0e6655;margin-left:4px;"></span>
+        <span id="hmLimitCount" style="color:#5a8c80;margin-left:2px;font-size:10px;"></span>
+        <span style="color:#5a8c80;margin-left:6px;font-size:10px;">(auto-detected from test log)</span>
+      </div>
       <label for="hmTitle">Title</label>
       <input id="hmTitle" type="text" value="Wafer Heatmap">
       <label for="column">Parameter</label>
@@ -2423,11 +2432,11 @@
       <div id="presets"></div>
       <div class="hm-row">
         <div>
-          <label for="lo">Low</label>
+          <label for="lo" style="display:flex;align-items:center;gap:4px;">Low <span id="loLogBadge" style="display:none;font-size:9px;background:#d4edda;color:#155724;border-radius:3px;padding:1px 4px;font-weight:600;">from log</span></label>
           <input id="lo" type="number" step="any" value="0">
         </div>
         <div>
-          <label for="hi">High</label>
+          <label for="hi" style="display:flex;align-items:center;gap:4px;">High <span id="hiLogBadge" style="display:none;font-size:9px;background:#d4edda;color:#155724;border-radius:3px;padding:1px 4px;font-weight:600;">from log</span></label>
           <input id="hi" type="number" step="any" value="45">
         </div>
       </div>
@@ -9975,6 +9984,102 @@ const hmEls = {
 let hmRecords = [];
 let hmHeaders = [];
 let fileBaseName = "wafer";
+// Metadata extracted from raw test log CSV (Production ID, test limits)
+let hmLogMeta = { productModel: null, limits: {} };
+
+// ── Parse metadata from raw test log CSV ─────────────────────────
+// dlog CSV structure (0-indexed lines):
+//   Lines 0-34 : file header  ("Production ID  : 50A_530mV_22U" ~ line 4)
+//   Line ~26   : " Sample   Pass   Pass%   Fail   Fail%"
+//   Line ~28   : blank
+//   Line ~29   : ",,,,,,Contact(1),Contact(2),…,IR0(8),DIR0(9),…"  ← item names
+//   Line ~30   : ",,,,,,V_Force_VF_50mA,Ohm_Force,…"               ← condition/unit (text)
+//   Line ~31   : blank
+//   Line ~32   : ",,,,,,2000,10,2000,10,,,24,70,100,255,…"         ← HighLimit row
+//   Line ~33   : ",,,,,,0,0,0,0,5,20,20,0,0,175,…"                 ← LowLimit row
+//   Line ~34   : "Serial#,Site#,Bin#,SBin#,…"                      ← column-name row
+//   Line ~35+  : data rows (start with digit)
+//
+// Column names: "NAME(seq)" → strip "(seq)".
+// Limit rows: start with ≥2 commas, contain NO letters, have at least one digit,
+//             every non-empty cell is a valid number.
+// Order preserved: first such row = HighLimit, second = LowLimit.
+function parseLogMeta(rawText) {
+  const meta = { productModel: null, limits: {} };
+  const lines = rawText.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+
+  // 1. Production ID
+  for (let i = 0; i < Math.min(40, lines.length); i++) {
+    const m = lines[i].match(/Production\s+ID\s*:\s*(\S+)/i);
+    if (m) {
+      meta.productModel = m[1].trim().replace(/_\d+[A-Za-z]+$/, "");
+      break;
+    }
+  }
+
+  // 2. Find test-item column-name row ("NAME(digits)" tokens)
+  let colHeaderIdx = -1;
+  let colNames = [];
+  for (let i = 25; i < Math.min(lines.length, 60); i++) {
+    if (/[A-Za-z_]\w*\(\d+\)/.test(lines[i])) {
+      colHeaderIdx = i;
+      colNames = lines[i].split(",").map(c =>
+        c.trim().replace(/\s*\(\d+\)\s*$/, "").trim()
+      );
+      break;
+    }
+  }
+  if (colHeaderIdx < 0 || !colNames.length) return meta;
+
+  // 3. Collect the first two pure-numeric limit rows after the column-name row
+  function isPureNumericLimitRow(line) {
+    if (!/^,{2,}/.test(line)) return false;
+    if (/[A-Za-z]/.test(line)) return false;
+    if (!/[0-9]/.test(line)) return false;
+    for (const cell of line.split(",")) {
+      const v = cell.trim();
+      if (v === "") continue;
+      if (!Number.isFinite(parseFloat(v))) return false;
+    }
+    return true;
+  }
+
+  const limitRows = [];
+  for (let i = colHeaderIdx + 1; i < Math.min(colHeaderIdx + 12, lines.length); i++) {
+    const raw = lines[i];
+    if (!raw.trim()) continue;
+    if (/^\d/.test(raw)) break;
+    if (isPureNumericLimitRow(raw)) {
+      limitRows.push(raw.split(","));
+      if (limitRows.length === 2) break;
+    }
+  }
+  if (limitRows.length < 1) return meta;
+
+  // Row order in dlog: [0] = HighLimit, [1] = LowLimit
+  const hiRow = limitRows[0];
+  const loRow = limitRows.length > 1 ? limitRows[1] : limitRows[0];
+
+  // 4. Map every named column to [lo, hi]
+  for (let ci = 0; ci < colNames.length; ci++) {
+    const name = colNames[ci];
+    if (!name || name.length < 2) continue;
+    const hiVal = parseFloat((hiRow[ci] || "").trim());
+    const loVal = parseFloat((loRow[ci] || "").trim());
+    const hiOk = Number.isFinite(hiVal);
+    const loOk = Number.isFinite(loVal);
+    if (!hiOk && !loOk) continue;
+    if (hiOk && loOk) {
+      if (hiVal === loVal) continue;
+      meta.limits[name] = [Math.min(loVal, hiVal), Math.max(loVal, hiVal)];
+    } else if (hiOk) {
+      meta.limits[name] = [null, hiVal];
+    } else {
+      meta.limits[name] = [loVal, null];
+    }
+  }
+  return meta;
+}
 
 // ── ZIP Path Search ──────────────────────────────────────────────
 (function initZipSearch() {
@@ -10530,8 +10635,8 @@ hmEls.column.addEventListener("change", () => { applyDefaultTitle(); buildPreset
 hmEls.renderBtn.addEventListener("click", renderIfReady);
 hmEls.downloadBtn.addEventListener("click", downloadPng);
 hmEls.mode.addEventListener("change", renderIfReady);
-hmEls.lo.addEventListener("change", renderIfReady);
-hmEls.hi.addEventListener("change", renderIfReady);
+hmEls.lo.addEventListener("change", () => { updateRangeBadges(false); renderIfReady(); });
+hmEls.hi.addEventListener("change", () => { updateRangeBadges(false); renderIfReady(); });
 hmEls.title.addEventListener("change", renderIfReady);
 hmEls.selectAllBtn.addEventListener("click", () => setAllWafers(true));
 hmEls.selectNoneBtn.addEventListener("click", () => setAllWafers(false));
@@ -10561,6 +10666,17 @@ async function mergeZipCsv() {
         const csvEntries = entries.filter(e => e.name.toLowerCase().endsWith(".csv") && !e.isDirectory)
                                   .sort((a, b) => baseName(a.name).localeCompare(baseName(b.name)));
         if (!csvEntries.length) throw new Error("No CSV files found inside ZIP.");
+        // Parse metadata (Production ID, test limits) from the first CSV entry
+        try {
+          const firstRaw = await csvEntries[0].text();
+          hmLogMeta = parseLogMeta(firstRaw);
+          console.log("[parseLogMeta] productModel:", hmLogMeta.productModel);
+          console.log("[parseLogMeta] limits:", Object.keys(hmLogMeta.limits).length, hmLogMeta.limits);
+          updateProductBanner();
+        } catch(e) {
+          console.error("[parseLogMeta] error:", e);
+          hmLogMeta = { productModel: null, limits: {} };
+        }
         const out = [headerLine];
         let totalRows = 0;
         for (const entry of csvEntries) {
@@ -10589,7 +10705,9 @@ async function mergeZipCsv() {
             dt.items.add(mergedFile);
             hmEls.csvFile.files = dt.files;
             // Trigger load
-            hmEls.csvFile.dispatchEvent(new Event('change'));
+            const evt = new Event('change');
+            evt._fromMerge = true;
+            hmEls.csvFile.dispatchEvent(evt);
             setMergeStatus(`Done: ${csvEntries.length} CSV files, total ${totalRows.toLocaleString()} data rows. Auto-loaded ${zipBase}_merged.csv。`, false);
           } catch(e) {
             // DataTransfer may not be supported in all browsers, silent fail
@@ -10681,6 +10799,10 @@ function downloadText(name, text, type) {
 async function loadCsvFile(event) {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
+    if (!event._fromMerge) {
+      hmLogMeta = { productModel: null, limits: {} };
+      updateProductBanner();
+    }
     try {
         const text = await file.text();
         fileBaseName = file.name.replace(/\.[^.]+$/, "");
@@ -10774,18 +10896,81 @@ function populateWafers() {
 
 function buildPresets() {
     const col = selectedColumn();
-    const presets = presetsByColumn[col] || [["Auto from data", ...autoRange(col)]];
+    const rawLogLimits = hmLogMeta && hmLogMeta.limits && hmLogMeta.limits[col];
+    const hardcoded = presetsByColumn[col];
+    const productLabel = (hmLogMeta && hmLogMeta.productModel) ? hmLogMeta.productModel : "Test Log";
+
+    // Resolve one-sided limits: null means that bound wasn't in the log
+    let logLimits = null;
+    if (rawLogLimits) {
+      const [rawLo, rawHi] = rawLogLimits;
+      const [dataLo, dataHi] = autoRange(col);
+      const resolvedLo = rawLo !== null ? rawLo : dataLo;
+      const resolvedHi = rawHi !== null ? rawHi : dataHi;
+      if (resolvedLo !== resolvedHi) logLimits = [resolvedLo, resolvedHi];
+    }
+
+    const fmt = v => {
+      if (v === null || !Number.isFinite(v)) return "?";
+      return Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/\.?0+$/, "");
+    };
+
+    let presets = [];
+    if (logLimits) {
+      presets.push([`📋 ${productLabel}`, logLimits[0], logLimits[1]]);
+    }
+    if (hardcoded && hardcoded.length) {
+      presets = presets.concat(hardcoded);
+    }
+    if (!logLimits && (!hardcoded || !hardcoded.length)) {
+      presets.push(["Auto from data", ...autoRange(col)]);
+    } else if (logLimits && (!hardcoded || !hardcoded.length)) {
+      presets.push(["Auto from data", ...autoRange(col)]);
+    }
+
     hmEls.presets.innerHTML = "";
     presets.forEach(([name, lo, hi], i) => {
+        const isLogPreset = i === 0 && !!logLimits;
         const label = document.createElement("label");
         label.className = "preset";
         const radio = document.createElement("input");
         radio.type = "radio"; radio.name = "preset"; radio.checked = i === 0;
-        radio.addEventListener("change", () => { hmEls.lo.value = lo; hmEls.hi.value = hi; renderIfReady(); });
-        label.append(radio, document.createTextNode(`${name} (${lo}-${hi})`));
+        radio.addEventListener("change", () => {
+          hmEls.lo.value = lo;
+          hmEls.hi.value = hi;
+          updateRangeBadges(isLogPreset);
+          renderIfReady();
+        });
+        label.append(radio, document.createTextNode(`${name} (${fmt(lo)}–${fmt(hi)})`));
         hmEls.presets.appendChild(label);
     });
-    hmEls.lo.value = presets[0][1]; hmEls.hi.value = presets[0][2];
+    hmEls.lo.value = presets[0][1];
+    hmEls.hi.value = presets[0][2];
+    updateRangeBadges(!!logLimits);
+}
+
+function updateRangeBadges(fromLog) {
+  const loBadge = document.getElementById("loLogBadge");
+  const hiBadge = document.getElementById("hiLogBadge");
+  if (loBadge) loBadge.style.display = fromLog ? "inline" : "none";
+  if (hiBadge) hiBadge.style.display = fromLog ? "inline" : "none";
+}
+
+function updateProductBanner() {
+  const banner = document.getElementById("hmProductBanner");
+  const modelEl = document.getElementById("hmProductModel");
+  const countEl = document.getElementById("hmLimitCount");
+  if (!banner || !modelEl) return;
+  if (hmLogMeta && (hmLogMeta.productModel || Object.keys(hmLogMeta.limits).length > 0)) {
+    modelEl.textContent = hmLogMeta.productModel || "(unknown)";
+    if (countEl) {
+      const n = Object.keys(hmLogMeta.limits).length;
+      countEl.textContent = n > 0 ? `，${n} 個測試項上下限已讀取` : "";
+    }
+    banner.style.display = "block";
+  } else {
+    banner.style.display = "none";
+  }
 }
 
 function autoRange(col) {
@@ -10796,7 +10981,11 @@ function autoRange(col) {
 
 function applyDefaultTitle() {
     const lot = fileBaseName.split("_")[0] || "Wafer";
-    hmEls.title.value = `${lot} ${selectedColumn() || "Heatmap"} Wafer Heatmap`;
+    const productModel = hmLogMeta && hmLogMeta.productModel ? hmLogMeta.productModel : "";
+    const col = selectedColumn() || "Heatmap";
+    hmEls.title.value = productModel
+      ? `${lot} ${col} Wafer Heatmap (${productModel})`
+      : `${lot} ${col} Wafer Heatmap`;
 }
 
 function enableHmControls(enabled) {

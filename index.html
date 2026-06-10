@@ -2077,29 +2077,40 @@ function getLastWeekRows(rows, yieldKey) {
     const y0 = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
     return `${tmp.getUTCFullYear()}-W${String(Math.ceil(((tmp-y0)/86400000+1)/7)).padStart(2,'0')}`;
   }
-  // Find the latest week key present in the data
-  let latestWk = null;
-  rows.forEach(r => {
-    const dv = r['Test Date'];
-    if (!dv) return;
+  function parseRowDate(dv) {
+    if (!dv) return null;
     let d;
     if (dv instanceof Date) d = dv;
     else if (typeof dv === 'number') d = new Date(Math.round((dv-25569)*86400*1000));
     else d = new Date(dv);
-    if (!d || isNaN(d)) return;
+    return (!d || isNaN(d)) ? null : d;
+  }
+  // If a date filter is active, return all rows within that range
+  const dateFilter = getDateFilter();
+  if (dateFilter.from || dateFilter.to) {
+    return rows.filter(r => {
+      const d = parseRowDate(r['Test Date']);
+      if (!d) return false;
+      const ymd = toYMD(d);
+      if (!ymd) return false;
+      if (dateFilter.from && ymd < dateFilter.from) return false;
+      if (dateFilter.to   && ymd > dateFilter.to)   return false;
+      const y = parseFloat(r[yieldKey]);
+      return !isNaN(y);
+    });
+  }
+  // Default: find the latest week key present in the data
+  let latestWk = null;
+  rows.forEach(r => {
+    const d = parseRowDate(r['Test Date']);
+    if (!d) return;
     const wk = isoWeekKey(d);
     if (!latestWk || wk > latestWk) latestWk = wk;
   });
   if (!latestWk) return [];
-  // Filter to that week with valid yield
   return rows.filter(r => {
-    const dv = r['Test Date'];
-    if (!dv) return false;
-    let d;
-    if (dv instanceof Date) d = dv;
-    else if (typeof dv === 'number') d = new Date(Math.round((dv-25569)*86400*1000));
-    else d = new Date(dv);
-    if (!d || isNaN(d)) return false;
+    const d = parseRowDate(r['Test Date']);
+    if (!d) return false;
     if (isoWeekKey(d) !== latestWk) return false;
     const y = parseFloat(r[yieldKey]);
     return !isNaN(y);
@@ -2127,6 +2138,21 @@ function getLastMonthRows(rows, yieldKey) {
     else d = new Date(dv);
     return (!d || isNaN(d)) ? null : d;
   }
+  // If a date filter is active, return all rows within that range
+  const dateFilter = getDateFilter();
+  if (dateFilter.from || dateFilter.to) {
+    return rows.filter(r => {
+      const d = parseDate(r['Test Date']);
+      if (!d) return false;
+      const ymd = toYMD(d);
+      if (!ymd) return false;
+      if (dateFilter.from && ymd < dateFilter.from) return false;
+      if (dateFilter.to   && ymd > dateFilter.to)   return false;
+      const y = parseFloat(r[yieldKey]);
+      return !isNaN(y);
+    });
+  }
+  // Default: find the latest calendar month
   let latestMk = null;
   rows.forEach(r => {
     const d = parseDate(r['Test Date']);
@@ -2435,34 +2461,47 @@ function refreshULLDLotPanel() {
 
   if (!ulldData) return;
   const allRows = ulldData.yieldRows;
+  function parseUlldDate(dv) {
+    if (!dv) return null;
+    let d;
+    if (dv instanceof Date) d = dv;
+    else if (typeof dv === 'number') d = new Date(Math.round((dv-25569)*86400*1000));
+    else d = new Date(dv);
+    return (!d || isNaN(d)) ? null : d;
+  }
   function isoWeekKey(d) {
     const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
     tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
     const y0 = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
     return `${tmp.getUTCFullYear()}-W${String(Math.ceil(((tmp-y0)/86400000+1)/7)).padStart(2,'0')}`;
   }
-  let latestWk = null;
-  allRows.forEach(r => {
-    const dv = r['Test  Date'] || r['Test Date'];
-    if (!dv) return;
-    let d;
-    if (dv instanceof Date) d = dv;
-    else if (typeof dv === 'number') d = new Date(Math.round((dv-25569)*86400*1000));
-    else d = new Date(dv);
-    if (!d || isNaN(d)) return;
-    const wk = isoWeekKey(d);
-    if (!latestWk || wk > latestWk) latestWk = wk;
-  });
-  const weekRows = !latestWk ? [] : allRows.filter(r => {
-    const dv = r['Test  Date'] || r['Test Date'];
-    if (!dv) return false;
-    let d;
-    if (dv instanceof Date) d = dv;
-    else if (typeof dv === 'number') d = new Date(Math.round((dv-25569)*86400*1000));
-    else d = new Date(dv);
-    if (!d || isNaN(d)) return false;
-    return isoWeekKey(d) === latestWk;
-  });
+  // If a date filter is active, use that range instead of latest week
+  const _df = getDateFilter();
+  let weekRows;
+  if (_df.from || _df.to) {
+    weekRows = allRows.filter(r => {
+      const d = parseUlldDate(r['Test  Date'] || r['Test Date']);
+      if (!d) return false;
+      const ymd = toYMD(d);
+      if (!ymd) return false;
+      if (_df.from && ymd < _df.from) return false;
+      if (_df.to   && ymd > _df.to)   return false;
+      return !isNaN(parseFloat(r['Final Yield']));
+    });
+  } else {
+    let latestWk = null;
+    allRows.forEach(r => {
+      const d = parseUlldDate(r['Test  Date'] || r['Test Date']);
+      if (!d) return;
+      const wk = isoWeekKey(d);
+      if (!latestWk || wk > latestWk) latestWk = wk;
+    });
+    weekRows = !latestWk ? [] : allRows.filter(r => {
+      const d = parseUlldDate(r['Test  Date'] || r['Test Date']);
+      if (!d) return false;
+      return isoWeekKey(d) === latestWk;
+    });
+  }
 
   const { discountLots, rejectLots } = getULLDWeekLotsWaferLevel(weekRows, discLo, discHi, rej);
 
@@ -2493,7 +2532,9 @@ function refreshULLDLotPanel() {
 const STRIP_WAFER_COLS = Array.from({length:24}, (_,i) => String(i+1).padStart(2,'0'));
 
 function getWaferYields(row) {
-  // Returns array of yield% values only for wafer positions that have data (>0)
+  // Returns array of { col, pct } objects for wafer positions that have data (>0).
+  // col is the original wafer column name ('01'..'24') – preserved so callers can
+  // display the correct wafer number even when some wafer slots are empty.
   // XLSX.js may store header '01' as key '01' (string) OR 1 (number) depending on cell type.
   // We check both: e.g. col='01' → try row['01'] then row[1]
   const vals = [];
@@ -2505,7 +2546,7 @@ function getWaferYields(row) {
     if (isNaN(pct) || pct <= 0) return;
     // Values in sheet are fractions (0~1); convert to %
     // Guard: if value > 1 it is already a percentage (shouldn't happen but be safe)
-    vals.push(pct < 1.5 ? pct * 100 : pct);
+    vals.push({ col, pct: pct < 1.5 ? pct * 100 : pct });
   });
   return vals;
 }
@@ -2526,8 +2567,8 @@ function debugStripWafers(type) {
   const weekRows = computeStripLastWeekLots(type);
   console.log(`Last-week ${type} rows:`, weekRows.length);
   weekRows.forEach(r => {
-    const low = r._waferYields.filter(y => y < 90);
-    if (low.length) console.log(r.lot, 'low wafers:', low.map(y=>y.toFixed(2)));
+    const low = r._waferYields.filter(w => w.pct < 90);
+    if (low.length) console.log(r.lot, 'low wafers:', low.map(w=>`W${w.col}:${w.pct.toFixed(2)}`));
   });
 }
 
@@ -2547,6 +2588,25 @@ function computeStripLastWeekLots(type) {
     const y0 = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
     return `${tmp.getUTCFullYear()}-W${String(Math.ceil(((tmp-y0)/86400000+1)/7)).padStart(2,'0')}`;
   }
+  function mapRow(r) {
+    const inp = parseFloat(r['Input']||0);
+    const out = parseFloat(r['Output']||0);
+    return { lot: String(r['Lot No.']||'').trim(), _yield: inp>0?(out/inp*100):null, _input:inp, _output:out, _waferYields: getWaferYields(r) };
+  }
+  // If a date filter is active, use that range instead of latest week
+  const dateFilter = getDateFilter();
+  if (dateFilter.from || dateFilter.to) {
+    return filtered.filter(r => {
+      const d = stripParseDate(r['Test Date/ Time']||r['Test Date/Time']||r['Test Date'], r['Report Date']);
+      if (!d || isNaN(d)) return false;
+      const ymd = toYMD(d);
+      if (!ymd) return false;
+      if (dateFilter.from && ymd < dateFilter.from) return false;
+      if (dateFilter.to   && ymd > dateFilter.to)   return false;
+      return parseFloat(r['Input']||0) > 0;
+    }).map(mapRow);
+  }
+  // Default: latest ISO week
   let latestWk = null;
   filtered.forEach(r => {
     const d = stripParseDate(r['Test Date/ Time']||r['Test Date/Time']||r['Test Date'], r['Report Date']);
@@ -2555,27 +2615,12 @@ function computeStripLastWeekLots(type) {
     if (!latestWk || wk > latestWk) latestWk = wk;
   });
   if (!latestWk) return [];
-
-  // Collect this-week rows, each with their wafer yields
   return filtered.filter(r => {
     const d = stripParseDate(r['Test Date/ Time']||r['Test Date/Time']||r['Test Date'], r['Report Date']);
     if (!d || isNaN(d)) return false;
     if (isoWeekKey(d) !== latestWk) return false;
-    const inp = parseFloat(r['Input']||0);
-    return inp > 0;
-  }).map(r => {
-    const inp = parseFloat(r['Input']||0);
-    const out = parseFloat(r['Output']||0);
-    const rowYld = inp > 0 ? (out/inp*100) : null;
-    const waferYields = getWaferYields(r);
-    return {
-      lot: String(r['Lot No.']||'').trim(),
-      _yield: rowYld,
-      _input: inp,
-      _output: out,
-      _waferYields: waferYields,
-    };
-  });
+    return parseFloat(r['Input']||0) > 0;
+  }).map(mapRow);
 }
 
 // ─── 
@@ -2583,6 +2628,25 @@ function computeStripLastMonthLots(type) {
   if (!stripData || !stripData.length) return [];
   const filtered = stripData.filter(r => r['Lot No.'] && String(r['Lot No.']).trim().endsWith(type));
   function monthKey(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+  function mapRow(r) {
+    const inp = parseFloat(r['Input']||0);
+    const out = parseFloat(r['Output']||0);
+    return { lot: String(r['Lot No.']||'').trim(), _yield: inp>0?(out/inp*100):null, _input:inp, _output:out, _waferYields: getWaferYields(r) };
+  }
+  // If a date filter is active, use that range instead of latest month
+  const dateFilter = getDateFilter();
+  if (dateFilter.from || dateFilter.to) {
+    return filtered.filter(r => {
+      const d = stripParseDate(r['Test Date/ Time']||r['Test Date/Time']||r['Test Date'], r['Report Date']);
+      if (!d || isNaN(d)) return false;
+      const ymd = toYMD(d);
+      if (!ymd) return false;
+      if (dateFilter.from && ymd < dateFilter.from) return false;
+      if (dateFilter.to   && ymd > dateFilter.to)   return false;
+      return parseFloat(r['Input']||0) > 0;
+    }).map(mapRow);
+  }
+  // Default: latest calendar month
   let latestMk = null;
   filtered.forEach(r => {
     const d = stripParseDate(r['Test Date/ Time']||r['Test Date/Time']||r['Test Date'], r['Report Date']);
@@ -2596,11 +2660,7 @@ function computeStripLastMonthLots(type) {
     if (!d || isNaN(d)) return false;
     if (monthKey(d) !== latestMk) return false;
     return parseFloat(r['Input']||0) > 0;
-  }).map(r => {
-    const inp = parseFloat(r['Input']||0);
-    const out = parseFloat(r['Output']||0);
-    return { lot: String(r['Lot No.']||'').trim(), _yield: inp>0?(out/inp*100):null, _input:inp, _output:out, _waferYields: getWaferYields(r) };
-  });
+  }).map(mapRow);
 }
 function computeStripPeriodLots(type) {
   return reportMode === 'monthly' ? computeStripLastMonthLots(type) : computeStripLastWeekLots(type);
@@ -2629,11 +2689,12 @@ function getStripWeekLotsWaferLevel(weekRows, discountLo, discountHi, reject) {
     const waferYields = data.waferYields;
     if (!waferYields.length) return;
 
-    // Identify triggered wafer indices (1-based position in the combined list)
+    // Identify triggered wafers using the real column name as the wafer number
     const rejWafers  = [];
     const discWafers = [];
-    waferYields.forEach((y, i) => {
-      const waferNo = String(i + 1).padStart(2, '0');  // 01, 02, …
+    waferYields.forEach(w => {
+      const waferNo = w.col;   // '01'..'24' — the actual XLSX column, not position in array
+      const y = w.pct;
       if (y < reject) {
         rejWafers.push({ waferNo, yield: y });
       } else if (y >= discountLo && y < discountHi) {
@@ -2643,7 +2704,7 @@ function getStripWeekLotsWaferLevel(weekRows, discountLo, discountHi, reject) {
 
     if (!rejWafers.length && !discWafers.length) return;  // no triggered wafer
 
-    const minWaferYld = Math.min(...waferYields);
+    const minWaferYld = Math.min(...waferYields.map(w => w.pct));
     const lotAvgYld   = data.rowYields.length
       ? data.rowYields.reduce((a,b) => a+b, 0) / data.rowYields.length
       : null;
@@ -2978,16 +3039,57 @@ function renderULLDTab() {
     };
   });
 
-  // GAP point to disconnect months from weeks
+  // GAP point to disconnect sections
   const GAP_PT = { label: '', input: null, finalYield: null, cpYield: null, dicePcs: null, diceYield: null, _gap: true };
 
-  const combined   = [...monthlyPts, GAP_PT, ...weeklyPts];
+  // ── Build quarterly buckets for Monthly mode ──
+  const quarterBuckets = {};
+  Object.keys(monthBuckets).forEach(mk => {
+    const [yr, mo] = mk.split('-');
+    const q = Math.ceil(parseInt(mo) / 3);
+    const qk = `${yr}-Q${q}`;
+    if (!quarterBuckets[qk]) quarterBuckets[qk] = { label: `${yr.slice(2)}'Q${q}`, finalYields:[], cpYields:[], inputs:[], dicePcsSum:0, diceCapacitySum:0 };
+    const qb = quarterBuckets[qk];
+    const mb = monthBuckets[mk];
+    qb.finalYields.push(...mb.finalYields);
+    qb.cpYields.push(...mb.cpYields);
+    qb.inputs.push(...mb.inputs);
+    qb.dicePcsSum       += mb.dicePcsSum;
+    qb.diceCapacitySum  += mb.diceCapacitySum;
+  });
+  const quarterlyPts = Object.keys(quarterBuckets).sort().map(qk => {
+    const b = quarterBuckets[qk];
+    const diceYld = b.diceCapacitySum > 0 ? (b.dicePcsSum / b.diceCapacitySum * 100) : null;
+    return { label: b.label, finalYield: avg(b.finalYields), cpYield: avg(b.cpYields), input: sum(b.inputs), dicePcs: b.dicePcsSum, diceYield: diceYld };
+  });
+
+  // ── Choose combined timeline based on reportMode ──
+  let combined;
+  if (reportMode === 'monthly') {
+    // Monthly mode: left = last 5 quarters, right = last 5 months
+    const EMPTY_PT = { label: '', input: null, finalYield: null, cpYield: null, dicePcs: null, diceYield: null, _empty: true };
+    let last5Q = quarterlyPts.slice(-5);
+    while (last5Q.length < 5) last5Q = [{ ...EMPTY_PT }, ...last5Q];
+    // All monthly pts (not just last 5)
+    const allMonthlyPts = Object.keys(MONTH_LABELS).map(mk => {
+      const b = monthBuckets[mk];
+      const diceYld = (b && b.diceCapacitySum > 0) ? (b.dicePcsSum / b.diceCapacitySum * 100) : null;
+      return { label: MONTH_LABELS[mk], finalYield: b ? avg(b.finalYields) : null, cpYield: b ? avg(b.cpYields) : null, input: b ? sum(b.inputs) : 0, dicePcs: b ? b.dicePcsSum : 0, diceYield: diceYld };
+    }).filter(p => p.input > 0 || p.finalYield != null);
+    let last5M = allMonthlyPts.slice(-5);
+    while (last5M.length < 5) last5M = [{ ...EMPTY_PT }, ...last5M];
+    combined = [...last5Q, GAP_PT, ...last5M];
+  } else {
+    // Weekly mode: left = last 5 months, right = last 5 weeks
+    combined = [...monthlyPts, GAP_PT, ...weeklyPts];
+  }
+
   const labels     = combined.map(p => p.label);
-  const inputData  = combined.map(p => p._gap ? null : p.input);
-  const cpYData    = combined.map(p => p.cpYield);
-  const finalYData = combined.map(p => p.finalYield);
-  const dicePcsData   = combined.map(p => p._gap ? null : p.dicePcs);
-  const diceYieldData = combined.map(p => p.diceYield);
+  const inputData  = combined.map(p => (p._gap || p._empty) ? null : p.input);
+  const cpYData    = combined.map(p => p._empty ? null : p.cpYield);
+  const finalYData = combined.map(p => p._empty ? null : p.finalYield);
+  const dicePcsData   = combined.map(p => (p._gap || p._empty) ? null : p.dicePcs);
+  const diceYieldData = combined.map(p => p._empty ? null : p.diceYield);
 
   // ── Defect Pareto – last 2 weeks from Detail Yield Summary ──
   const FAIL_COLS   = ['nA_igss2f@15V','nA_idss2@18V','V_delta1(B-A)','nA_igss3@26V(SILC)','RIDSS2(nA)'];
@@ -3058,7 +3160,7 @@ function renderULLDTab() {
 
     <div class="chart-row">
       <div class="chart-card">
-        <div class="chart-card-title">ULLD CP test yield chart</div>
+        <div class="chart-card-title">ULLD CP test yield chart${reportMode === 'monthly' ? ' — Monthly (Quarterly + Monthly trend)' : ''}</div>
         <div class="chart-wrap"><canvas id="${cpId}"></canvas></div>
         <div class="target-note">— 2026 target ${TARGET_YIELD}%</div>
       </div>
@@ -3091,14 +3193,27 @@ function renderULLDTab() {
         else d = new Date(dv);
         return (!d || isNaN(d)) ? null : d;
       }
+      function monthKey(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+      function isoWeekKey(d) { const tmp = new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); tmp.setUTCDate(tmp.getUTCDate()+4-(tmp.getUTCDay()||7)); const y0=new Date(Date.UTC(tmp.getUTCFullYear(),0,1)); return `${tmp.getUTCFullYear()}-W${String(Math.ceil(((tmp-y0)/86400000+1)/7)).padStart(2,'0')}`; }
+      // If a date filter is active, return all rows in that range
+      const _df = getDateFilter();
+      if (_df.from || _df.to) {
+        return allRows.filter(r => {
+          const d = parseD(r['Test  Date']||r['Test Date']);
+          if (!d) return false;
+          const ymd = toYMD(d);
+          if (!ymd) return false;
+          if (_df.from && ymd < _df.from) return false;
+          if (_df.to   && ymd > _df.to)   return false;
+          return !isNaN(parseFloat(r['Final Yield']));
+        });
+      }
       if (reportMode === 'monthly') {
-        function monthKey(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
         let latestMk = null;
         allRows.forEach(r => { const d = parseD(r['Test  Date']||r['Test Date']); if (!d) return; const mk = monthKey(d); if (!latestMk || mk > latestMk) latestMk = mk; });
         if (!latestMk) return [];
         return allRows.filter(r => { const d = parseD(r['Test  Date']||r['Test Date']); return d && monthKey(d) === latestMk && !isNaN(parseFloat(r['Final Yield'])); });
       } else {
-        function isoWeekKey(d) { const tmp = new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); tmp.setUTCDate(tmp.getUTCDate()+4-(tmp.getUTCDay()||7)); const y0=new Date(Date.UTC(tmp.getUTCFullYear(),0,1)); return `${tmp.getUTCFullYear()}-W${String(Math.ceil(((tmp-y0)/86400000+1)/7)).padStart(2,'0')}`; }
         let latestWk = null;
         allRows.forEach(r => { const d = parseD(r['Test  Date']||r['Test Date']); if (!d) return; const wk = isoWeekKey(d); if (!latestWk || wk > latestWk) latestWk = wk; });
         if (!latestWk) return [];
@@ -3112,7 +3227,7 @@ function renderULLDTab() {
     [cpId, edgeId, p1Id, p2Id].forEach(id => { if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; } });
 
     // Compute ULLD WAT yield trend (device = 'ULLD')
-    const ulldWatTrend = computeWatYield(combined, ['ULLD'], false);
+    const ulldWatTrend = computeWatYield(combined, ['ULLD'], reportMode === 'monthly');
     const hasUlldWat   = ulldWatTrend.some(v => v != null);
 
     // CP yield combo chart (Input bars + Final Yield line + CP Yield line + WAT Yield line)

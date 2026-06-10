@@ -206,12 +206,19 @@
       border-right: 1px solid #2e3f56;
       margin-right: 8px;
       letter-spacing: 0.3px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .app-header-tabs {
+      display: flex;
+      align-items: stretch;
+      gap: 2px;
     }
     .tab-btn {
       background: transparent;
       border: none;
       color: #8899aa;
-      padding: 14px 22px;
+      padding: 14px 18px;
       font-size: 13.5px;
       font-weight: 500;
       cursor: pointer;
@@ -225,9 +232,17 @@
     /* Per-tab active colours */
     .tab-btn.active { font-weight: 700; color: #fff; }
 
-    /* WAT CP Suite — deep blue/teal gradient */
+    /* WAT CP Suite — blue → teal gradient */
     .tab-btn[data-tab="watcpsuite"]:hover  { color: #a0d4f5; }
     .tab-btn[data-tab="watcpsuite"].active { background: linear-gradient(90deg, #1565c0 0%, #0e6655 100%); border-bottom-color: #7ecbbd; color: #fff; }
+
+    /* Strip Test Suite — teal → green gradient */
+    .tab-btn[data-tab="strip"]:hover  { color: #6ee9c0; }
+    .tab-btn[data-tab="strip"].active { background: linear-gradient(90deg, #0e6655 0%, #166534 100%); border-bottom-color: #4ade80; color: #fff; }
+
+    /* CP Yield Report — green → dark green gradient */
+    .tab-btn[data-tab="cpreport"]:hover  { color: #6ee9c0; }
+    .tab-btn[data-tab="cpreport"].active { background: linear-gradient(90deg, #166534 0%, #14532d 100%); border-bottom-color: #34d399; color: #fff; }
 
     /* LLD WAT Monitor — deep blue */
     .tab-btn[data-tab="wat"]:hover        { color: #90caff; }
@@ -1453,9 +1468,7 @@
   }
 </style>
   <style>
-    /* CP Yield Report tab */
-    .tab-btn[data-tab="cpreport"]:hover  { color: #6ee9c0; }
-    .tab-btn[data-tab="cpreport"].active { background: #065f46; border-bottom-color: #34d399; color: #fff; }
+    /* CP Yield Report tab — gradient defined in main styles above */
     /* CP inner toolbar */
     .cp-toolbar { background: #00827f; padding: 8px 16px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; box-shadow: 0 2px 6px rgba(0,130,127,0.2); }
     .cp-app-title { color: #fff; font-weight: 700; font-size: 14px; margin-right: 8px; }
@@ -1949,9 +1962,11 @@
 <!-- ── App Header with Tabs ── -->
 <div class="app-header">
   <div class="app-title">🔬 Diode CP Suite</div>
-  <button class="tab-btn active" data-tab="watcpsuite" onclick="switchTab('watcpsuite', this)">🔬 WAT CP Suite</button>
-  <button class="tab-btn"        data-tab="strip"    onclick="switchTab('strip', this)">🧪 Strip Test Suite</button>
-  <button class="tab-btn"        data-tab="cpreport" onclick="switchTab('cpreport', this)">📋 CP Yield Report</button>
+  <div class="app-header-tabs">
+    <button class="tab-btn active" data-tab="watcpsuite" onclick="switchTab('watcpsuite', this)">🔬 WAT CP Suite</button>
+    <button class="tab-btn"        data-tab="strip"    onclick="switchTab('strip', this)">🧪 Strip Test Suite</button>
+    <button class="tab-btn"        data-tab="cpreport" onclick="switchTab('cpreport', this)">📋 CP Yield Report</button>
+  </div>
 </div>
 <!-- ═══════════════════════════════════════
      WAT CP SUITE — Parent Page
@@ -5825,16 +5840,56 @@ function renderULLDTab() {
     };
   });
 
-  // GAP point to disconnect months from weeks
+  // GAP point to disconnect sections
   const GAP_PT = { label: '', input: null, finalYield: null, cpYield: null, dicePcs: null, diceYield: null, _gap: true };
 
-  const combined   = [...monthlyPts, GAP_PT, ...weeklyPts];
+  // ── Build quarterly buckets for Monthly mode ──
+  const quarterBuckets = {};
+  Object.keys(monthBuckets).forEach(mk => {
+    const [yr, mo] = mk.split('-');
+    const q = Math.ceil(parseInt(mo) / 3);
+    const qk = `${yr}-Q${q}`;
+    if (!quarterBuckets[qk]) quarterBuckets[qk] = { label: `${yr.slice(2)}'Q${q}`, finalYields:[], cpYields:[], inputs:[], dicePcsSum:0, diceCapacitySum:0 };
+    const qb = quarterBuckets[qk];
+    const mb = monthBuckets[mk];
+    qb.finalYields.push(...mb.finalYields);
+    qb.cpYields.push(...mb.cpYields);
+    qb.inputs.push(...mb.inputs);
+    qb.dicePcsSum       += mb.dicePcsSum;
+    qb.diceCapacitySum  += mb.diceCapacitySum;
+  });
+  const quarterlyPts = Object.keys(quarterBuckets).sort().map(qk => {
+    const b = quarterBuckets[qk];
+    const diceYld = b.diceCapacitySum > 0 ? (b.dicePcsSum / b.diceCapacitySum * 100) : null;
+    return { label: b.label, finalYield: avg(b.finalYields), cpYield: avg(b.cpYields), input: sum(b.inputs), dicePcs: b.dicePcsSum, diceYield: diceYld };
+  });
+
+  // ── Choose combined timeline based on reportMode ──
+  let combined;
+  if (reportMode === 'monthly') {
+    // Monthly mode: left = last 5 quarters, right = last 5 months
+    const EMPTY_PT = { label: '', input: null, finalYield: null, cpYield: null, dicePcs: null, diceYield: null, _empty: true };
+    let last5Q = quarterlyPts.slice(-5);
+    while (last5Q.length < 5) last5Q = [{ ...EMPTY_PT }, ...last5Q];
+    const allMonthlyPts = Object.keys(MONTH_LABELS).map(mk => {
+      const b = monthBuckets[mk];
+      const diceYld = (b && b.diceCapacitySum > 0) ? (b.dicePcsSum / b.diceCapacitySum * 100) : null;
+      return { label: MONTH_LABELS[mk], finalYield: b ? avg(b.finalYields) : null, cpYield: b ? avg(b.cpYields) : null, input: b ? sum(b.inputs) : 0, dicePcs: b ? b.dicePcsSum : 0, diceYield: diceYld };
+    }).filter(p => p.input > 0 || p.finalYield != null);
+    let last5M = allMonthlyPts.slice(-5);
+    while (last5M.length < 5) last5M = [{ ...EMPTY_PT }, ...last5M];
+    combined = [...last5Q, GAP_PT, ...last5M];
+  } else {
+    // Weekly mode: left = last 5 months, right = last 5 weeks
+    combined = [...monthlyPts, GAP_PT, ...weeklyPts];
+  }
+
   const labels     = combined.map(p => p.label);
-  const inputData  = combined.map(p => p._gap ? null : p.input);
-  const cpYData    = combined.map(p => p.cpYield);
-  const finalYData = combined.map(p => p.finalYield);
-  const dicePcsData   = combined.map(p => p._gap ? null : p.dicePcs);
-  const diceYieldData = combined.map(p => p.diceYield);
+  const inputData  = combined.map(p => (p._gap || p._empty) ? null : p.input);
+  const cpYData    = combined.map(p => p._empty ? null : p.cpYield);
+  const finalYData = combined.map(p => p._empty ? null : p.finalYield);
+  const dicePcsData   = combined.map(p => (p._gap || p._empty) ? null : p.dicePcs);
+  const diceYieldData = combined.map(p => p._empty ? null : p.diceYield);
 
   // ── Defect Pareto – last 2 weeks from Detail Yield Summary ──
   const FAIL_COLS   = ['nA_igss2f@15V','nA_idss2@18V','V_delta1(B-A)','nA_igss3@26V(SILC)','RIDSS2(nA)'];
@@ -5905,7 +5960,7 @@ function renderULLDTab() {
 
     <div class=&quot;chart-row&quot;>
       <div class=&quot;chart-card&quot;>
-        <div class=&quot;chart-card-title&quot;>ULLD CP test yield chart</div>
+        <div class=&quot;chart-card-title&quot;>ULLD CP test yield chart${reportMode === 'monthly' ? ' — Monthly (Quarterly + Monthly trend)' : ''}</div>
         <div class=&quot;chart-wrap&quot;><canvas id=&quot;${cpId}&quot;></canvas></div>
         <div class=&quot;target-note&quot;>— 2026 target ${TARGET_YIELD}%</div>
       </div>
@@ -5972,7 +6027,7 @@ function renderULLDTab() {
     [cpId, edgeId, p1Id, p2Id].forEach(id => { if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; } });
 
     // Compute ULLD WAT yield trend (device = 'ULLD')
-    const ulldWatTrend = computeWatYield(combined, ['ULLD'], false);
+    const ulldWatTrend = computeWatYield(combined, ['ULLD'], reportMode === 'monthly');
     const hasUlldWat   = ulldWatTrend.some(v => v != null);
 
     // CP yield combo chart (Input bars + Final Yield line + CP Yield line + WAT Yield line)

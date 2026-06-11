@@ -212,7 +212,7 @@
     .app-header-tabs {
       display: flex;
       align-items: stretch;
-      gap: 2px;
+      gap: 0;
     }
     .tab-btn {
       background: transparent;
@@ -233,19 +233,19 @@
     .tab-btn.active { font-weight: 700; color: #fff; }
 
     /* WAT CP Suite — 藍 → 藍綠 */
-    .tab-btn[data-tab="watcpsuite"]        { background: linear-gradient(90deg, #1565c0 0%, #0e9980 100%); color: #fff; border-bottom-color: #4dc8b0; }
-    .tab-btn[data-tab="watcpsuite"]:hover  { background: linear-gradient(90deg, #1a72d4 0%, #10aa8e 100%); color: #fff; border-bottom-color: #6edcc8; }
-    .tab-btn[data-tab="watcpsuite"].active { background: linear-gradient(90deg, #1565c0 0%, #0e6655 100%); border-bottom-color: #7ecbbd; color: #fff; }
-
-    /* Strip Test Suite — 藍綠 純色 */
-    .tab-btn[data-tab="strip"]        { background: #0e9980; color: #fff; border-bottom-color: #4dc8b0; }
-    .tab-btn[data-tab="strip"]:hover  { background: #10aa8e; color: #fff; border-bottom-color: #6edcc8; }
-    .tab-btn[data-tab="strip"].active { background: linear-gradient(90deg, #0e6655 0%, #166534 100%); border-bottom-color: #4ade80; color: #fff; }
+    .tab-btn[data-tab="watcpsuite"]        { background: linear-gradient(90deg, #1565c0 0%, #1ecfb0 60%, #1ecfb0 100%); color: #fff; border-bottom-color: #4dc8b0; border-right: none; }
+    .tab-btn[data-tab="watcpsuite"]:hover  { background: linear-gradient(90deg, #1565c0 0%, #1ecfb0 60%, #1ecfb0 100%); filter: brightness(1.1); color: #fff; border-bottom-color: #6edcc8; }
+    .tab-btn[data-tab="watcpsuite"].active { background: linear-gradient(90deg, #1565c0 0%, #1ecfb0 60%, #1ecfb0 100%); border-bottom-color: #7ecbbd; color: #fff; filter: none; }
 
     /* CP Yield Report — 藍綠 → 藍 */
-    .tab-btn[data-tab="cpreport"]        { background: linear-gradient(90deg, #0e9980 0%, #1565c0 100%); color: #fff; border-bottom-color: #4aabdc; }
-    .tab-btn[data-tab="cpreport"]:hover  { background: linear-gradient(90deg, #10aa8e 0%, #1a72d4 100%); color: #fff; border-bottom-color: #6ac8f0; }
-    .tab-btn[data-tab="cpreport"].active { background: linear-gradient(90deg, #166534 0%, #14532d 100%); border-bottom-color: #34d399; color: #fff; }
+    .tab-btn[data-tab="cpreport"]        { background: linear-gradient(90deg, #1ecfb0 0%, #1565c0 100%); color: #fff; border-bottom-color: #4aabdc; border-left: none; }
+    .tab-btn[data-tab="cpreport"]:hover  { background: linear-gradient(90deg, #1ecfb0 0%, #1565c0 100%); filter: brightness(1.1); color: #fff; border-bottom-color: #6ac8f0; }
+    .tab-btn[data-tab="cpreport"].active { background: linear-gradient(90deg, #166534 0%, #14532d 100%); border-bottom-color: #34d399; color: #fff; filter: none; }
+
+    /* Strip Test Suite — 藍綠 純色，完全對齊 WAT 右側色 */
+    .tab-btn[data-tab="strip"]        { background: #1ecfb0; color: #fff; border-bottom-color: #4dc8b0; border-left: none; border-right: none; }
+    .tab-btn[data-tab="strip"]:hover  { background: #1ecfb0; filter: brightness(1.1); color: #fff; border-bottom-color: #6edcc8; }
+    .tab-btn[data-tab="strip"].active { background: linear-gradient(90deg, #0e6655 0%, #166534 100%); border-bottom-color: #4ade80; color: #fff; filter: none; }
 
     /* LLD WAT Monitor — deep blue */
     .tab-btn[data-tab="wat"]:hover        { color: #90caff; }
@@ -13075,7 +13075,7 @@ function doMerge(){
 
 <script>
 /* ── Login Gate ── */
-const _CORRECT = 'WAT2026';
+const _CORRECT = 'taylor';
 
 function doLogin() {
   const inp = document.getElementById('login-pw-input');

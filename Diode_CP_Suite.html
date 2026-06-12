@@ -11840,7 +11840,7 @@ let finalResults=[], rptFiles=[], rptEntries=[];  // rptEntries: unpacked {name,
 
 ['dragenter','dragover','dragleave','drop'].forEach(e=>window.addEventListener(e,ev=>{ev.preventDefault();ev.stopPropagation();}));
 const dropZone=document.getElementById('dropZone');
-const stpFileInput=document.getElementById('stpFileInput');
+const stpFileInput=document.getElementById('fileInput');
 dropZone.onclick=()=>stpFileInput.click();
 dropZone.onmouseover=()=>dropZone.classList.add('active');
 dropZone.onmouseleave=()=>dropZone.classList.remove('active');

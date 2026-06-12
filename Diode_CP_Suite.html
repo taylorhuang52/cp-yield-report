@@ -2375,23 +2375,47 @@
     <div class="hm-group">
       <h2>ZIP Merge CSV</h2>
 
-      <!-- ZIP Path Search -->
-      <div id="zipSearchBox" style="background:#f0f6f4;border:1px solid #c4d8d2;border-radius:6px;padding:8px 10px;margin-bottom:10px;">
-        <div style="font-size:11px;font-weight:600;color:#3a5f58;margin-bottom:4px;">🔍 ZIP Path Search</div>
+      <!-- ZIP Path Search + Extracted Folder Search (side by side) -->
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
 
-        <!-- Step 1: folder picker -->
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-          <button class="hm-btn" id="btnPickFolder" style="padding:3px 8px;font-size:11px;white-space:nowrap;flex-shrink:0;">📁 Select Folder</button>
-          <span id="zipFolderName" style="font-size:11px;color:#5a706a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Not selected</span>
+        <!-- ZIP Path Search -->
+        <div id="zipSearchBox" style="flex:1;min-width:180px;background:#f0f6f4;border:1px solid #c4d8d2;border-radius:6px;padding:8px 10px;">
+          <div style="font-size:11px;font-weight:600;color:#3a5f58;margin-bottom:4px;">🔍 ZIP Path Search</div>
+
+          <!-- Step 1: folder picker -->
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+            <button class="hm-btn" id="btnPickFolder" style="padding:3px 8px;font-size:11px;white-space:nowrap;flex-shrink:0;">📁 Select Folder</button>
+            <span id="zipFolderName" style="font-size:11px;color:#5a706a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Not selected</span>
+          </div>
+
+          <!-- Step 2: Lot No. + Search -->
+          <label for="zipLotInput" style="font-size:11px;">Lot No.</label>
+          <div style="display:flex;gap:4px;">
+            <input id="zipLotInput" type="text" placeholder="e.g. RX123456" style="flex:1;font-size:11px;">
+            <button class="hm-btn" id="btnSearchZip" style="padding:3px 8px;font-size:11px;white-space:nowrap;">🔎 Search</button>
+          </div>
+          <div id="zipSearchStatus" style="font-size:11px;color:#5a706a;margin-top:5px;min-height:14px;"></div>
         </div>
 
-        <!-- Step 2: Lot No. + Search -->
-        <label for="zipLotInput" style="font-size:11px;">Lot No.</label>
-        <div style="display:flex;gap:4px;">
-          <input id="zipLotInput" type="text" placeholder="e.g. RX123456" style="flex:1;font-size:11px;">
-          <button class="hm-btn" id="btnSearchZip" style="padding:3px 8px;font-size:11px;white-space:nowrap;">🔎 Search</button>
+        <!-- Extracted Folder Search -->
+        <div id="extSearchBox" style="flex:1;min-width:180px;background:#f4f1f8;border:1px solid #c8c0d8;border-radius:6px;padding:8px 10px;">
+          <div style="font-size:11px;font-weight:600;color:#4a3a6a;margin-bottom:4px;">📂 Extracted Folder Search</div>
+
+          <!-- Step 1: folder picker -->
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+            <button class="hm-btn" id="btnPickExtFolder" style="padding:3px 8px;font-size:11px;white-space:nowrap;flex-shrink:0;background:#ede8f8;border-color:#b0a0d8;color:#4a3a6a;">📁 Select Folder</button>
+            <span id="extFolderName" style="font-size:11px;color:#6a5a8a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Not selected</span>
+          </div>
+
+          <!-- Step 2: Lot No. + Search -->
+          <label for="extLotInput" style="font-size:11px;">Lot No.</label>
+          <div style="display:flex;gap:4px;">
+            <input id="extLotInput" type="text" placeholder="e.g. RX123456" style="flex:1;font-size:11px;">
+            <button class="hm-btn" id="btnSearchExt" style="padding:3px 8px;font-size:11px;white-space:nowrap;background:#ede8f8;border-color:#b0a0d8;color:#4a3a6a;">🔎 Search</button>
+          </div>
+          <div id="extSearchStatus" style="font-size:11px;color:#6a5a8a;margin-top:5px;min-height:14px;"></div>
         </div>
-        <div id="zipSearchStatus" style="font-size:11px;color:#5a706a;margin-top:5px;min-height:14px;"></div>
+
       </div>
 
       <label for="zipFile">Single Lot ZIP</label>
@@ -10219,6 +10243,204 @@ function parseLogMeta(rawText) {
 })();
 // ─────────────────────────────────────────────────────────────
 
+// ── Extracted Folder Search ───────────────────────────────────
+(function initExtSearch() {
+  const folderNameEl = document.getElementById("extFolderName");
+  const lotInput     = document.getElementById("extLotInput");
+  const pickBtn      = document.getElementById("btnPickExtFolder");
+  const searchBtn    = document.getElementById("btnSearchExt");
+  const statusEl     = document.getElementById("extSearchStatus");
+  const zipFileInput = document.getElementById("zipFile"); // reuse same target input
+
+  let dirHandle = null;
+
+  function setStatus(msg, color) {
+    statusEl.style.color = color || "#6a5a8a";
+    statusEl.innerHTML = msg;
+  }
+
+  function showFolder(name) {
+    folderNameEl.textContent = name;
+    folderNameEl.title = name;
+  }
+
+  // ── IndexedDB helpers ──────────────────────────────────────
+  const IDB_NAME     = "wat_cp_suite";
+  const IDB_STORE    = "handles";
+  const IDB_KEY_DIR  = "ext_dir_handle";
+  const IDB_KEY_NAME = "ext_dir_name";
+
+  function openDB() {
+    return new Promise((res, rej) => {
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = e => e.target.result.createObjectStore(IDB_STORE);
+      req.onsuccess = e => res(e.target.result);
+      req.onerror   = e => rej(e.target.error);
+    });
+  }
+  async function idbSet(key, value) {
+    const db = await openDB();
+    return new Promise((res, rej) => {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).put(value, key);
+      tx.oncomplete = () => res();
+      tx.onerror    = e => rej(e.target.error);
+    });
+  }
+  async function idbGet(key) {
+    const db = await openDB();
+    return new Promise((res, rej) => {
+      const tx = db.transaction(IDB_STORE, "readonly");
+      const req = tx.objectStore(IDB_STORE).get(key);
+      req.onsuccess = e => res(e.target.result);
+      req.onerror   = e => rej(e.target.error);
+    });
+  }
+
+  // ── Restore previous folder on startup ─────────────────────
+  async function restoreFolder() {
+    try {
+      const savedHandle = await idbGet(IDB_KEY_DIR);
+      const savedName   = await idbGet(IDB_KEY_NAME);
+      if (!savedHandle) return;
+      const perm = await savedHandle.queryPermission({ mode: "read" });
+      if (perm === "granted") {
+        dirHandle = savedHandle;
+        showFolder(savedName || dirHandle.name);
+        setStatus("✅ Restored: <b>" + dirHandle.name + "</b> — Enter Lot No. and click Search.", "#4a3a6a");
+      } else {
+        showFolder((savedName || "Previous folder") + " (re-authorization required)");
+        setStatus("🔒 Previous folder requires re-authorization. Please click '📁 Select Folder' once.", "#8a5a00");
+      }
+    } catch(e) { /* silent */ }
+  }
+  restoreFolder();
+
+  // ① Select folder
+  pickBtn.addEventListener("click", async () => {
+    if (!window.showDirectoryPicker) {
+      setStatus("⚠️ Browser not supported (please use Chrome or Edge).", "#a13b2f");
+      return;
+    }
+    try {
+      const handle = await window.showDirectoryPicker({ mode: "read" });
+      dirHandle = handle;
+      showFolder(handle.name);
+      await idbSet(IDB_KEY_DIR,  handle);
+      await idbSet(IDB_KEY_NAME, handle.name);
+      setStatus("✅ Folder authorized: <b>" + handle.name + "</b>", "#4a3a6a");
+    } catch(e) {
+      if (e.name !== "AbortError")
+        setStatus("❌ Cannot open folder: " + e.message, "#a13b2f");
+    }
+  });
+
+  // ② Search — find extracted lot folder, collect CSVs, pack a virtual ZIP-like merge
+  searchBtn.addEventListener("click", async () => {
+    const lot = lotInput.value.trim();
+    if (!lot)       { setStatus("⚠️ Please enter a Lot No.", "#a13b2f"); return; }
+    if (!dirHandle) { setStatus("⚠️ Please click '📁 Select Folder' to authorize a directory first.", "#a13b2f"); return; }
+
+    setStatus("🔎 Searching for extracted folder: <b>" + lot + "</b> ...", "#1565a8");
+
+    try {
+      const perm = await dirHandle.requestPermission({ mode: "read" });
+      if (perm !== "granted") { setStatus("❌ Folder access permission denied.", "#a13b2f"); return; }
+
+      // Deep-search for a *directory* whose name matches the lot no (case-insensitive)
+      const lotLower = lot.toLowerCase();
+      const found = await deepFindDir(dirHandle, lotLower, (path) => {
+        setStatus("🔎 Scanning: " + path + " ...", "#1565a8");
+      });
+
+      if (!found) {
+        setStatus("❌ No extracted folder matching <b>" + lot + "</b> found (including all subfolders).", "#a13b2f");
+        return;
+      }
+
+      setStatus("⚙️ Found: <b>" + found.path + "</b> — Collecting CSV files ...", "#4a3a6a");
+
+      // Collect all .csv files inside the found directory (recursively)
+      const csvHandles = await collectCsvFiles(found.handle);
+      if (!csvHandles.length) {
+        setStatus("⚠️ Folder found but contains no CSV files: <b>" + found.path + "</b>", "#a13b2f");
+        return;
+      }
+
+      // Sort by filename (same logic as ZIP merge)
+      csvHandles.sort((a, b) => a.name.localeCompare(b.name));
+
+      // Build merged CSV in memory (same format as ZIP merge)
+      const { line: headerLine, label: headerLabel } = autoHeaderLine(lot);
+      const out = [headerLine];
+      for (const { handle: fh, name } of csvHandles) {
+        const baseName = name.replace(/\.[^.]+$/, "");
+        const waferId  = baseName.length >= 10 ? baseName.substring(8, 10) : baseName;
+        const text     = (await (await fh.getFile()).text()).replace(/^\uFEFF/, "");
+        const lines    = text.split(/\n/);
+        for (let r = 35; r < lines.length; r++) {
+          const raw = lines[r].replace(/\r$/, "");
+          if (!raw.trim()) continue;
+          const comma = raw.indexOf(",");
+          out.push(comma >= 0 ? waferId + raw.slice(comma) : waferId);
+        }
+      }
+      const mergedCsv = out.join("\r\n") + "\r\n";
+
+      // Inject as a File into the csvFile input (Load CSV section) for immediate rendering
+      const csvBlob = new Blob([mergedCsv], { type: "text/csv" });
+      const csvFileName = lot + "_extracted_merged.csv";
+      const csvFile     = new File([csvBlob], csvFileName, { type: "text/csv" });
+      const dt = new DataTransfer();
+      dt.items.add(csvFile);
+      const csvFileInput = document.getElementById("csvFile");
+      csvFileInput.files = dt.files;
+      csvFileInput.dispatchEvent(new Event("change", { bubbles: true }));
+
+      setStatus(
+        "✅ Loaded <b>" + csvHandles.length + " CSV(s)</b> from <b>" + found.path +
+        "</b> [" + headerLabel + "] — Merged CSV loaded into 'Load CSV'. Click <b>Generate</b> to render heatmap.",
+        "#4a3a6a"
+      );
+    } catch(e) {
+      setStatus("❌ Error: " + e.message, "#a13b2f");
+    }
+  });
+
+  // ③ Enter key triggers Search
+  lotInput.addEventListener("keydown", e => { if (e.key === "Enter") searchBtn.click(); });
+
+  // ── Helper: recursively find a directory by name ──────────
+  async function deepFindDir(dirHandle, nameLower, onProgress, _basePath) {
+    const base = _basePath || dirHandle.name;
+    if (onProgress) onProgress(base + "/...");
+    for await (const [name, handle] of dirHandle.entries()) {
+      if (handle.kind === "directory") {
+        if (name.toLowerCase() === nameLower) {
+          return { handle, path: base + "/" + name };
+        }
+        const found = await deepFindDir(handle, nameLower, onProgress, base + "/" + name);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  // ── Helper: collect all CSV file handles recursively ──────
+  async function collectCsvFiles(dirHandle, _list) {
+    const list = _list || [];
+    for await (const [name, handle] of dirHandle.entries()) {
+      if (handle.kind === "file" && name.toLowerCase().endsWith(".csv")) {
+        list.push({ handle, name });
+      } else if (handle.kind === "directory") {
+        await collectCsvFiles(handle, list);
+      }
+    }
+    return list;
+  }
+})();
+// ─────────────────────────────────────────────────────────────
+
 // ── Recursive ZIP search (all subfolders) ──────────────────────
 /**
  * Recursively search for a file by name in a FileSystemDirectoryHandle.
@@ -10252,6 +10474,26 @@ async function buildZipIndex(dirHandle, onProgress, _basePath) {
     } else if (handle.kind === "directory") {
       const sub = await buildZipIndex(handle, onProgress, base + "/" + name);
       Object.assign(index, sub);
+    }
+  }
+  return index;
+}
+
+// One-pass directory scan → subdirectory-name-keyed index map.
+// Used by Extracted Folder batch: keys are folder names (lot names).
+async function buildExtDirIndex(dirHandle, onProgress, _basePath) {
+  const index = Object.create(null); // folderName → { handle, path }
+  const base = _basePath || dirHandle.name;
+  for await (const [name, handle] of dirHandle.entries()) {
+    if (handle.kind === "directory") {
+      const key = name.toLowerCase();
+      if (!index[key]) index[key] = { handle, path: base + "/" + name, name };
+      if (onProgress) onProgress(Object.keys(index).length, name);
+      // Also index nested sub-directories (lots may be nested)
+      const sub = await buildExtDirIndex(handle, onProgress, base + "/" + name);
+      for (const [k, v] of Object.entries(sub)) {
+        if (!index[k]) index[k] = v;
+      }
     }
   }
   return index;
@@ -10532,6 +10774,277 @@ async function buildZipIndex(dirHandle, onProgress, _basePath) {
   // Wait for DOM
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", createBatchUI);
   else createBatchUI();
+})();
+
+// ── Extracted Folder Batch Import ────────────────────────────
+(function initExtBatchImport() {
+  function createExtBatchUI() {
+    const extSearchBox = document.getElementById("extSearchBox");
+    if (!extSearchBox) return;
+
+    const divider = document.createElement("div");
+    divider.style.cssText = "border-top:1px dashed #c0b8d8;margin:8px 0 6px;";
+    extSearchBox.appendChild(divider);
+
+    const label = document.createElement("div");
+    label.style.cssText = "font-size:11px;font-weight:600;color:#4a3a6a;margin-bottom:4px;";
+    label.innerHTML = "📋 Batch Lot List → Generate Heatmap ZIP";
+    extSearchBox.appendChild(label);
+
+    // Row 1: file input
+    const row1 = document.createElement("div");
+    row1.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap;";
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = ".txt,.csv";
+    fileInput.id = "extBatchLotFile";
+    fileInput.style.cssText = "font-size:11px;flex:1;min-width:0;";
+    fileInput.title = "Select a .txt or .csv file with one Lot No. per line";
+    row1.appendChild(fileInput);
+    extSearchBox.appendChild(row1);
+
+    // Row 2: LLD / ULLD selects + run button
+    const row2 = document.createElement("div");
+    row2.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap;";
+
+    const lldLabel = document.createElement("span");
+    lldLabel.style.cssText = "font-size:10px;font-weight:700;color:#1565a8;white-space:nowrap;flex-shrink:0;";
+    lldLabel.textContent = "LLD:";
+
+    const colSelect = document.createElement("select");
+    colSelect.id = "extBatchColSelect";
+    colSelect.title = "LLD heatmap column";
+    colSelect.style.cssText = "font-size:11px;padding:2px 4px;border:1px solid #c0b0d8;border-radius:4px;background:#fff;";
+    ["IR0","VF0","VF1","VZ0","IDSS2","IR2_1","IGSS2F","BVDSS3"].forEach(c => {
+      const o = document.createElement("option"); o.value = c; o.textContent = c;
+      colSelect.appendChild(o);
+    });
+
+    const ulldLabel = document.createElement("span");
+    ulldLabel.style.cssText = "font-size:10px;font-weight:700;color:#0e6655;white-space:nowrap;flex-shrink:0;";
+    ulldLabel.textContent = "ULLD:";
+
+    const ulldColSelect = document.createElement("select");
+    ulldColSelect.id = "extBatchColSelectULLD";
+    ulldColSelect.title = "ULLD CP heatmap column";
+    ulldColSelect.style.cssText = "font-size:11px;padding:2px 4px;border:1px solid #c0b0d8;border-radius:4px;background:#fff;";
+    ["IGSS2F","IGSS3","IGSS2R","IDSS2","RIDSS2","VFSDS1",
+     "BVDSS_100uA","BVDSS2","BVDSS3","BVDSS_100mA",
+     "Delta1","VTH1","VTH2","Delta2","IGSS2F_2",
+     "B37_Resistor","B35_IDSS2_test2"].forEach(c => {
+      const o = document.createElement("option"); o.value = c; o.textContent = c;
+      ulldColSelect.appendChild(o);
+    });
+
+    const runBtn = document.createElement("button");
+    runBtn.className = "hm-btn";
+    runBtn.id = "extBatchRunBtn";
+    runBtn.style.cssText = "padding:3px 10px;font-size:11px;white-space:nowrap;flex-shrink:0;background:#ede8f8;border-color:#b0a0d8;color:#4a3a6a;font-weight:600;";
+    runBtn.textContent = "⚡ Batch Generate ZIP";
+
+    row2.appendChild(lldLabel);
+    row2.appendChild(colSelect);
+    row2.appendChild(ulldLabel);
+    row2.appendChild(ulldColSelect);
+    row2.appendChild(runBtn);
+    extSearchBox.appendChild(row2);
+
+    const statusDiv = document.createElement("div");
+    statusDiv.id = "extBatchStatus";
+    statusDiv.style.cssText = "font-size:11px;color:#6a5a8a;min-height:14px;margin-top:3px;line-height:1.5;";
+    extSearchBox.appendChild(statusDiv);
+
+    function setStatus(msg, color) {
+      statusDiv.style.color = color || "#6a5a8a";
+      statusDiv.innerHTML = msg;
+    }
+
+    runBtn.addEventListener("click", async () => {
+      const lotFile = fileInput.files && fileInput.files[0];
+      if (!lotFile) { setStatus("⚠️ Please select a Lot No. list file first.", "#a13b2f"); return; }
+
+      // Retrieve ext_dir_handle from IndexedDB
+      const IDB_NAME = "wat_cp_suite", IDB_STORE = "handles", IDB_KEY_DIR = "ext_dir_handle";
+      let batchDirHandle = null;
+      try {
+        const db = await new Promise((res, rej) => {
+          const req = indexedDB.open(IDB_NAME, 1);
+          req.onupgradeneeded = e => e.target.result.createObjectStore(IDB_STORE);
+          req.onsuccess = e => res(e.target.result);
+          req.onerror = e => rej(e.target.error);
+        });
+        batchDirHandle = await new Promise((res, rej) => {
+          const tx = db.transaction(IDB_STORE, "readonly");
+          const req = tx.objectStore(IDB_STORE).get(IDB_KEY_DIR);
+          req.onsuccess = e => res(e.target.result);
+          req.onerror = e => rej(e.target.error);
+        });
+      } catch(e) {}
+
+      if (!batchDirHandle) { setStatus("⚠️ Please authorize a folder in 'Extracted Folder Search' before running batch.", "#a13b2f"); return; }
+
+      const perm = await batchDirHandle.requestPermission({ mode: "read" });
+      if (perm !== "granted") { setStatus("❌ Folder access permission denied.", "#a13b2f"); return; }
+
+      // Parse lot list
+      const raw = await lotFile.text();
+      const lots = raw.split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith("#"));
+      if (!lots.length) { setStatus("⚠️ Lot list is empty.", "#a13b2f"); return; }
+
+      const selectedColLLD  = colSelect.value;
+      const selectedColULLD = ulldColSelect.value;
+      const presetsLLD = window._hmPresetsByColumn || {
+        IR0: [0, 45], VF0: [205, 285], VF1: [250, 330], VZ0: [19.5, 22.5],
+        IDSS2: [-90, 90], IR2_1: [-90, 90], IGSS2F: [-30, 30], BVDSS3: [19.5, 22.5]
+      };
+      const presetsULLD = window._hmPresetsByColumnULLD || {
+        IGSS2F: [-30, 30], IGSS3: [-30, 30], IGSS2R: [-30, 30], IGSS2F_2: [-30, 30],
+        IDSS2: [-90, 90], RIDDS2: [0, 5],
+        VFSDS1: [0.45, 0.52],
+        BVDSS_100uA: [19, 23], BVDSS2: [19, 23], BVDSS3: [19, 23], BVDSS_100mA: [0, 40],
+        Delta1: [-0.04, 0.2], Delta2: [-0.04, 0.2],
+        VTH1: [1.5, 3.4], VTH2: [1.7, 3.6],
+        B37_Resistor: [240000, 420000], B35_IDSS2_test2: [-90, 90]
+      };
+
+      runBtn.disabled = true;
+      const results = [];
+      const total = lots.length;
+
+      // ── Build extracted-folder directory index (one scan) ──
+      setStatus("🗂️ Scanning folder for extracted lots, please wait...", "#1565a8");
+      let dirIndex;
+      try {
+        let scanned = 0;
+        dirIndex = await buildExtDirIndex(batchDirHandle, (n, name) => {
+          scanned = n;
+          if (n % 20 === 0) setStatus(`🗂️ Scanning... ${n} folders found`, "#1565a8");
+        });
+        setStatus(`🗂️ Indexed: ${Object.keys(dirIndex).length} folders found. Starting batch...`, "#1565a8");
+      } catch(e) {
+        setStatus("❌ Failed to scan folder: " + e.message, "#a13b2f");
+        runBtn.disabled = false;
+        return;
+      }
+
+      for (let i = 0; i < lots.length; i++) {
+        const lot = lots[i];
+        const { line: headerLine, label: headerLabel } = autoHeaderLine(lot);
+        setStatus(`🔎 (${i+1}/${total}) Looking up folder: ${lot} [${headerLabel}] ...`, "#1565a8");
+        try {
+          const found = dirIndex[lot.toLowerCase()] || null;
+          if (!found) {
+            results.push({ lotNo: lot, pngBlob: null, status: "NOT_FOUND" });
+            setStatus(`⚠️ (${i+1}/${total}) Folder not found: ${lot}, skipping.`, "#a13b2f");
+            continue;
+          }
+
+          // Collect CSV files from the matched folder
+          const csvHandles = await (async function collectCsvFilesLocal(dh, _list) {
+            const list = _list || [];
+            for await (const [n, h] of dh.entries()) {
+              if (h.kind === "file" && n.toLowerCase().endsWith(".csv")) list.push({ handle: h, name: n });
+              else if (h.kind === "directory") await collectCsvFilesLocal(h, list);
+            }
+            return list;
+          })(found.handle);
+
+          if (!csvHandles.length) {
+            results.push({ lotNo: lot, pngBlob: null, status: "NO_CSV" });
+            setStatus(`⚠️ (${i+1}/${total}) No CSVs in folder: ${lot}, skipping.`, "#a13b2f");
+            continue;
+          }
+
+          csvHandles.sort((a, b) => a.name.localeCompare(b.name));
+
+          setStatus(`⚙️ (${i+1}/${total}) Merging ${csvHandles.length} CSV(s) from ${lot} ...`, "#1565a8");
+          const out = [headerLine];
+          for (const { handle: fh, name } of csvHandles) {
+            const baseName = name.replace(/\.[^.]+$/, "");
+            const waferId  = baseName.length >= 10 ? baseName.substring(8, 10) : baseName;
+            const text     = (await (await fh.getFile()).text()).replace(/^\uFEFF/, "");
+            const lines    = text.split(/\n/);
+            for (let r = 35; r < lines.length; r++) {
+              const raw2 = lines[r].replace(/\r$/, "");
+              if (!raw2.trim()) continue;
+              const comma = raw2.indexOf(",");
+              out.push(comma >= 0 ? waferId + raw2.slice(comma) : waferId);
+            }
+          }
+          const mergedCsv = out.join("\r\n") + "\r\n";
+
+          // Parse & render
+          setStatus(`🎨 (${i+1}/${total}) Rendering ${lot} heatmap ...`, "#1565a8");
+          let parsed, records;
+          try { parsed = parseCsv(mergedCsv); }
+          catch(parseErr) {
+            results.push({ lotNo: lot, pngBlob: null, status: "PARSE_FAIL:parseCsv:" + parseErr.message });
+            setStatus(`❌ (${i+1}/${total}) ${lot} parseCsv failed: ${parseErr.message}`, "#a13b2f");
+            continue;
+          }
+          try { records = loadRecords(parsed); }
+          catch(loadErr) {
+            results.push({ lotNo: lot, pngBlob: null, status: "PARSE_FAIL:loadRecords:" + loadErr.message });
+            setStatus(`❌ (${i+1}/${total}) ${lot} loadRecords failed: ${loadErr.message}`, "#a13b2f");
+            continue;
+          }
+          if (!records.length) {
+            results.push({ lotNo: lot, pngBlob: null, status: "PARSE_FAIL:0 records" });
+            setStatus(`❌ (${i+1}/${total}) ${lot} 0 records parsed.`, "#a13b2f");
+            continue;
+          }
+
+          const isULLD = (headerLabel === 'ULLD');
+          const selectedCol = isULLD ? selectedColULLD : selectedColLLD;
+          const presets = isULLD ? presetsULLD : presetsLLD;
+          const colPreset = presets[selectedCol] ? (Array.isArray(presets[selectedCol][0]) ? presets[selectedCol][0].slice(1) : presets[selectedCol]) : [0, 100];
+          const [lo, hi] = colPreset;
+
+          const tmpCanvas = document.createElement("canvas");
+          const realCanvas = hmEls.canvas;
+          hmEls.canvas = tmpCanvas;
+          try {
+            renderOverview(records, lot + " — " + selectedCol, selectedCol, lo, hi);
+            const pngBlob = await new Promise(res => tmpCanvas.toBlob(res, "image/png"));
+            results.push({ lotNo: lot, pngBlob, csvContent: mergedCsv, colUsed: selectedCol, status: "OK" });
+          } finally {
+            hmEls.canvas = realCanvas;
+          }
+        } catch(e) {
+          results.push({ lotNo: lot, pngBlob: null, csvContent: null, status: "ERROR:" + e.message });
+          setStatus(`❌ (${i+1}/${total}) ${lot} error: ${e.message}`, "#a13b2f");
+        }
+      }
+
+      // Package output ZIP
+      setStatus(`📦 Packaging ext_batch_heatmap.zip ...`, "#1565a8");
+      try {
+        const okResults = results.filter(r => r.status === "OK");
+        const zipEntries = [];
+        for (const r of okResults) {
+          zipEntries.push({ name: r.lotNo + "_" + r.colUsed + "_heatmap.png", blob: r.pngBlob });
+          if (r.csvContent) zipEntries.push({ name: r.lotNo + "_merged.csv", blob: new Blob([r.csvContent], { type: "text/csv;charset=utf-8" }) });
+        }
+        const zipBlob = await buildSimpleZip(zipEntries);
+        const ok = okResults.length, fail = results.length - ok;
+        const url = URL.createObjectURL(zipBlob);
+        const a = document.createElement("a");
+        a.href = url; a.download = "ext_batch_heatmap.zip"; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        const failDetails = results.filter(r => r.status !== "OK").map(r => `${r.lotNo}:${r.status}`).join(" | ");
+        setStatus(
+          `✅ Done! Success: ${ok}, failed/not found: ${fail}. Downloaded <b>ext_batch_heatmap.zip</b>${fail ? '<br><span style="color:#a13b2f;font-size:10px;">Failed: ' + failDetails + '</span>' : ''}`,
+          "#4a3a6a"
+        );
+      } catch(e) {
+        setStatus("❌ ZIP packaging failed: " + e.message, "#a13b2f");
+      }
+      runBtn.disabled = false;
+    });
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", createExtBatchUI);
+  else createExtBatchUI();
 })();
 
 // ── Simple ZIP builder (store / no compression) ──────────────

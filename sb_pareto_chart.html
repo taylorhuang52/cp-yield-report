@@ -5,110 +5,135 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SB Pareto Chart</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; min-height: 100vh; padding: 24px; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; min-height: 100vh; padding: 24px; }
+.container { max-width: 1140px; margin: 0 auto; }
+h1 { font-size: 20px; font-weight: 600; color: #1a1a1a; margin-bottom: 4px; }
+.subtitle { font-size: 13px; color: #666; margin-bottom: 20px; }
 
-  .container { max-width: 1100px; margin: 0 auto; }
+.upload-zone {
+  border: 2px dashed #c0c0c0; border-radius: 12px; background: #fff;
+  padding: 32px 24px; text-align: center; cursor: pointer;
+  transition: border-color 0.2s, background 0.2s; margin-bottom: 20px;
+}
+.upload-zone:hover, .upload-zone.drag-over { border-color: #3b82f6; background: #eff6ff; }
+.upload-zone input { display: none; }
+.upload-icon { font-size: 32px; margin-bottom: 8px; }
+.upload-text { font-size: 15px; font-weight: 500; color: #374151; margin-bottom: 4px; }
+.upload-hint { font-size: 12px; color: #9ca3af; }
 
-  h1 { font-size: 20px; font-weight: 600; color: #1a1a1a; margin-bottom: 4px; }
-  .subtitle { font-size: 13px; color: #666; margin-bottom: 20px; }
+.file-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; justify-content: center; }
+.file-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 20px;
+  padding: 3px 10px 3px 8px; font-size: 12px; color: #1d4ed8;
+}
+.file-chip.error { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.file-chip .rm { cursor: pointer; font-size: 14px; color: #93c5fd; line-height: 1; }
+.file-chip .rm:hover { color: #1d4ed8; }
 
-  .upload-zone {
-    border: 2px dashed #c0c0c0;
-    border-radius: 12px;
-    background: #fff;
-    padding: 36px 24px;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
-    margin-bottom: 20px;
-  }
-  .upload-zone:hover, .upload-zone.drag-over { border-color: #3b82f6; background: #eff6ff; }
-  .upload-zone input { display: none; }
-  .upload-icon { font-size: 36px; margin-bottom: 10px; }
-  .upload-text { font-size: 15px; font-weight: 500; color: #374151; margin-bottom: 4px; }
-  .upload-hint { font-size: 12px; color: #9ca3af; }
+.merge-bar {
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+  padding: 12px 16px; margin-bottom: 16px;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.merge-bar-label { font-size: 13px; color: #374151; font-weight: 500; flex: 1; min-width: 200px; }
+.merge-bar-sub { font-size: 11px; color: #9ca3af; }
+.btn-analyze {
+  padding: 8px 20px; background: #3b82f6; color: #fff; border: none;
+  border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-analyze:hover { background: #2563eb; }
+.btn-analyze:disabled { background: #93c5fd; cursor: not-allowed; }
+.btn-clear {
+  padding: 8px 14px; background: #f3f4f6; color: #6b7280; border: none;
+  border-radius: 8px; font-size: 13px; cursor: pointer;
+}
+.btn-clear:hover { background: #e5e7eb; }
 
-  .stats-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 12px;
-    margin-bottom: 20px;
-  }
-  .stat-card {
-    background: #fff;
-    border-radius: 10px;
-    border: 1px solid #e5e7eb;
-    padding: 14px 16px;
-  }
-  .stat-label { font-size: 11px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
-  .stat-value { font-size: 22px; font-weight: 600; color: #111; }
-  .stat-sub { font-size: 11px; color: #6b7280; margin-top: 2px; }
+.progress-wrap { margin-bottom: 16px; }
+.progress-label { font-size: 12px; color: #6b7280; margin-bottom: 4px; }
+.progress-bar { height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; background: #3b82f6; border-radius: 3px; transition: width 0.2s; }
 
-  .chart-card {
-    background: #fff;
-    border-radius: 12px;
-    border: 1px solid #e5e7eb;
-    padding: 20px 24px 24px;
-    margin-bottom: 20px;
-  }
-  .chart-title { font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 16px; }
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.stat-card { background: #fff; border-radius: 10px; border: 1px solid #e5e7eb; padding: 14px 16px; }
+.stat-label { font-size: 11px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+.stat-value { font-size: 22px; font-weight: 600; color: #111; }
+.stat-sub { font-size: 11px; color: #6b7280; margin-top: 2px; }
 
-  .chart-wrapper { position: relative; width: 100%; }
+.wafer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; margin-bottom: 20px; }
+.wafer-chip {
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
+  padding: 8px 12px; font-size: 12px;
+}
+.wafer-chip-id { font-weight: 600; color: #374151; margin-bottom: 2px; }
+.wafer-chip-stat { color: #9ca3af; }
 
-  .table-card {
-    background: #fff;
-    border-radius: 12px;
-    border: 1px solid #e5e7eb;
-    overflow: hidden;
-  }
-  .table-header { padding: 14px 20px; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; justify-content: space-between; }
-  .table-title { font-size: 14px; font-weight: 600; color: #374151; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { background: #f9fafb; padding: 10px 16px; text-align: left; font-weight: 600; color: #6b7280; border-bottom: 1px solid #f3f4f6; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
-  td { padding: 10px 16px; border-bottom: 1px solid #f9fafb; color: #374151; }
-  tr:last-child td { border-bottom: none; }
-  tr:hover td { background: #f9fafb; }
-  .ppm-bar { display: flex; align-items: center; gap: 8px; }
-  .ppm-bar-fill { height: 8px; border-radius: 4px; background: #3b82f6; min-width: 2px; }
-  .cumulative-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: 600;
-    background: #dbeafe;
-    color: #1d4ed8;
-  }
-  .cumulative-badge.high { background: #fef3c7; color: #92400e; }
-  .cumulative-badge.critical { background: #fee2e2; color: #991b1b; }
+.chart-card { background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; padding: 20px 24px 24px; margin-bottom: 20px; }
+.chart-title { font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 12px; }
+.legend { display: flex; gap: 20px; margin-bottom: 12px; font-size: 12px; color: #6b7280; }
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-dot { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+.chart-wrapper { position: relative; width: 100%; }
 
-  .empty-state { text-align: center; padding: 48px 24px; color: #9ca3af; }
-  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
-  .empty-state p { font-size: 14px; }
+.table-card { background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; }
+.table-header { padding: 12px 20px; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; justify-content: space-between; }
+.table-title { font-size: 14px; font-weight: 600; color: #374151; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { background: #f9fafb; padding: 10px 16px; text-align: left; font-weight: 600; color: #6b7280; border-bottom: 1px solid #f3f4f6; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+td { padding: 10px 16px; border-bottom: 1px solid #f9fafb; color: #374151; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #f9fafb; }
+.ppm-bar { display: flex; align-items: center; gap: 8px; }
+.ppm-bar-fill { height: 8px; border-radius: 4px; background: #3b82f6; min-width: 2px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; background: #dbeafe; color: #1d4ed8; }
+.badge.high { background: #fef3c7; color: #92400e; }
+.badge.critical { background: #fee2e2; color: #991b1b; }
 
-  .legend { display: flex; gap: 20px; margin-bottom: 12px; font-size: 12px; color: #6b7280; }
-  .legend-item { display: flex; align-items: center; gap: 6px; }
-  .legend-dot { width: 12px; height: 12px; border-radius: 2px; }
+.empty-state { text-align: center; padding: 48px 24px; color: #9ca3af; }
+.empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+.empty-state p { font-size: 14px; }
+
+.section-label { font-size: 11px; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
 </style>
 </head>
 <body>
 <div class="container">
   <h1>⚡ Software Bin (SB) Pareto Chart</h1>
-  <p class="subtitle">上傳 CSV 檔案，自動分析各 SB bin 的 ppm 分佈與柏拉圖</p>
+  <p class="subtitle">支援單一 merged CSV 或多個 wafer CSV 自動合併分析</p>
 
   <div class="upload-zone" id="uploadZone">
-    <input type="file" id="fileInput" accept=".csv">
+    <input type="file" id="fileInput" accept=".csv" multiple>
     <div class="upload-icon">📂</div>
     <div class="upload-text">點擊選擇 CSV 檔案，或拖曳至此處</div>
-    <div class="upload-hint">支援標準 CSV 格式，需含 SB 欄位</div>
+    <div class="upload-hint">可一次選取多個 CSV，自動偵測格式並合併</div>
+    <div class="file-list" id="fileList"></div>
+  </div>
+
+  <div id="mergeBar" class="merge-bar" style="display:none;">
+    <div>
+      <div class="merge-bar-label" id="mergeLabel">已選取 0 個檔案</div>
+      <div class="merge-bar-sub" id="mergeSub"></div>
+    </div>
+    <button class="btn-clear" id="btnClear">清除</button>
+    <button class="btn-analyze" id="btnAnalyze">分析 →</button>
+  </div>
+
+  <div id="progressWrap" class="progress-wrap" style="display:none;">
+    <div class="progress-label" id="progressLabel">讀取中...</div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
   </div>
 
   <div id="content" style="display:none;">
     <div class="stats-row" id="statsRow"></div>
-
+    <div id="waferSection" style="display:none; margin-bottom:20px;">
+      <div class="section-label">各 Wafer 概覽</div>
+      <div class="wafer-grid" id="waferGrid"></div>
+    </div>
     <div class="chart-card">
-      <div class="chart-title">SB 柏拉圖 — PPM 分佈與累積百分比</div>
+      <div class="chart-title" id="chartTitle">SB 柏拉圖 — PPM 分佈與累積百分比</div>
       <div class="legend">
         <span class="legend-item"><span class="legend-dot" style="background:#3b82f6;"></span>各 SB PPM (左軸)</span>
         <span class="legend-item"><span class="legend-dot" style="background:#f59e0b; border-radius:50%;"></span>累積百分比 (右軸)</span>
@@ -117,21 +142,13 @@
         <canvas id="paretoChart" role="img" aria-label="SB Software Bin Pareto Chart"></canvas>
       </div>
     </div>
-
     <div class="table-card">
       <div class="table-header">
         <span class="table-title">SB 明細表</span>
       </div>
       <table>
         <thead>
-          <tr>
-            <th>#</th>
-            <th>SB</th>
-            <th>Count</th>
-            <th>PPM</th>
-            <th>PPM 佔比</th>
-            <th>累積 %</th>
-          </tr>
+          <tr><th>#</th><th>SB</th><th>Count</th><th>PPM</th><th>PPM 佔比</th><th>累積 %</th></tr>
         </thead>
         <tbody id="tableBody"></tbody>
       </table>
@@ -140,70 +157,213 @@
 
   <div id="emptyState" class="empty-state" style="display:none;">
     <div class="icon">⚠️</div>
-    <p id="emptyMsg">找不到 SB 欄位，請確認 CSV 格式</p>
+    <p id="emptyMsg">找不到 SB 欄位</p>
   </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 let chartInstance = null;
+let pendingFiles = [];
 
 const uploadZone = document.getElementById('uploadZone');
-const fileInput = document.getElementById('fileInput');
+const fileInput  = document.getElementById('fileInput');
+const fileList   = document.getElementById('fileList');
+const mergeBar   = document.getElementById('mergeBar');
+const mergeLabel = document.getElementById('mergeLabel');
+const mergeSub   = document.getElementById('mergeSub');
+const btnClear   = document.getElementById('btnClear');
+const btnAnalyze = document.getElementById('btnAnalyze');
 
-uploadZone.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', e => { if (e.target.files[0]) processFile(e.target.files[0]); });
+uploadZone.addEventListener('click', e => { if (!e.target.closest('.rm')) fileInput.click(); });
+fileInput.addEventListener('change', e => addFiles(Array.from(e.target.files)));
 uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
 uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
 uploadZone.addEventListener('drop', e => {
   e.preventDefault(); uploadZone.classList.remove('drag-over');
-  if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
+  addFiles(Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.csv')));
 });
+btnClear.addEventListener('click', () => { pendingFiles = []; refreshFileUI(); });
+btnAnalyze.addEventListener('click', analyzeAll);
 
-function processFile(file) {
-  const reader = new FileReader();
-  reader.onload = e => parseCSV(e.target.result, file.name);
-  reader.readAsText(file, 'UTF-8');
+function addFiles(files) {
+  files.forEach(f => { if (!pendingFiles.find(p => p.name === f.name)) pendingFiles.push(f); });
+  refreshFileUI();
 }
 
-function parseCSV(text, filename) {
-  const lines = text.trim().split(/\r?\n/);
-  if (lines.length < 2) return showError('CSV 檔案為空');
+function refreshFileUI() {
+  fileList.innerHTML = pendingFiles.map((f, i) =>
+    `<span class="file-chip"><span>📄 ${f.name}</span><span class="rm" data-i="${i}">×</span></span>`
+  ).join('');
+  fileList.querySelectorAll('.rm').forEach(el =>
+    el.addEventListener('click', e => { e.stopPropagation(); pendingFiles.splice(+el.dataset.i, 1); refreshFileUI(); })
+  );
+  if (pendingFiles.length === 0) {
+    mergeBar.style.display = 'none';
+    uploadZone.querySelector('.upload-text').textContent = '點擊選擇 CSV 檔案，或拖曳至此處';
+    uploadZone.querySelector('.upload-hint').textContent = '可一次選取多個 CSV，自動偵測格式並合併';
+  } else {
+    mergeBar.style.display = 'flex';
+    mergeLabel.textContent = `已選取 ${pendingFiles.length} 個 CSV 檔案`;
+    mergeSub.textContent = pendingFiles.length > 1 ? '將自動合併後繪製 Pareto 圖' : '單一 CSV 直接分析';
+    uploadZone.querySelector('.upload-text').textContent = '點擊新增更多檔案';
+    uploadZone.querySelector('.upload-hint').textContent = '';
+  }
+  fileInput.value = '';
+}
 
+function readFileText(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = e => res(e.target.result);
+    r.onerror = () => rej(new Error('讀取失敗'));
+    r.readAsText(file, 'UTF-8');
+  });
+}
+
+// ─── Format detection & parsing ───────────────────────────────────────────────
+// Format A: merged CSV — first line is "Wafer_ID,Serial,HB,SB,..."
+// Format B: single-wafer dlog — has metadata header, data starts at "Serial#,Site#,Bin#,SBin#,..."
+
+function detectAndParse(text, filename) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+  if (!lines.length) return null;
+
+  const firstLine = lines[0].trim();
+
+  // Format A: direct CSV header
+  if (/^Wafer_ID/i.test(firstLine)) {
+    return parseFormatA(lines, filename);
+  }
+
+  // Format B: dlog with metadata preamble
+  const hdrIdx = lines.findIndex(l => /^Serial#/.test(l.trim()));
+  if (hdrIdx !== -1) {
+    return parseFormatB(lines, hdrIdx, filename);
+  }
+
+  return { error: `無法識別 CSV 格式 (${filename})` };
+}
+
+function parseFormatA(lines, filename) {
   const headers = lines[0].split(',').map(h => h.trim());
-  const sbIndex = headers.findIndex(h => h.toUpperCase() === 'SB');
-  if (sbIndex === -1) return showError('找不到 SB 欄位，請確認 CSV 標頭包含 "SB"');
+  const sbIdx = headers.findIndex(h => h.toUpperCase() === 'SB');
+  if (sbIdx === -1) return { error: `找不到 SB 欄位 (${filename})` };
 
-  const hbIndex = headers.findIndex(h => h.toUpperCase() === 'HB');
-
+  const waferIdx = headers.findIndex(h => h.toUpperCase() === 'WAFER_ID');
   const sbCounts = {};
-  let totalRows = 0;
-  let failRows = 0;
+  const waferMap = {};
+  let total = 0;
 
   for (let i = 1; i < lines.length; i++) {
     const cols = lines[i].split(',');
-    if (cols.length <= sbIndex) continue;
-    const sbVal = cols[sbIndex].trim();
-    if (sbVal === '' || sbVal === 'SB') continue;
+    if (cols.length <= sbIdx) continue;
+    const sbVal = cols[sbIdx].trim();
     const sbNum = parseInt(sbVal);
     if (isNaN(sbNum)) continue;
-
-    totalRows++;
-
-    if (sbNum === 1) continue; // pass bin
-
-    failRows++;
-    sbCounts[sbNum] = (sbCounts[sbNum] || 0) + 1;
+    total++;
+    const wid = waferIdx >= 0 ? (cols[waferIdx] || '?').trim() : filename;
+    if (!waferMap[wid]) waferMap[wid] = { total: 0, fail: 0 };
+    waferMap[wid].total++;
+    if (sbNum !== 1) {
+      sbCounts[sbNum] = (sbCounts[sbNum] || 0) + 1;
+      waferMap[wid].fail++;
+    }
   }
-
-  if (totalRows === 0) return showError('CSV 中沒有有效的資料列');
-
-  renderChart(sbCounts, totalRows, failRows, filename);
+  return { sbCounts, total, waferMap, format: 'A' };
 }
 
-function renderChart(sbCounts, totalRows, failRows, filename) {
+function parseFormatB(lines, hdrIdx, filename) {
+  const headers = lines[hdrIdx].split(',').map(h => h.trim());
+  const sbIdx = headers.findIndex(h => /^SBin#?$/i.test(h));
+  if (sbIdx === -1) return { error: `找不到 SBin# 欄位 (${filename})` };
+
+  // Extract Wafer ID from metadata
+  let waferId = filename;
+  for (let i = 0; i < hdrIdx; i++) {
+    const m = lines[i].match(/Wafer ID\s*:\s*(.+)/i);
+    if (m) { waferId = m[1].trim(); break; }
+  }
+
+  const sbCounts = {};
+  let total = 0;
+  let fail = 0;
+
+  for (let i = hdrIdx + 1; i < lines.length; i++) {
+    const cols = lines[i].split(',');
+    if (cols.length <= sbIdx) continue;
+    const sbNum = parseInt(cols[sbIdx].trim());
+    if (isNaN(sbNum)) continue;
+    total++;
+    if (sbNum !== 1) { sbCounts[sbNum] = (sbCounts[sbNum] || 0) + 1; fail++; }
+  }
+
+  const waferMap = { [waferId]: { total, fail } };
+  return { sbCounts, total, waferMap, format: 'B' };
+}
+
+// ─── Main analysis flow ───────────────────────────────────────────────────────
+async function analyzeAll() {
+  if (!pendingFiles.length) return;
+  btnAnalyze.disabled = true;
+
+  const progressWrap = document.getElementById('progressWrap');
+  const progressFill = document.getElementById('progressFill');
+  const progressLabel = document.getElementById('progressLabel');
+  progressWrap.style.display = 'block';
+  document.getElementById('content').style.display = 'none';
+  document.getElementById('emptyState').style.display = 'none';
+
+  const mergedSB = {};
+  const mergedWafers = {};
+  let mergedTotal = 0;
+  const errors = [];
+
+  for (let i = 0; i < pendingFiles.length; i++) {
+    const f = pendingFiles[i];
+    progressLabel.textContent = `讀取 ${f.name} (${i+1}/${pendingFiles.length})…`;
+    progressFill.style.width = Math.round(((i) / pendingFiles.length) * 100) + '%';
+
+    try {
+      const text = await readFileText(f);
+      const result = detectAndParse(text, f.name);
+      if (!result || result.error) { errors.push(result ? result.error : `讀取失敗: ${f.name}`); continue; }
+
+      mergedTotal += result.total;
+      Object.entries(result.sbCounts).forEach(([sb, cnt]) => {
+        mergedSB[sb] = (mergedSB[sb] || 0) + cnt;
+      });
+      Object.entries(result.waferMap).forEach(([wid, stat]) => {
+        if (!mergedWafers[wid]) mergedWafers[wid] = { total: 0, fail: 0 };
+        mergedWafers[wid].total += stat.total;
+        mergedWafers[wid].fail += stat.fail;
+      });
+    } catch(e) { errors.push(`讀取失敗: ${f.name}`); }
+  }
+
+  progressFill.style.width = '100%';
+  progressLabel.textContent = '繪圖中…';
+
+  setTimeout(() => {
+    progressWrap.style.display = 'none';
+    btnAnalyze.disabled = false;
+
+    if (mergedTotal === 0) {
+      return showError(errors.length ? errors.join(' / ') : '沒有有效的資料');
+    }
+
+    const waferCount = Object.keys(mergedWafers).length;
+    const title = waferCount > 1
+      ? `合併 ${waferCount} 片 Wafer — SB 柏拉圖`
+      : `SB 柏拉圖 — ${Object.keys(mergedWafers)[0] || ''}`;
+    renderChart(mergedSB, mergedTotal, mergedWafers, title, errors);
+  }, 50);
+}
+
+function renderChart(sbCounts, totalRows, waferMap, chartTitle, errors = []) {
   document.getElementById('content').style.display = 'block';
   document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('chartTitle').textContent = chartTitle;
 
   const sorted = Object.entries(sbCounts)
     .map(([sb, count]) => ({ sb: parseInt(sb), count }))
@@ -213,101 +373,60 @@ function renderChart(sbCounts, totalRows, failRows, filename) {
   const passCount = totalRows - totalFail;
   const passRate = ((passCount / totalRows) * 100).toFixed(2);
   const totalPPM = Math.round((totalFail / totalRows) * 1e6);
+  const waferCount = Object.keys(waferMap).length;
 
-  const labels = sorted.map(d => `SB ${d.sb}`);
   const ppms = sorted.map(d => Math.round((d.count / totalRows) * 1e6));
   const cumPct = [];
   let cumSum = 0;
   ppms.forEach(p => { cumSum += p; cumPct.push(+((cumSum / totalPPM) * 100).toFixed(1)); });
 
   const maxBar = Math.max(...ppms);
-  const barHeight = Math.max(320, labels.length * 44 + 80);
-
-  document.getElementById('chartWrapper').style.height = barHeight + 'px';
+  document.getElementById('chartWrapper').style.height = Math.max(300, sorted.length * 44 + 80) + 'px';
 
   if (chartInstance) chartInstance.destroy();
-
   const ctx = document.getElementById('paretoChart').getContext('2d');
   chartInstance = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels,
+      labels: sorted.map(d => `SB ${d.sb}`),
       datasets: [
         {
-          type: 'bar',
-          label: 'PPM',
-          data: ppms,
-          backgroundColor: ppms.map((p, i) => {
-            const pct = cumPct[i - 1] || 0;
-            if (pct >= 80) return '#fca5a5';
-            if (pct >= 50) return '#93c5fd';
-            return '#3b82f6';
+          type: 'bar', label: 'PPM', data: ppms,
+          backgroundColor: ppms.map((_, i) => {
+            const prev = cumPct[i-1] || 0;
+            return prev >= 80 ? '#fca5a5' : prev >= 50 ? '#93c5fd' : '#3b82f6';
           }),
-          borderColor: 'transparent',
-          borderRadius: 4,
-          yAxisID: 'y',
-          order: 2,
+          borderColor: 'transparent', borderRadius: 4, yAxisID: 'y', order: 2,
         },
         {
-          type: 'line',
-          label: '累積 %',
-          data: cumPct,
-          borderColor: '#f59e0b',
-          backgroundColor: 'rgba(245,158,11,0.12)',
-          borderWidth: 2.5,
-          pointBackgroundColor: '#f59e0b',
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          fill: false,
-          tension: 0.3,
-          yAxisID: 'y2',
-          order: 1,
+          type: 'line', label: '累積 %', data: cumPct,
+          borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)',
+          borderWidth: 2.5, pointBackgroundColor: '#f59e0b',
+          pointRadius: 4, pointHoverRadius: 6,
+          fill: false, tension: 0.3, yAxisID: 'y2', order: 1,
         }
       ]
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: ctx => {
-              if (ctx.dataset.label === 'PPM') return ` PPM: ${ctx.parsed.y.toLocaleString()}`;
-              return ` 累積: ${ctx.parsed.y}%`;
-            }
-          }
-        },
-        annotation: {}
+        tooltip: { callbacks: { label: c => c.dataset.label === 'PPM' ? ` PPM: ${c.parsed.y.toLocaleString()}` : ` 累積: ${c.parsed.y}%` } }
       },
       scales: {
-        x: {
-          grid: { display: false },
-          ticks: { font: { size: 12 }, color: '#6b7280', autoSkip: false },
-        },
+        x: { grid: { display: false }, ticks: { font: { size: 12 }, color: '#6b7280', autoSkip: false } },
         y: {
           position: 'left',
           title: { display: true, text: 'PPM', color: '#6b7280', font: { size: 12 } },
-          ticks: {
-            color: '#6b7280',
-            font: { size: 11 },
-            callback: v => v.toLocaleString()
-          },
-          grid: { color: 'rgba(0,0,0,0.05)' },
-          suggestedMax: Math.ceil(maxBar * 1.15),
-          min: 0,
+          ticks: { color: '#6b7280', font: { size: 11 }, callback: v => v.toLocaleString() },
+          grid: { color: 'rgba(0,0,0,0.05)' }, suggestedMax: Math.ceil(maxBar * 1.15), min: 0,
         },
         y2: {
           position: 'right',
           title: { display: true, text: '累積 %', color: '#f59e0b', font: { size: 12 } },
-          min: 0,
-          max: 100,
-          ticks: {
-            color: '#f59e0b',
-            font: { size: 11 },
-            callback: v => v + '%'
-          },
+          min: 0, max: 100,
+          ticks: { color: '#f59e0b', font: { size: 11 }, callback: v => v + '%' },
           grid: { drawOnChartArea: false },
         }
       }
@@ -316,6 +435,11 @@ function renderChart(sbCounts, totalRows, failRows, filename) {
 
   // Stats
   document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">Wafer 數量</div>
+      <div class="stat-value">${waferCount}</div>
+      <div class="stat-sub">${pendingFiles.length} 個 CSV</div>
+    </div>
     <div class="stat-card">
       <div class="stat-label">總測試顆數</div>
       <div class="stat-value">${totalRows.toLocaleString()}</div>
@@ -328,7 +452,7 @@ function renderChart(sbCounts, totalRows, failRows, filename) {
     </div>
     <div class="stat-card">
       <div class="stat-label">Fail 顆數</div>
-      <div class="stat-value">${failRows.toLocaleString()}</div>
+      <div class="stat-value">${totalFail.toLocaleString()}</div>
       <div class="stat-sub">${sorted.length} 個 Fail Bins</div>
     </div>
     <div class="stat-card">
@@ -338,27 +462,45 @@ function renderChart(sbCounts, totalRows, failRows, filename) {
     </div>
   `;
 
+  // Wafer breakdown (show when >1)
+  const waferSection = document.getElementById('waferSection');
+  if (waferCount > 1) {
+    waferSection.style.display = 'block';
+    document.getElementById('waferGrid').innerHTML = Object.entries(waferMap)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([wid, stat]) => {
+        const yield_ = stat.total ? ((1 - stat.fail / stat.total) * 100).toFixed(1) : '-';
+        const ppm = stat.total ? Math.round((stat.fail / stat.total) * 1e6).toLocaleString() : '-';
+        return `<div class="wafer-chip">
+          <div class="wafer-chip-id">${wid}</div>
+          <div class="wafer-chip-stat">Yield ${yield_}% · ${ppm} ppm</div>
+        </div>`;
+      }).join('');
+  } else {
+    waferSection.style.display = 'none';
+  }
+
   // Table
-  let cumPPM = 0;
-  const tbody = sorted.map((d, i) => {
-    const ppm = ppms[i];
-    const pct = cumPct[i];
-    cumPPM += ppm;
+  document.getElementById('tableBody').innerHTML = sorted.map((d, i) => {
+    const ppm = ppms[i], pct = cumPct[i];
     const barW = Math.round((ppm / maxBar) * 180);
-    const badgeClass = pct >= 80 ? 'critical' : pct >= 50 ? 'high' : '';
+    const bc = pct >= 80 ? 'critical' : pct >= 50 ? 'high' : '';
     return `<tr>
-      <td style="color:#9ca3af;">${i + 1}</td>
+      <td style="color:#9ca3af;">${i+1}</td>
       <td><strong>SB ${d.sb}</strong></td>
       <td>${d.count.toLocaleString()}</td>
       <td>${ppm.toLocaleString()}</td>
       <td><div class="ppm-bar"><div class="ppm-bar-fill" style="width:${barW}px;"></div><span style="font-size:11px;color:#9ca3af;">${((ppm/totalPPM)*100).toFixed(1)}%</span></div></td>
-      <td><span class="cumulative-badge ${badgeClass}">${pct}%</span></td>
+      <td><span class="badge ${bc}">${pct}%</span></td>
     </tr>`;
   }).join('');
-  document.getElementById('tableBody').innerHTML = tbody;
 
-  uploadZone.querySelector('.upload-text').textContent = `✅ 已載入: ${filename}`;
-  uploadZone.querySelector('.upload-hint').textContent = `${totalRows.toLocaleString()} 筆資料 · 點擊可重新上傳`;
+  if (errors.length) {
+    const note = document.createElement('div');
+    note.style.cssText = 'margin-top:12px;font-size:12px;color:#ef4444;padding:0 4px;';
+    note.textContent = '⚠ 以下檔案跳過: ' + errors.join('; ');
+    document.getElementById('tableBody').closest('.table-card').appendChild(note);
+  }
 }
 
 function showError(msg) {

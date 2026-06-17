@@ -173,7 +173,7 @@ tr:hover td { background: #f9fafb; }
       </div>
       <table>
         <thead>
-          <tr><th>#</th><th>SB</th><th>Count</th><th>PPM</th><th>PPM 佔比</th><th>累積 %</th></tr>
+          <tr><th>#</th><th>SB</th><th>測項</th><th>Count</th><th>PPM</th><th>PPM 佔比</th><th>累積 %</th></tr>
         </thead>
         <tbody id="tableBody"></tbody>
       </table>
@@ -297,12 +297,52 @@ function readFileText(file) {
 
 // ─── CSV parsing (Format A & B) ───────────────────────────────────────────────
 function detectAndParse(text, filename) {
-  const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+  const rawLines = text.split(/\r?\n/);
+  const lines    = rawLines.filter(l => l.trim() !== '');
   if (!lines.length) return null;
   if (/^Wafer_ID/i.test(lines[0].trim())) return parseFormatA(lines, filename);
   const hdrIdx = lines.findIndex(l => /^Serial#/.test(l.trim()));
-  if (hdrIdx !== -1) return parseFormatB(lines, hdrIdx, filename);
+  if (hdrIdx !== -1) return parseFormatB(rawLines, lines, hdrIdx, filename);
   return { error: `無法識別 CSV 格式 (${filename})` };
+}
+
+// Detect ULLD by checking if ≥2 columns on line 30 match "B{N}_{name}({col})" pattern
+function isUlldFormat(rawLines) {
+  const row30 = (rawLines[29] || '').replace(/"/g, '');
+  const hits = row30.split(',').filter(col => /^B\d+_.+\(\d+\)$/.test(col.trim())).length;
+  return hits >= 2;
+}
+
+// LLD: "TestName(SBinNum)" → { SBinNum: "TestName" }
+// Hardcode SB23 & SB24 as VZ0 fail for LLD products
+function parseSbNameMapLLD(rawLines) {
+  const row30 = rawLines[29] || '';
+  const map = { 23: 'VZ0', 24: 'VZ0' }; // LLD hardcoded
+  row30.split(',').forEach(col => {
+    const m = col.trim().replace(/"/g, '').match(/^(.+)\((\d+)\)$/);
+    if (m) {
+      const num = parseInt(m[2]);
+      if (num !== 23 && num !== 24) map[num] = m[1].trim(); // don't overwrite hardcoded
+    }
+  });
+  return map;
+}
+
+// ULLD: "B{SBinNum}_{TestName}({col_index})" → { SBinNum: "TestName" }
+function parseSbNameMapULLD(rawLines) {
+  const row30 = rawLines[29] || '';
+  const map = {};
+  row30.split(',').forEach(col => {
+    const m = col.trim().replace(/"/g, '').match(/^B(\d+)_(.+)\(\d+\)$/);
+    if (m) map[parseInt(m[1])] = m[2].trim();
+  });
+  return map;
+}
+
+function parseSbNameMap(rawLines) {
+  return isUlldFormat(rawLines)
+    ? parseSbNameMapULLD(rawLines)
+    : parseSbNameMapLLD(rawLines);
 }
 
 function parseFormatA(lines, filename) {
@@ -326,7 +366,7 @@ function parseFormatA(lines, filename) {
   return { sbCounts, total, waferMap, format: 'A' };
 }
 
-function parseFormatB(lines, hdrIdx, filename) {
+function parseFormatB(rawLines, lines, hdrIdx, filename) {
   const headers = lines[hdrIdx].split(',').map(h => h.trim());
   const sbIdx   = headers.findIndex(h => /^SBin#?$/i.test(h));
   if (sbIdx === -1) return { error: `找不到 SBin# 欄位 (${filename})` };
@@ -335,6 +375,8 @@ function parseFormatB(lines, hdrIdx, filename) {
     const m = lines[i].match(/Wafer ID\s*:\s*(.+)/i);
     if (m) { waferId = m[1].trim(); break; }
   }
+  const ulld = isUlldFormat(rawLines);
+  const sbNameMap = ulld ? parseSbNameMapULLD(rawLines) : parseSbNameMapLLD(rawLines);
   const sbCounts = {};
   let total = 0, fail = 0;
   for (let i = hdrIdx + 1; i < lines.length; i++) {
@@ -345,7 +387,7 @@ function parseFormatB(lines, hdrIdx, filename) {
     total++;
     if (sbNum !== 1) { sbCounts[sbNum] = (sbCounts[sbNum] || 0) + 1; fail++; }
   }
-  return { sbCounts, total, waferMap: { [waferId]: { total, fail } }, format: 'B' };
+  return { sbCounts, total, waferMap: { [waferId]: { total, fail } }, sbNameMap, productType: ulld ? 'ULLD' : 'LLD', format: 'B' };
 }
 
 // ─── Main analysis ────────────────────────────────────────────────────────────
@@ -359,8 +401,8 @@ async function analyzeAll() {
   document.getElementById('content').style.display = 'none';
   document.getElementById('emptyState').style.display = 'none';
 
-  const mergedSB = {}, mergedWafers = {};
-  let mergedTotal = 0;
+  const mergedSB = {}, mergedWafers = {}, mergedSbNameMap = {};
+  let mergedTotal = 0, detectedType = null;
   const errors = [];
 
   for (let i = 0; i < pendingFiles.length; i++) {
@@ -378,6 +420,8 @@ async function analyzeAll() {
         mergedWafers[wid].total += stat.total;
         mergedWafers[wid].fail  += stat.fail;
       });
+      if (result.sbNameMap) Object.assign(mergedSbNameMap, result.sbNameMap);
+      if (result.productType) detectedType = result.productType;
     } catch(e) { errors.push(`讀取失敗: ${f.name}`); }
   }
 
@@ -391,12 +435,12 @@ async function analyzeAll() {
     const title = waferCount > 1
       ? `合併 ${waferCount} 片 Wafer — SB 柏拉圖`
       : `SB 柏拉圖 — ${Object.keys(mergedWafers)[0] || ''}`;
-    renderAll(mergedSB, mergedTotal, mergedWafers, title, errors);
+    renderAll(mergedSB, mergedTotal, mergedWafers, title, mergedSbNameMap, detectedType, errors);
   }, 50);
 }
 
 // ─── Render everything ────────────────────────────────────────────────────────
-function renderAll(sbCounts, totalRows, waferMap, chartTitle, errors = []) {
+function renderAll(sbCounts, totalRows, waferMap, chartTitle, sbNameMap = {}, productType = null, errors = []) {
   document.getElementById('content').style.display = 'block';
   document.getElementById('emptyState').style.display = 'none';
 
@@ -418,7 +462,15 @@ function renderAll(sbCounts, totalRows, waferMap, chartTitle, errors = []) {
   const maxBar = Math.max(...ppms);
 
   // Save for export
-  lastRenderData = { sorted, ppms, cumPct, totalRows, totalFail, passCount, passRate, totalPPM, waferEntries, chartTitle };
+  lastRenderData = { sorted, ppms, cumPct, totalRows, totalFail, passCount, passRate, totalPPM, waferEntries, chartTitle, sbNameMap };
+
+  // ── Product type badge ──
+  const typeColor = productType === 'ULLD' ? { bg: '#fdf4ff', border: '#e9d5ff', text: '#7c3aed' }
+                  : productType === 'LLD'  ? { bg: '#eff6ff', border: '#bfdbfe', text: '#1d4ed8' }
+                  : null;
+  const typeBadgeHtml = typeColor
+    ? `<span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${typeColor.bg};border:1px solid ${typeColor.border};color:${typeColor.text};margin-left:8px;vertical-align:middle;">${productType}</span>`
+    : '';
 
   // ── Pareto chart ──
   document.getElementById('chartTitle').textContent = chartTitle;
@@ -427,7 +479,7 @@ function renderAll(sbCounts, totalRows, waferMap, chartTitle, errors = []) {
   chartPareto = new Chart(document.getElementById('paretoChart').getContext('2d'), {
     type: 'bar',
     data: {
-      labels: sorted.map(d => `SB ${d.sb}`),
+      labels: sorted.map(d => { const name = sbNameMap[d.sb]; return name ? [`SB${d.sb}`, name] : [`SB${d.sb}`]; }),
       datasets: [
         {
           type: 'bar', label: 'PPM', data: ppms,
@@ -447,7 +499,7 @@ function renderAll(sbCounts, totalRows, waferMap, chartTitle, errors = []) {
       interaction: { mode: 'index', intersect: false },
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.dataset.label === 'PPM' ? ` PPM: ${c.parsed.y.toLocaleString()}` : ` 累積: ${c.parsed.y}%` } } },
       scales: {
-        x: { grid: { display: false }, ticks: { font: { size: 12 }, color: '#6b7280', autoSkip: false } },
+        x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#6b7280', autoSkip: false } },
         y: { position: 'left', title: { display: true, text: 'PPM', color: '#6b7280', font: { size: 12 } }, ticks: { color: '#6b7280', font: { size: 11 }, callback: v => v.toLocaleString() }, grid: { color: 'rgba(0,0,0,0.05)' }, suggestedMax: Math.ceil(maxBar * 1.15), min: 0 },
         y2: { position: 'right', title: { display: true, text: '累積 %', color: '#f59e0b', font: { size: 12 } }, min: 0, max: 100, ticks: { color: '#f59e0b', font: { size: 11 }, callback: v => v + '%' }, grid: { drawOnChartArea: false } }
       }
@@ -504,6 +556,7 @@ function renderAll(sbCounts, totalRows, waferMap, chartTitle, errors = []) {
 
   // ── Stats ──
   document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card"><div class="stat-label">產品類型</div><div class="stat-value" style="font-size:18px;">${productType || '—'}${typeBadgeHtml ? '' : ''}</div><div class="stat-sub">${productType === 'LLD' ? 'SB23/24 = VZ0 fail' : productType === 'ULLD' ? 'B## 前綴判別' : '未知'}</div></div>
     <div class="stat-card"><div class="stat-label">Wafer 數量</div><div class="stat-value">${waferCount}</div><div class="stat-sub">${pendingFiles.length} 個 CSV</div></div>
     <div class="stat-card"><div class="stat-label">總測試顆數</div><div class="stat-value">${totalRows.toLocaleString()}</div><div class="stat-sub">Total Dies</div></div>
     <div class="stat-card"><div class="stat-label">Pass (SB1)</div><div class="stat-value">${passCount.toLocaleString()}</div><div class="stat-sub">Yield ${passRate}%</div></div>
@@ -526,12 +579,14 @@ function renderAll(sbCounts, totalRows, waferMap, chartTitle, errors = []) {
 
   // ── Table ──
   document.getElementById('tableBody').innerHTML = sorted.map((d, i) => {
-    const ppm = ppms[i], pct = cumPct[i];
+    const ppm  = ppms[i], pct = cumPct[i];
     const barW = Math.round((ppm / maxBar) * 180);
     const bc   = pct >= 80 ? 'critical' : pct >= 50 ? 'high' : '';
+    const name = sbNameMap[d.sb] || '—';
     return `<tr>
       <td style="color:#9ca3af;">${i+1}</td>
       <td><strong>SB ${d.sb}</strong></td>
+      <td style="color:#374151;">${name}</td>
       <td>${d.count.toLocaleString()}</td>
       <td>${ppm.toLocaleString()}</td>
       <td><div class="ppm-bar"><div class="ppm-bar-fill" style="width:${barW}px;"></div><span style="font-size:11px;color:#9ca3af;">${((ppm/totalPPM)*100).toFixed(1)}%</span></div></td>
@@ -565,11 +620,12 @@ function downloadPng(canvas, filename) {
 
 function downloadCsv() {
   if (!lastRenderData) return;
-  const { sorted, ppms, cumPct, totalRows, totalPPM, chartTitle } = lastRenderData;
+  const { sorted, ppms, cumPct, totalRows, totalPPM, chartTitle, sbNameMap } = lastRenderData;
   const rows = [
-    ['SB', 'Count', 'PPM', 'PPM佔比(%)', '累積(%)'],
+    ['SB', '測項', 'Count', 'PPM', 'PPM佔比(%)', '累積(%)'],
     ...sorted.map((d, i) => [
       `SB ${d.sb}`,
+      sbNameMap[d.sb] || '',
       d.count,
       ppms[i],
       ((ppms[i] / totalPPM) * 100).toFixed(2),

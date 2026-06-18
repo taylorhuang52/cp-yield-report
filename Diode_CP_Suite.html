@@ -7820,7 +7820,11 @@ function mergeNewStripData(newRows) {
     return true;
   });
 
+  const oldCount = (stripData || []).length;
   stripData = [...filtered, ...newRows];
+  const netAdded = stripData.length - oldCount;       // 資料庫總筆數實際增加量
+  const duplicates = newRows.length - netAdded;        // 本次匯入中與舊資料重複（含 SYN_ 佔位被取代）的筆數
+  return { netAdded, duplicates, importedCount: newRows.length };
 }
 
 function mergeNewDailyData(newRows) {
@@ -8272,10 +8276,11 @@ function handleStrip(event) {
       const sheetName = wb.SheetNames.includes('Summary') ? 'Summary' : wb.SheetNames[0];
       const ws = wb.Sheets[sheetName];
       const newRows = XLSX.utils.sheet_to_json(ws, { defval: null });
-      mergeNewStripData(newRows);
+      const mergeResult = mergeNewStripData(newRows);
       const acCount = stripData.filter(r => r['Lot No.'] &amp;&amp; String(r['Lot No.']).trim().endsWith('AC')).length;
       const ccCount = stripData.filter(r => r['Lot No.'] &amp;&amp; String(r['Lot No.']).trim().endsWith('CC')).length;
-      statusEl.textContent = `Strip: ${stripData.length} rows total (AC:${acCount}, CC:${ccCount}) — new: ${newRows.length}`;
+      const dupNote = mergeResult.duplicates > 0 ? `, ${mergeResult.duplicates} duplicate/replaced` : '';
+      statusEl.textContent = `Strip: ${stripData.length} rows total (AC:${acCount}, CC:${ccCount}) — new: ${mergeResult.netAdded}${dupNote}`;
       statusEl.className = 'file-status ok';
       renderStripAC();
       renderStripCC();

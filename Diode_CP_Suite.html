@@ -1168,6 +1168,7 @@
   }
   .yield-lot-list .lot-no { font-weight: 600; color: var(--text); }
   .yield-lot-list .lot-yld { color: var(--text2); }
+  .yield-lot-list .lot-pcs { font-size: 11px; font-weight: 400; color: var(--accent); margin-left: 4px; }
   .yield-lot-none { color: var(--text2); font-size: 12px; padding: 6px 0; }
   .yield-lot-apply-btn {
     background: var(--accent);
@@ -3825,6 +3826,7 @@
 let lowYieldThreshold = 60; // user-adjustable via slider
 let dailyData = null;
 let cpFyKey = null;    // actual &quot;Final yield [With AOI] (%)&quot; column key, set on data load
+let cpInitYieldKey = null; // actual &quot;Initial CP yield (%)&quot; column key (Excel col M), set on data load
 let watData = null;
 let watYieldData = null; // [{ lot, runOn:Date, yield:number, device:string }]
 let ulldData = null;   // { yieldRows, detailRows }
@@ -4204,6 +4206,17 @@ function getInputCol(row) {
   return null;
 }
 
+// Detect the &quot;Initial CP yield (%)&quot; column key (Excel column M)
+function getInitialCpYieldCol(row) {
+  if (!row) return null;
+  for (const k of Object.keys(row)) {
+    if (k &amp;&amp; k.toLowerCase().includes('initial') &amp;&amp; k.toLowerCase().includes('cp') &amp;&amp; k.toLowerCase().includes('yield')) {
+      return k;
+    }
+  }
+  return null;
+}
+
 // Detect the &quot;Discount (pcs)&quot; column key
 function getDiscountCol(row) {
   if (!row) return null;
@@ -4262,6 +4275,7 @@ async function processData(includeLow) {
   const inputKey = getInputCol(dailyData[0]);
   const fyKey = getFinalYieldCol(dailyData[0]);
   cpFyKey = fyKey; // store globally for lot panel functions
+  cpInitYieldKey = getInitialCpYieldCol(dailyData[0]); // Excel col M, store globally for chart functions
 
   if (!fyKey) throw new Error('Cannot find &quot;Final yield [With AOI] (%)&quot; column');
   if (!inputKey) throw new Error('Cannot find &quot;Input (pcs)&quot; column');
@@ -4377,6 +4391,9 @@ function computeWeeklyMonthly(rows, fyKey, inputKey) {
     const totalOut = 0;  // not used for edge yield calc anymore
     const finalY = parseFloat(r['Final yield[With AOI] (%)'] || r['Final Yield'] || NaN);
 
+    // Initial CP yield (Excel col M) — new trend line, separate from Final Yield (With AOI)
+    const initCpY = parseFloat((cpInitYieldKey ? r[cpInitYieldKey] : r['Initial CP yield (%)']) || NaN);
+
     // Fail bins — raw die counts from Fail Bin Statistics columns
     // Keys are normalized at parse time: \n replaced with space, trimmed
     const ir0  = parseFloat(r['IR0(8)'])         || 0;
@@ -4400,10 +4417,11 @@ function computeWeeklyMonthly(rows, fyKey, inputKey) {
 
     // Weekly
     const wkey = `${yw.year}-W${String(yw.week).padStart(2,'0')}`;
-    if (!weekMap[wkey]) weekMap[wkey] = { label: `${yw.year.toString().slice(2)}W${yw.week}`, year:yw.year, week:yw.week, inputSum:0, wYield:0, wFinalYield:0, finalYieldCnt:0, gainDie:0, gainDiePossible:0, totalDie:0, ir0:0, dir0:0, vz0:0, vf0:0, vf1:0, dvz:0, aoi:0, gdbc:0 };
+    if (!weekMap[wkey]) weekMap[wkey] = { label: `${yw.year.toString().slice(2)}W${yw.week}`, year:yw.year, week:yw.week, inputSum:0, wYield:0, wFinalYield:0, finalYieldCnt:0, wInitCpYield:0, initCpYieldCnt:0, gainDie:0, gainDiePossible:0, totalDie:0, ir0:0, dir0:0, vz0:0, vf0:0, vf1:0, dvz:0, aoi:0, gdbc:0 };
     weekMap[wkey].inputSum += inp;
     weekMap[wkey].wYield   += inp * fy;
     if (!isNaN(finalY)) { weekMap[wkey].wFinalYield += inp * finalY; weekMap[wkey].finalYieldCnt += inp; }
+    if (!isNaN(initCpY)) { weekMap[wkey].wInitCpYield += inp * initCpY; weekMap[wkey].initCpYieldCnt += inp; }
     weekMap[wkey].gainDie         += gainDie;
     weekMap[wkey].gainDiePossible += gainDiePossible;
     weekMap[wkey].totalDie += totalDie;
@@ -4418,10 +4436,11 @@ function computeWeeklyMonthly(rows, fyKey, inputKey) {
 
     // Monthly
     const mkey = yw.month;
-    if (!monthMap[mkey]) monthMap[mkey] = { label: getMonthLabel(yw.month), inputSum:0, wYield:0, wFinalYield:0, finalYieldCnt:0, gainDie:0, gainDiePossible:0, totalDie:0, ir0:0, dir0:0, vz0:0, vf0:0, vf1:0, dvz:0, aoi:0, gdbc:0 };
+    if (!monthMap[mkey]) monthMap[mkey] = { label: getMonthLabel(yw.month), inputSum:0, wYield:0, wFinalYield:0, finalYieldCnt:0, wInitCpYield:0, initCpYieldCnt:0, gainDie:0, gainDiePossible:0, totalDie:0, ir0:0, dir0:0, vz0:0, vf0:0, vf1:0, dvz:0, aoi:0, gdbc:0 };
     monthMap[mkey].inputSum += inp;
     monthMap[mkey].wYield   += inp * fy;
     if (!isNaN(finalY)) { monthMap[mkey].wFinalYield += inp * finalY; monthMap[mkey].finalYieldCnt += inp; }
+    if (!isNaN(initCpY)) { monthMap[mkey].wInitCpYield += inp * initCpY; monthMap[mkey].initCpYieldCnt += inp; }
     monthMap[mkey].gainDie         += gainDie;
     monthMap[mkey].gainDiePossible += gainDiePossible;
     monthMap[mkey].totalDie += totalDie;
@@ -4440,6 +4459,7 @@ function computeWeeklyMonthly(rows, fyKey, inputKey) {
     return { ...w,
       cpYield:    w.inputSum > 0 ? w.wYield/w.inputSum : null,
       finalYield: w.finalYieldCnt > 0 ? w.wFinalYield/w.finalYieldCnt : null,
+      initCpYield: w.initCpYieldCnt > 0 ? w.wInitCpYield/w.initCpYieldCnt : null,
       // edgeYield = weighted avg Gain Die Yield: sum(gainDie) / sum(gainDiePossible) * 100
       edgeYield:  w.gainDiePossible > 0 ? (w.gainDie/w.gainDiePossible)*100 : null };
   });
@@ -4449,6 +4469,7 @@ function computeWeeklyMonthly(rows, fyKey, inputKey) {
     return { ...m, _monthKey: k,
       cpYield:    m.inputSum > 0 ? m.wYield/m.inputSum : null,
       finalYield: m.finalYieldCnt > 0 ? m.wFinalYield/m.finalYieldCnt : null,
+      initCpYield: m.initCpYieldCnt > 0 ? m.wInitCpYield/m.initCpYieldCnt : null,
       edgeYield:  m.gainDiePossible > 0 ? (m.gainDie/m.gainDiePossible)*100 : null };
   });
 
@@ -4458,12 +4479,14 @@ function computeWeeklyMonthly(rows, fyKey, inputKey) {
     const [yr, mo] = m._monthKey.split('-');
     const q = Math.ceil(parseInt(mo) / 3);
     const qk = `${yr}-Q${q}`;
-    if (!quarterMap[qk]) quarterMap[qk] = { label: `${yr.slice(2)}'Q${q}`, inputSum:0, wYield:0, wFinalYield:0, finalYieldCnt:0, gainDie:0, gainDiePossible:0, totalDie:0, ir0:0, dir0:0, vz0:0, vf0:0, vf1:0, dvz:0, aoi:0, gdbc:0 };
+    if (!quarterMap[qk]) quarterMap[qk] = { label: `${yr.slice(2)}'Q${q}`, inputSum:0, wYield:0, wFinalYield:0, finalYieldCnt:0, wInitCpYield:0, initCpYieldCnt:0, gainDie:0, gainDiePossible:0, totalDie:0, ir0:0, dir0:0, vz0:0, vf0:0, vf1:0, dvz:0, aoi:0, gdbc:0 };
     const q_ = quarterMap[qk];
     q_.inputSum        += m.inputSum;
     q_.wYield          += m.wYield;
     q_.wFinalYield     += m.wFinalYield;
     q_.finalYieldCnt   += m.finalYieldCnt;
+    q_.wInitCpYield    += m.wInitCpYield;
+    q_.initCpYieldCnt  += m.initCpYieldCnt;
     q_.gainDie         += m.gainDie;
     q_.gainDiePossible += m.gainDiePossible;
     q_.totalDie        += m.totalDie;
@@ -4477,6 +4500,7 @@ function computeWeeklyMonthly(rows, fyKey, inputKey) {
     return { ...q,
       cpYield:    q.inputSum > 0 ? q.wYield/q.inputSum : null,
       finalYield: q.finalYieldCnt > 0 ? q.wFinalYield/q.finalYieldCnt : null,
+      initCpYield: q.initCpYieldCnt > 0 ? q.wInitCpYield/q.initCpYieldCnt : null,
       edgeYield:  q.gainDiePossible > 0 ? (q.gainDie/q.gainDiePossible)*100 : null };
   });
 
@@ -4519,7 +4543,7 @@ function destroyChart(id) {
   if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
 }
 
-function makeComboChart(canvasId, labels, barData, lineData, barLabel, lineLabel, target, barColor, lineColor, yBarMax, line2Data, line2Label, line2Color) {
+function makeComboChart(canvasId, labels, barData, lineData, barLabel, lineLabel, target, barColor, lineColor, yBarMax, line2Data, line2Label, line2Color, line3Data, line3Label, line3Color) {
   destroyChart(canvasId);
   const ctx = document.getElementById(canvasId).getContext('2d');
 
@@ -4532,7 +4556,7 @@ function makeComboChart(canvasId, labels, barData, lineData, barLabel, lineLabel
       borderColor: barColor || 'rgba(74,124,255,0.8)',
       borderWidth: 1,
       yAxisID: 'yBar',
-      order: 3,
+      order: 4,
     },
     {
       type: 'line',
@@ -4570,6 +4594,26 @@ function makeComboChart(canvasId, labels, barData, lineData, barLabel, lineLabel
     });
   }
 
+  // Optional third yield line (e.g. Initial CP Yield)
+  if (line3Data &amp;&amp; line3Data.some(v => v != null)) {
+    datasets.push({
+      type: 'line',
+      label: line3Label || 'Yield 3',
+      data: line3Data,
+      borderColor: line3Color || '#9b59b6',
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      borderDash: [2, 2],
+      pointRadius: 4,
+      pointStyle: 'rectRot',
+      pointBackgroundColor: line3Color || '#9b59b6',
+      yAxisID: 'yLine',
+      order: 3,
+      tension: 0.1,
+      spanGaps: false,
+    });
+  }
+
   // Target line
   if (target !== null &amp;&amp; target !== undefined) {
     datasets.push({
@@ -4585,7 +4629,7 @@ function makeComboChart(canvasId, labels, barData, lineData, barLabel, lineLabel
     });
   }
 
-  const allLine = [...(lineData||[]), ...(line2Data||[])].filter(v => v != null);
+  const allLine = [...(lineData||[]), ...(line2Data||[]), ...(line3Data||[])].filter(v => v != null);
   const maxBar = Math.max(...barData.filter(v=>v!=null), 1);
   const minLine = Math.min(...allLine, target||97);
   const maxLine = Math.max(...allLine, target||97);
@@ -4753,11 +4797,12 @@ function renderTabPageWeekly(tabIdx, tabData, tabCfg) {
   const { monthlyPoints, recentWeeks } = tabData;
 
   // Build combined timeline: last 5 months + null gap + last 5 weeks (disconnected)
-  const GAP = { label: '', inputSum: null, cpYield: null, gainDie: null, edgeYield: null, finalYield: null, _gap: true };
+  const GAP = { label: '', inputSum: null, cpYield: null, initCpYield: null, gainDie: null, edgeYield: null, finalYield: null, _gap: true };
   const combined = [...monthlyPoints, GAP, ...recentWeeks];
   const labels = combined.map(p => p.label);
   const inputData = combined.map(p => p._gap ? null : p.inputSum);
   const cpYieldData = combined.map(p => p.cpYield);
+  const initCpYieldData = combined.map(p => p._gap ? null : (p.initCpYield != null ? p.initCpYield : null));
   const gainData = combined.map(p => p._gap ? null : p.gainDie);
   const edgeYieldData = combined.map(p => p.edgeYield);
 
@@ -4766,7 +4811,7 @@ function renderTabPageWeekly(tabIdx, tabData, tabCfg) {
   const prevP = lastPeriods.length >= 2 ? lastPeriods[lastPeriods.length-2] : null;
   const lastP = lastPeriods.length >= 1 ? lastPeriods[lastPeriods.length-1] : null;
 
-  _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData, cpYieldData, gainData, edgeYieldData, prevP, lastP, 'Weekly');
+  _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData, cpYieldData, gainData, edgeYieldData, prevP, lastP, 'Weekly', false, initCpYieldData);
 }
 
 function renderTabPageMonthly(tabIdx, tabData, tabCfg) {
@@ -4775,18 +4820,19 @@ function renderTabPageMonthly(tabIdx, tabData, tabCfg) {
 
   // Left side: last 5 quarters (pad with empty if fewer)
   let last5Q = quarters.slice(-5);
-  const emptyQ = { label: '', inputSum: null, cpYield: null, gainDie: null, edgeYield: null, finalYield: null, _empty: true };
+  const emptyQ = { label: '', inputSum: null, cpYield: null, initCpYield: null, gainDie: null, edgeYield: null, finalYield: null, _empty: true };
   while (last5Q.length < 5) last5Q = [{ ...emptyQ }, ...last5Q];
 
   // Right side: last 5 months
   let last5M = months.slice(-5);
   while (last5M.length < 5) last5M = [{ ...emptyQ }, ...last5M];
 
-  const GAP = { label: '', inputSum: null, cpYield: null, gainDie: null, edgeYield: null, finalYield: null, _gap: true };
+  const GAP = { label: '', inputSum: null, cpYield: null, initCpYield: null, gainDie: null, edgeYield: null, finalYield: null, _gap: true };
   const combined = [...last5Q, GAP, ...last5M];
   const labels      = combined.map(p => p.label);
   const inputData   = combined.map(p => (p._gap || p._empty) ? null : p.inputSum);
   const cpYieldData = combined.map(p => (p._empty) ? null : p.cpYield);
+  const initCpYieldData = combined.map(p => (p._gap || p._empty) ? null : (p.initCpYield != null ? p.initCpYield : null));
   const gainData    = combined.map(p => (p._gap || p._empty) ? null : p.gainDie);
   const edgeYieldData = combined.map(p => (p._empty) ? null : p.edgeYield);
 
@@ -4801,7 +4847,7 @@ function renderTabPageMonthly(tabIdx, tabData, tabCfg) {
   const prevP = months.find(m => m._monthKey === prevMKey) || null;
   const lastP = months.find(m => m._monthKey === curMK)   || months.slice(-1)[0] || null;
 
-  _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData, cpYieldData, gainData, edgeYieldData, prevP, lastP, 'Monthly', true);
+  _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData, cpYieldData, gainData, edgeYieldData, prevP, lastP, 'Monthly', true, initCpYieldData);
 }
 
 // ─── Compute WAT Yield trend aligned to a combined timeline ──────────────────
@@ -5051,9 +5097,9 @@ function getCPWeekLotsWaferLevel(weekRows, lotKey, yieldKey, discountLo, discoun
     // Only show lots that actually have Discount or Reject die recorded in DB
     if (totalDisc === 0 &amp;&amp; totalRej === 0) return;
 
-    // Lot yield for display only
+    // Lot yield for display only — basis: Initial CP yield (col M), fallback to Final yield (With AOI)
     const lastRow = rows[rows.length - 1];
-    let lotYld = parseFloat(lastRow[yieldKey]);
+    let lotYld = parseFloat(cpInitYieldKey ? lastRow[cpInitYieldKey] : NaN);
     if (isNaN(lotYld) || lotYld === 0) {
       for (const k of Object.keys(lastRow)) {
         if (k &amp;&amp; k.toLowerCase().includes('initial cp yield')) {
@@ -5062,13 +5108,13 @@ function getCPWeekLotsWaferLevel(weekRows, lotKey, yieldKey, discountLo, discoun
         }
       }
     }
-
-    // Reject takes priority; otherwise Discount
-    if (totalRej > 0) {
-      rejectLots.push({ lot, lotYld, totalDisc, totalRej });
-    } else {
-      discountLots.push({ lot, lotYld, totalDisc, totalRej });
+    if (isNaN(lotYld) || lotYld === 0) {
+      lotYld = parseFloat(lastRow[yieldKey]);
     }
+
+    // Show in both lists independently (a lot may have both disc and rej pcs)
+    if (totalRej  > 0) rejectLots.push({ lot, lotYld, totalDisc, totalRej });
+    if (totalDisc > 0) discountLots.push({ lot, lotYld, totalDisc, totalRej });
   });
 
   discountLots.sort((a, b) => (a.lotYld || 999) - (b.lotYld || 999));
@@ -5088,11 +5134,13 @@ function buildCPLotPanelHTML(tabIdx, rows, yieldKey, lotKey, weekRows) {
 
   const pfxD = `cpThr_${tabIdx}`;
 
-  function lotItemsHTML(lots) {
+  function lotItemsHTML(lots, pcsKey) {
     if (!lots.length) return `<div class=&quot;yield-lot-none&quot;>— None —</div>`;
     return lots.map(l => {
       const yldStr = !isNaN(l.lotYld) ? l.lotYld.toFixed(2) + '%' : '—';
-      return `<div class=&quot;lot-item&quot;><span class=&quot;lot-no&quot;>${l.lot}</span><span class=&quot;lot-yld&quot;>${yldStr}</span></div>`;
+      const pcs    = pcsKey === 'disc' ? l.totalDisc : l.totalRej;
+      const pcsStr = (pcs > 0) ? ` <span class=&quot;lot-pcs&quot;>(${pcs.toLocaleString()} pcs)</span>` : '';
+      return `<div class=&quot;lot-item&quot;><span class=&quot;lot-no&quot;>${l.lot}${pcsStr}</span><span class=&quot;lot-yld&quot;>${yldStr}</span></div>`;
     }).join('');
   }
 
@@ -5115,11 +5163,11 @@ function buildCPLotPanelHTML(tabIdx, rows, yieldKey, lotKey, weekRows) {
     <div class=&quot;yield-lot-grid&quot;>
       <div class=&quot;yield-lot-section&quot;>
         <div class=&quot;yield-lot-section-title discount&quot; id=&quot;${pfxD}_discTitle&quot;>Discount ${discountLo}% &amp;lt; Lot Yield &amp;lt; ${discountHi}%</div>
-        <div class=&quot;yield-lot-list&quot; id=&quot;${pfxD}_discList&quot;>${lotItemsHTML(discountLots)}</div>
+        <div class=&quot;yield-lot-list&quot; id=&quot;${pfxD}_discList&quot;>${lotItemsHTML(discountLots,'disc')}</div>
       </div>
       <div class=&quot;yield-lot-section&quot;>
         <div class=&quot;yield-lot-section-title reject&quot; id=&quot;${pfxD}_rejTitle&quot;>Reject: Lot Yield &amp;lt; ${reject}%</div>
-        <div class=&quot;yield-lot-list&quot; id=&quot;${pfxD}_rejList&quot;>${lotItemsHTML(rejectLots)}</div>
+        <div class=&quot;yield-lot-list&quot; id=&quot;${pfxD}_rejList&quot;>${lotItemsHTML(rejectLots,'rej')}</div>
       </div>
     </div>
   </div>`;
@@ -5154,11 +5202,13 @@ function refreshCPLotPanel(tabIdx) {
 
   const { discountLots, rejectLots } = getCPWeekLotsWaferLevel(weekRows, 'Lot Num', yieldKey, discountLo, discountHi, reject);
 
-  function lotItemsHTML(lots) {
+  function lotItemsHTML(lots, pcsKey) {
     if (!lots.length) return `<div class=&quot;yield-lot-none&quot;>— None —</div>`;
     return lots.map(l => {
       const yldStr = !isNaN(l.lotYld) ? l.lotYld.toFixed(2) + '%' : '—';
-      return `<div class=&quot;lot-item&quot;><span class=&quot;lot-no&quot;>${l.lot}</span><span class=&quot;lot-yld&quot;>${yldStr}</span></div>`;
+      const pcs    = pcsKey === 'disc' ? l.totalDisc : l.totalRej;
+      const pcsStr = (pcs > 0) ? ` <span class=&quot;lot-pcs&quot;>(${pcs.toLocaleString()} pcs)</span>` : '';
+      return `<div class=&quot;lot-item&quot;><span class=&quot;lot-no&quot;>${l.lot}${pcsStr}</span><span class=&quot;lot-yld&quot;>${yldStr}</span></div>`;
     }).join('');
   }
 
@@ -5168,9 +5218,9 @@ function refreshCPLotPanel(tabIdx) {
   const rejList   = document.getElementById(`${pfxD}_rejList`);
 
   if (discTitle) discTitle.textContent = `Discount ${discountLo}% < Lot Yield < ${discountHi}%`;
-  if (discList)  discList.innerHTML    = lotItemsHTML(discountLots);
+  if (discList)  discList.innerHTML    = lotItemsHTML(discountLots, 'disc');
   if (rejTitle)  rejTitle.textContent  = `Reject: Lot Yield < ${reject}%`;
-  if (rejList)   rejList.innerHTML     = lotItemsHTML(rejectLots);
+  if (rejList)   rejList.innerHTML     = lotItemsHTML(rejectLots, 'rej');
 }
 
 // ─── ULLD wafer-level Discount/Reject helper ─────────────────────────────────
@@ -5639,7 +5689,7 @@ function refreshStripLotPanel(type) {
   const rL=document.getElementById(`${pfx}_rejList`);   if(rL) rL.innerHTML=buildStripLotItemsHTML(rejectLots, 'reject');
 }
 
-function _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData, cpYieldData, gainData, edgeYieldData, prevP, lastP, modeLabel, isMonthly = false) {
+function _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData, cpYieldData, gainData, edgeYieldData, prevP, lastP, modeLabel, isMonthly = false, initCpYieldData = null) {
   const page = document.getElementById(`page${tabIdx}`);
 
   const paretoKeys   = ['dir0','vz0','ir0','dvz','aoi','gdbc','vf0','vf1'];
@@ -5657,6 +5707,7 @@ function _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData
   const totalInput = inputData.reduce((a,b)=>a+(b||0),0);
   const yieldClass = latestYield >= tabCfg.target ? 'good' : latestYield >= tabCfg.target-1 ? 'warn' : 'bad';
   const latestEdgeYield = edgeYieldData.filter(v=>v!=null).slice(-1)[0];
+  const latestInitYield = initCpYieldData ? initCpYieldData.filter(v=>v!=null).slice(-1)[0] : null;
 
   const cpChartId    = `cpChart_${tabIdx}`;
   const edgeChartId  = `edgeChart_${tabIdx}`;
@@ -5686,7 +5737,8 @@ function _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData
   page.innerHTML = `
     <button class=&quot;export-png-btn&quot; onclick=&quot;exportPagePNG('page${tabIdx}','${_cpPngName}')&quot;>📷 Export PNG</button>
     <div class=&quot;stats-row&quot;>
-      <div class=&quot;stat-card&quot;><div class=&quot;stat-label&quot;>Latest CP Yield</div><div class=&quot;stat-value ${yieldClass}&quot;>${latestYield ? latestYield.toFixed(2)+'%' : '-'}</div></div>
+      <div class=&quot;stat-card&quot;><div class=&quot;stat-label&quot;>Latest Final Yield</div><div class=&quot;stat-value ${yieldClass}&quot;>${latestYield ? latestYield.toFixed(2)+'%' : '-'}</div></div>
+      <div class=&quot;stat-card&quot;><div class=&quot;stat-label&quot;>Latest Initial CP Yield</div><div class=&quot;stat-value&quot;>${latestInitYield != null ? latestInitYield.toFixed(2)+'%' : '-'}</div></div>
       <div class=&quot;stat-card&quot;><div class=&quot;stat-label&quot;>2026 Target</div><div class=&quot;stat-value&quot;>${tabCfg.target}%</div></div>
       <div class=&quot;stat-card&quot;><div class=&quot;stat-label&quot;>Period Avg Yield</div><div class=&quot;stat-value ${avgYield >= tabCfg.target ? 'good':'warn'}&quot;>${avgYield ? avgYield.toFixed(2)+'%' : '-'}</div></div>
       <div class=&quot;stat-card&quot;><div class=&quot;stat-label&quot;>Total Input (pcs)</div><div class=&quot;stat-value&quot;>${totalInput.toLocaleString()}</div></div>
@@ -5737,13 +5789,14 @@ function _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData
 
   // Render charts after DOM update
   requestAnimationFrame(() => {
-    const finalYieldData = combined.map(p => (p._gap || p._empty) ? null : (p.finalYield != null ? p.finalYield : p.cpYield));
     const watTrend = computeWatYield(combined, tabCfg.devices, isMonthly);
     const hasWat = watTrend.some(v => v != null);
+    const hasInitYield = initCpYieldData &amp;&amp; initCpYieldData.some(v => v != null);
     makeComboChart(cpChartId, labels, inputData, cpYieldData,
-      'Input (pcs)', 'CP Yield (%)', tabCfg.target,
+      'Input (pcs)', 'Final Yield (%)', tabCfg.target,
       'rgba(74,124,255,0.5)', '#4a7cff', null,
-      hasWat ? watTrend : null, 'WAT Yield (%)', '#f9ca24');
+      hasWat ? watTrend : null, 'WAT Yield (%)', '#f9ca24',
+      hasInitYield ? initCpYieldData : null, 'Initial CP Yield (%)', '#9b59b6');
 
     if (tabIdx === 2 &amp;&amp; tabData._byDevice) {
       // 50A: combined bar+3-line chart
@@ -7844,15 +7897,15 @@ function exportExcel() {
   function getCPTrendRows(tabData) {
     if (!tabData) return { header:[], rows:[] };
     const { monthlyPoints, recentWeeks } = tabData;
-    const header = ['Period','Type','Input (pcs)','CP Yield (%)','Final Yield (%)','Edge Die Yield (%)','Gain Edge Die (ea)'];
+    const header = ['Period','Type','Input (pcs)','Initial CP Yield (%)','Final Yield (%)','Edge Die Yield (%)','Gain Edge Die (ea)'];
     const rows = [
       ...monthlyPoints.map(p => [p.label,'Monthly',p.inputSum||0,
+        p.initCpYield!=null?+p.initCpYield.toFixed(4):'',
         p.cpYield!=null?+p.cpYield.toFixed(4):'',
-        p.finalYield!=null?+p.finalYield.toFixed(4):'',
         p.edgeYield!=null?+p.edgeYield.toFixed(4):'', p.gainDie||0]),
       ...recentWeeks.map(p => [p.label,'Weekly',p.inputSum||0,
+        p.initCpYield!=null?+p.initCpYield.toFixed(4):'',
         p.cpYield!=null?+p.cpYield.toFixed(4):'',
-        p.finalYield!=null?+p.finalYield.toFixed(4):'',
         p.edgeYield!=null?+p.edgeYield.toFixed(4):'', p.gainDie||0])
     ];
     return { header, rows };

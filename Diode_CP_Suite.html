@@ -3838,9 +3838,9 @@ let chartInstances = {};
 
 const TAB_CONFIG = [
   { key: '35A',        label: '35A CP Test Yield',          target: 97.0, devices: ['35A570mV'] },
-  { key: '35A_Valeo',  label: '35A 570mV_27V (Valeo) Yield', target: 97.0, devices: ['35A570mV_27V_Valeo'] },
-  { key: '50A',        label: '50A CP Test Yield',           target: 95.0, devices: ['50A550mV','50A530mV','50A580mV'] },
-  { key: '50A_SEG',    label: '50A 550mV_27V (SEG) Yield',   target: 95.0, devices: ['50A550mV_27V_SEG'] },
+  { key: '35A_Valeo',  label: '35A 570mV_27V (Valeo) Yield', target: 90.6, devices: ['35A570mV_27V_Valeo'] },
+  { key: '50A',        label: '50A CP Test Yield',           target: 97.0, devices: ['50A550mV','50A530mV','50A580mV'] },
+  { key: '50A_SEG',    label: '50A 550mV_27V (SEG) Yield',   target: 90.6, devices: ['50A550mV_27V_SEG'] },
 ];
 
 // ─── Per-tab Discount / Reject thresholds ────────────────────────────────────
@@ -12541,7 +12541,7 @@ document.getElementById('btnExport').onclick=async()=>{
     if(yieldVal<0.90){yieldCell.fill=RED_FILL;yieldCell.font=YEL_FONT;}
     const pctCols=[8,10,12,14,16,18,20,22,24,26,28];
     pctCols.forEach(ci=>{const cell=r.getCell(ci);const val=cell.value;if(typeof val==="number"&&val>0.01){cell.fill=RED_FILL;cell.font=YEL_FONT;}});
-    for(let c=29;c<=52;c++){const cell=r.getCell(c);const v=cell.value;if(typeof v==="number"){let argb;if(v<0.80)argb='FFC00000';else if(v<0.90)argb='FFE67E22';else if(v<0.95)argb='FFF1C40F';else argb='FF27AE60';cell.fill={type:'pattern',pattern:'solid',fgColor:{argb}};cell.font={color:{argb:v<0.95?'FF000000':'FFFFFFFF'},bold:v<0.90};}}
+    for(let c=29;c<=52;c++){const cell=r.getCell(c);const v=cell.value;if(typeof v==="number"){let argb,bold;if(v<0.75){argb='FFC00000';bold=true;}else if(v<0.90){argb='FFFFFF00';bold=true;}else{argb='FF27AE60';bold=false;}cell.fill={type:'pattern',pattern:'solid',fgColor:{argb}};cell.font={color:{argb:'FF000000'},bold:bold};}}
   });
   ws.columns.forEach((c,i)=>{if(i===0||i===1)c.width=14;else if(i===2)c.width=24;else c.width=i>=28?8:10;});
   ws.views=[{state:'frozen',ySplit:1}];

@@ -12957,6 +12957,7 @@ function hmParseSheetRows(wb,startOffset,sst){
       else if(rt===0x00fd&&rl>=10){const r=view.getUint16(data,true);const c=view.getUint16(data+2,true);const si=view.getInt32(data+6,true);setCell(r,c,si<sst.length?sst[si]:"");}
       else if(rt===0x027e&&rl>=10){const r=view.getUint16(data,true);const c=view.getUint16(data+2,true);const rkv=view.getInt32(data+6,true);setCell(r,c,hmDecodeRK(rkv));}
       else if(rt===0x00bd&&rl>=6){const r=view.getUint16(data,true);const cFirst=view.getUint16(data+2,true);const nCells=Math.floor((rl-6)/6);for(let i=0;i<nCells;i++){const rkOff=data+4+i*6+2;if(rkOff+4<=data+rl)setCell(r,cFirst+i,hmDecodeRK(view.getInt32(rkOff,true)));}}
+      else if(rt===0x0204&&rl>=9){const r=view.getUint16(data,true);const c=view.getUint16(data+2,true);const cch=view.getUint16(data+6,true);const grbit=wb[data+8];let str;if((grbit&0x01)!==0){const end=Math.min(data+9+cch*2,pos+4+rl);str=hmDecodeUtf16(wb.slice(data+9,end));}else{const end=Math.min(data+9+cch,pos+4+rl);str=hmDecodeLatin1(wb.slice(data+9,end));}setCell(r,c,str);}
       else if(rt===0x000a){break;}
     }
     pos+=4+rl;

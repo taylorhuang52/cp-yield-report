@@ -7956,6 +7956,14 @@ function handleImportJSON(event) {
       st.className = 'file-status ok';
       event.target.value = '';
 
+      // Close the Import JSON drop modal now that the import succeeded, so it
+      // doesn't sit on top of (and visually re-trigger as) any modal opened
+      // afterwards by generateReport() (e.g. the Low Yield Lots Detected dialog).
+      const dropOverlayEl = document.getElementById('dropOverlay');
+      if (dropOverlayEl &amp;&amp; !dropOverlayEl.classList.contains('hidden')) {
+        closeDropModal();
+      }
+
       // Auto-generate report
       if (dailyData &amp;&amp; dailyData.length > 0) {
         generateReport();

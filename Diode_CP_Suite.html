@@ -195,6 +195,8 @@
       position: sticky;
       top: 0;
       z-index: 100;
+      width: 100%;
+      box-sizing: border-box;
     }
     .app-title {
       color: #7ecbbd;
@@ -814,7 +816,7 @@
     font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
     min-height: 100vh;
   }
-  .app-header {
+  #page-cpreport .app-header {
     background: var(--header-bg);
     border-bottom: 1px solid var(--border);
     padding: 14px 24px;
@@ -824,13 +826,13 @@
     flex-wrap: wrap;
     gap: 12px;
   }
-  .app-title {
+  #page-cpreport .app-title {
     font-size: 18px;
     font-weight: 700;
     color: #1a5c1a;
     letter-spacing: 0.02em;
   }
-  .app-title span { color: var(--text2); font-weight: 400; font-size: 13px; margin-left: 10px; }
+  #page-cpreport .app-title span { color: var(--text2); font-weight: 400; font-size: 13px; margin-left: 10px; }
   .import-area {
     display: flex;
     gap: 10px;
@@ -1033,8 +1035,8 @@
     max-width: 1400px;
     margin: 0 auto;
   }
-  .tab-page { display: none; }
-  .tab-page.active { display: block; }
+  #page-cpreport .tab-page { display: none; }
+  #page-cpreport .tab-page.active { display: block; }
   #page-watcpsuite.tab-page.active { display: flex; flex-direction: column; min-height: calc(100vh - 52px); padding: 0; }
 
   .section-title {
@@ -1410,7 +1412,7 @@
   /* mobile-json-label: hidden on desktop, shown only on mobile via media query below */
   .mobile-json-label { display: none; width: 100%; text-align: center; font-size: 15px; padding: 11px; border-radius: 8px; }
 
-  @media (max-width: 768px) {
+  @media (max-width: 1px) {
     .app-header { padding: 10px 12px; gap: 8px; flex-direction: column; align-items: flex-start; }
     .app-title { font-size: 14px; }
     .app-title span { display: block; margin-left: 0; font-size: 11px; }
@@ -1431,7 +1433,7 @@
 
   /* ── 底部導航列（只在手機顯示）──────────────────────────────────────────── */
   #mobile-nav { display: none; }
-  @media (max-width: 768px) {
+  @media (max-width: 1px) {
     #mobile-nav {
       display: flex;
       position: fixed;
@@ -3616,7 +3618,7 @@
   /* mobile-json-label: hidden on desktop, shown only on mobile via media query below */
   .mobile-json-label { display: none; width: 100%; text-align: center; font-size: 15px; padding: 11px; border-radius: 8px; }
 
-  @media (max-width: 768px) {
+  @media (max-width: 1px) {
     .app-header { padding: 10px 12px; gap: 8px; flex-direction: column; align-items: flex-start; }
     .app-title { font-size: 14px; }
     .app-title span { display: block; margin-left: 0; font-size: 11px; }
@@ -3637,7 +3639,7 @@
 
   /* ── 底部導航列（只在手機顯示）──────────────────────────────────────────── */
   #mobile-nav { display: none; }
-  @media (max-width: 768px) {
+  @media (max-width: 1px) {
     #mobile-nav {
       display: flex;
       position: fixed;
@@ -3837,11 +3839,18 @@ let lowYieldCallback = null;
 let chartInstances = {};
 
 const TAB_CONFIG = [
-  { key: '35A',        label: '35A CP Test Yield',          target: 97.0, devices: ['35A570mV'] },
-  { key: '35A_Valeo',  label: '35A 570mV_27V (Valeo) Yield', target: 90.6, devices: ['35A570mV_27V_Valeo'] },
-  { key: '50A',        label: '50A CP Test Yield',           target: 97.0, devices: ['50A550mV','50A530mV','50A580mV'] },
-  { key: '50A_SEG',    label: '50A 550mV_27V (SEG) Yield',   target: 90.6, devices: ['50A550mV_27V_SEG'] },
+  { key: '35A',        label: '35A CP Test Yield',          target: 97.0, devices: ['35A570mV'],                     assumption: { 'Q1\'26': 96.5, 'Q2\'26': 96.5, 'Q3\'26': 96.5, 'Q4\'26': 96.5 } },
+  { key: '35A_Valeo',  label: '35A 570mV_27V (Valeo) Yield', target: 90.6, devices: ['35A570mV_27V_Valeo'],           assumption: { 'Q1\'26': 90.1, 'Q2\'26': 90.1, 'Q3\'26': 90.1, 'Q4\'26': 90.1 } },
+  { key: '50A',        label: '50A CP Test Yield',           target: 97.0, devices: ['50A550mV','50A530mV','50A580mV'], assumption: { 'Q1\'26': 96.5, 'Q2\'26': 96.5, 'Q3\'26': 96.5, 'Q4\'26': 96.5 } },
+  { key: '50A_SEG',    label: '50A 550mV_27V (SEG) Yield',   target: 90.6, devices: ['50A550mV_27V_SEG'],             assumption: { 'Q1\'26': 90.1, 'Q2\'26': 90.1, 'Q3\'26': 90.1, 'Q4\'26': 90.1 } },
 ];
+
+// 2026 Assumption Yield for ULLD / Strip AC / Strip CC
+const ASSUMPTION_YIELD = {
+  ulld:    { 'Q1\'26': 91.7, 'Q2\'26': 91.7, 'Q3\'26': 91.7, 'Q4\'26': 91.7 },
+  stripAC: { 'Q1\'26': 98.5, 'Q2\'26': 98.5, 'Q3\'26': 98.5, 'Q4\'26': 98.5 },
+  stripCC: { 'Q1\'26': 98.5, 'Q2\'26': 98.5, 'Q3\'26': 98.5, 'Q4\'26': 98.5 },
+};
 
 // ─── Per-tab Discount / Reject thresholds ────────────────────────────────────
 // CP tabs 0,2 (35A 570mV / 50A 550+530+580mV): Discount 75~85%, Reject <75%
@@ -4538,12 +4547,96 @@ function decideLowYield(include) {
   if (lowYieldCallback) lowYieldCallback(include);
 }
 
+// ─── Assumption Yield Helpers ─────────────────────────────────────────────────
+// Map a chart label string to a quarter key (e.g. &quot;Q1'26&quot;)
+function lblToQuarter(lbl) {
+  if (!lbl) return null;
+  const s = String(lbl).trim();
+  // Weekly labels like &quot;W1&quot;, &quot;25W48&quot;, &quot;26W03&quot; → map to quarter
+  const wkMatch = s.match(/(?:(\d{2})W)?(\d+)/i);
+  if (wkMatch) {
+    const yr = wkMatch[1] ? parseInt(wkMatch[1]) + 2000 : 2026;
+    const wk = parseInt(wkMatch[2]);
+    const mo = Math.ceil(wk * 12 / 52);
+    const q  = Math.ceil(mo / 3);
+    return `Q${q}'${String(yr).slice(-2)}`;
+  }
+  // Monthly labels like &quot;26'Jan&quot;, &quot;26'Feb&quot;, &quot;25'Nov&quot; etc.
+  const moMap = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+  const moMatch = s.match(/(\d{2})'([A-Za-z]{3})/);
+  if (moMatch) {
+    const yr = parseInt(moMatch[1]) + 2000;
+    const mo = moMap[moMatch[2].toLowerCase()];
+    if (mo) {
+      const q = Math.ceil(mo / 3);
+      return `Q${q}'${String(yr).slice(-2)}`;
+    }
+  }
+  // Already a quarter like &quot;Q1'26&quot;
+  const qMatch = s.match(/Q([1-4])'(\d{2})/i);
+  if (qMatch) return `Q${qMatch[1]}'${qMatch[2]}`;
+  return null;
+}
+
+// Shared persistent state for all Target / Assumption checkboxes across every
+// sub-page (CP tabs, ULLD, Strip AC/CC weekly+monthly). A full re-render replaces
+// the checkbox markup, so the checked state must be remembered here and read back
+// when rebuilding that markup — otherwise every re-render resets the box to checked.
+window._annoChkState = window._annoChkState || {};
+function _annoChecked(key, type) {
+  if (!window._annoChkState[key]) window._annoChkState[key] = { target: true, assumption: true };
+  return window._annoChkState[key][type] !== false;
+}
+function _annoSetChecked(key, type, checked) {
+  if (!window._annoChkState[key]) window._annoChkState[key] = { target: true, assumption: true };
+  window._annoChkState[key][type] = checked;
+}
+
+// Toggle target / assumption lines on a CP chart
+function toggleCPAnnotation(tabIdx, type, checked) {
+  // Re-render the whole tab so checkboxes take effect (simplest approach)
+  const page = document.getElementById(`page${tabIdx}`);
+  if (!page) return;
+  // Preserve checkbox state before re-render via the shared store
+  _annoSetChecked(`cp_${tabIdx}`, type, checked);
+  // Trigger re-render by calling the existing render pipeline
+  if (typeof renderAllTabs === 'function') renderAllTabs(tabIdx);
+  else if (typeof renderTabPage === 'function' &amp;&amp; window._lastTabData &amp;&amp; window._lastTabData[tabIdx]) {
+    const { tabData, tabCfg, mode } = window._lastTabData[tabIdx];
+    if (mode === 'monthly') renderTabPageMonthly(tabIdx, tabData, tabCfg);
+    else renderTabPageWeekly(tabIdx, tabData, tabCfg);
+  }
+}
+
+function toggleULLDAnnotation(type, checked) {
+  _annoSetChecked('ulld', type, checked);
+  if (typeof renderULLDTab === 'function') renderULLDTab();
+}
+
+function toggleStripAnnotation(typeKey, type, checked) {
+  // typeKey: 'AC', 'CC', 'ACm', 'CCm'
+  _annoSetChecked(`strip_${typeKey}`, type, checked);
+  if (typeKey === 'AC' || typeKey === 'CC') {
+    if (typeof renderStripPage === 'function') {
+      const pageId = typeKey === 'AC' ? 'page5' : 'page6';
+      renderStripPage(pageId, typeKey);
+    }
+  } else if (typeKey === 'ACm' || typeKey === 'CCm') {
+    if (typeof renderStripPageMonthly === 'function') {
+      const pageId = typeKey === 'ACm' ? 'page5' : 'page6';
+      const t = typeKey === 'ACm' ? 'AC' : 'CC';
+      renderStripPageMonthly(pageId, t);
+    }
+  }
+}
+
+
 // ─── Chart Rendering ──────────────────────────────────────────────────────────
 function destroyChart(id) {
   if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
 }
 
-function makeComboChart(canvasId, labels, barData, lineData, barLabel, lineLabel, target, barColor, lineColor, yBarMax, line2Data, line2Label, line2Color, line3Data, line3Label, line3Color) {
+function makeComboChart(canvasId, labels, barData, lineData, barLabel, lineLabel, target, barColor, lineColor, yBarMax, line2Data, line2Label, line2Color, line3Data, line3Label, line3Color, line4Data, line4Label, line4Color) {
   destroyChart(canvasId);
   const ctx = document.getElementById(canvasId).getContext('2d');
 
@@ -4614,6 +4707,24 @@ function makeComboChart(canvasId, labels, barData, lineData, barLabel, lineLabel
     });
   }
 
+  // Optional fourth yield line (e.g. Assumption Yield) — green step/flat
+  if (line4Data &amp;&amp; line4Data.some(v => v != null)) {
+    datasets.push({
+      type: 'line',
+      label: line4Label || 'Assumption Yield',
+      data: line4Data,
+      borderColor: line4Color || '#1a9a1a',
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      borderDash: [8, 4],
+      pointRadius: 0,
+      yAxisID: 'yLine',
+      order: 0,
+      tension: 0,
+      spanGaps: true,
+    });
+  }
+
   // Target line
   if (target !== null &amp;&amp; target !== undefined) {
     datasets.push({
@@ -4629,7 +4740,7 @@ function makeComboChart(canvasId, labels, barData, lineData, barLabel, lineLabel
     });
   }
 
-  const allLine = [...(lineData||[]), ...(line2Data||[]), ...(line3Data||[])].filter(v => v != null);
+  const allLine = [...(lineData||[]), ...(line2Data||[]), ...(line3Data||[]), ...(line4Data||[])].filter(v => v != null);
   const maxBar = Math.max(...barData.filter(v=>v!=null), 1);
   const minLine = Math.min(...allLine, target||97);
   const maxLine = Math.max(...allLine, target||97);
@@ -5734,6 +5845,33 @@ function _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData
       </div>`
     : '';
 
+  // Build assumption yield table HTML for CP tabs
+  const _assumptionQtrs = [&quot;Q1'26&quot;, &quot;Q2'26&quot;, &quot;Q3'26&quot;, &quot;Q4'26&quot;];
+  const _assumptionHTML = `
+    <div style=&quot;overflow-x:auto;margin:4px 0 0 0;&quot;>
+      <table style=&quot;border-collapse:collapse;font-size:12px;width:100%;&quot;>
+        <thead>
+          <tr>
+            <th style=&quot;background:#ffd966;border:1px solid #ccc;padding:4px 10px;text-align:center;&quot;>2026 Target Yield</th>
+            <th colspan=&quot;4&quot; style=&quot;background:#bdd7ee;border:1px solid #ccc;padding:4px 10px;text-align:center;&quot;>2026 Assumption Yield</th>
+          </tr>
+          <tr>
+            <th style=&quot;background:#ffd966;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${tabCfg.target}%</th>
+            ${_assumptionQtrs.map(q => `<th style=&quot;background:#bdd7ee;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${q}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style=&quot;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${tabCfg.target}%</td>
+            ${_assumptionQtrs.map(q => `<td style=&quot;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${tabCfg.assumption[q] != null ? tabCfg.assumption[q].toFixed(1)+'%' : '-'}</td>`).join('')}
+          </tr>
+        </tbody>
+      </table>
+    </div>`;
+
+  const _cpTargetCheckId    = `chk_target_${tabIdx}`;
+  const _cpAssumptionCheckId = `chk_assumption_${tabIdx}`;
+
   page.innerHTML = `
     <button class=&quot;export-png-btn&quot; onclick=&quot;exportPagePNG('page${tabIdx}','${_cpPngName}')&quot;>📷 Export PNG</button>
     <div class=&quot;stats-row&quot;>
@@ -5745,12 +5883,26 @@ function _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData
       <div class=&quot;stat-card&quot;><div class=&quot;stat-label&quot;>Latest Edge Die Yield</div><div class=&quot;stat-value ${latestEdgeYield >= 90 ? 'good' : latestEdgeYield >= 80 ? 'warn' : 'bad'}&quot;>${latestEdgeYield != null ? latestEdgeYield.toFixed(1)+'%' : '-'}</div></div>
     </div>
 
+    ${_assumptionHTML}
+
     <div class=&quot;chart-row&quot;>
       <div class=&quot;chart-card&quot;>
-        <div class=&quot;chart-card-title&quot;>${tabCfg.label} chart${modeBadge}</div>
+        <div class=&quot;chart-card-title&quot; style=&quot;display:flex;align-items:center;justify-content:space-between;&quot;>
+          <span>${tabCfg.label} chart${modeBadge}</span>
+          <span style=&quot;display:flex;gap:12px;font-size:12px;font-weight:400;&quot;>
+            <label style=&quot;cursor:pointer;display:flex;align-items:center;gap:4px;&quot;>
+              <input type=&quot;checkbox&quot; id=&quot;${_cpTargetCheckId}&quot; ${_annoChecked(`cp_${tabIdx}`,'target')?'checked':''} onchange=&quot;toggleCPAnnotation(${tabIdx},'target',this.checked)&quot;>
+              <span style=&quot;color:#d94f4f;&quot;>Target</span>
+            </label>
+            <label style=&quot;cursor:pointer;display:flex;align-items:center;gap:4px;&quot;>
+              <input type=&quot;checkbox&quot; id=&quot;${_cpAssumptionCheckId}&quot; ${_annoChecked(`cp_${tabIdx}`,'assumption')?'checked':''} onchange=&quot;toggleCPAnnotation(${tabIdx},'assumption',this.checked)&quot;>
+              <span style=&quot;color:#1a7a1a;&quot;>Assumption</span>
+            </label>
+          </span>
+        </div>
         ${chartSubtitle}
         <div class=&quot;chart-wrap&quot;><canvas id=&quot;${cpChartId}&quot;></canvas></div>
-        <div class=&quot;target-note&quot;>— 2026 target ${tabCfg.target}%</div>
+        <div class=&quot;target-note&quot;>— 2026 target ${tabCfg.target}% &nbsp;|&nbsp; Assumption Q1-Q4: ${_assumptionQtrs.map(q=>tabCfg.assumption[q]+'%').join(' / ')}</div>
       </div>
     </div>
 
@@ -5792,11 +5944,19 @@ function _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData
     const watTrend = computeWatYield(combined, tabCfg.devices, isMonthly);
     const hasWat = watTrend.some(v => v != null);
     const hasInitYield = initCpYieldData &amp;&amp; initCpYieldData.some(v => v != null);
+    // Build assumption yield flat line data based on labels (quarter detection)
+    const assumptionLineData = labels.map(lbl => {
+      const q = lblToQuarter(lbl);
+      return q &amp;&amp; tabCfg.assumption ? (tabCfg.assumption[q] != null ? tabCfg.assumption[q] : null) : null;
+    });
+    const showTarget    = _annoChecked(`cp_${tabIdx}`, 'target');
+    const showAssumption = _annoChecked(`cp_${tabIdx}`, 'assumption');
     makeComboChart(cpChartId, labels, inputData, cpYieldData,
-      'Input (pcs)', 'Final Yield (%)', tabCfg.target,
+      'Input (pcs)', 'Final Yield (%)', showTarget ? tabCfg.target : null,
       'rgba(74,124,255,0.5)', '#4a7cff', null,
       hasWat ? watTrend : null, 'WAT Yield (%)', '#f9ca24',
-      hasInitYield ? initCpYieldData : null, 'Initial CP Yield (%)', '#9b59b6');
+      hasInitYield ? initCpYieldData : null, 'Initial CP Yield (%)', '#9b59b6',
+      showAssumption &amp;&amp; assumptionLineData.some(v=>v!=null) ? assumptionLineData : null, 'Assumption Yield (%)', '#1a9a1a');
 
     if (tabIdx === 2 &amp;&amp; tabData._byDevice) {
       // 50A: combined bar+3-line chart
@@ -6044,11 +6204,50 @@ function renderULLDTab() {
       <div class=&quot;stat-card&quot;><div class=&quot;stat-label&quot;>Latest Extra Die Yield</div><div class=&quot;stat-value ${latestDiceYield >= 80 ? 'good' : latestDiceYield >= 70 ? 'warn' : 'bad'}&quot;>${latestDiceYield != null ? latestDiceYield.toFixed(1)+'%' : '-'}</div></div>
     </div>
 
+    <div style=&quot;overflow-x:auto;margin:4px 0 0 0;&quot;>
+      <table style=&quot;border-collapse:collapse;font-size:12px;width:100%;&quot;>
+        <thead>
+          <tr>
+            <th style=&quot;background:#ffd966;border:1px solid #ccc;padding:4px 10px;text-align:center;&quot;>2026 Target Yield</th>
+            <th colspan=&quot;4&quot; style=&quot;background:#bdd7ee;border:1px solid #ccc;padding:4px 10px;text-align:center;&quot;>2026 Assumption Yield</th>
+          </tr>
+          <tr>
+            <th style=&quot;background:#ffd966;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${TARGET_YIELD}%</th>
+            <th style=&quot;background:#bdd7ee;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>Q1'26</th>
+            <th style=&quot;background:#bdd7ee;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>Q2'26</th>
+            <th style=&quot;background:#bdd7ee;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>Q3'26</th>
+            <th style=&quot;background:#bdd7ee;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>Q4'26</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style=&quot;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${TARGET_YIELD}%</td>
+            <td style=&quot;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${ASSUMPTION_YIELD.ulld['Q1\'26']}%</td>
+            <td style=&quot;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${ASSUMPTION_YIELD.ulld['Q2\'26']}%</td>
+            <td style=&quot;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${ASSUMPTION_YIELD.ulld['Q3\'26']}%</td>
+            <td style=&quot;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${ASSUMPTION_YIELD.ulld['Q4\'26']}%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
     <div class=&quot;chart-row&quot;>
       <div class=&quot;chart-card&quot;>
-        <div class=&quot;chart-card-title&quot;>ULLD CP test yield chart${reportMode === 'monthly' ? ' — Monthly (Quarterly + Monthly trend)' : ''}</div>
+        <div class=&quot;chart-card-title&quot; style=&quot;display:flex;align-items:center;justify-content:space-between;&quot;>
+          <span>ULLD CP test yield chart${reportMode === 'monthly' ? ' — Monthly (Quarterly + Monthly trend)' : ''}</span>
+          <span style=&quot;display:flex;gap:12px;font-size:12px;font-weight:400;&quot;>
+            <label style=&quot;cursor:pointer;display:flex;align-items:center;gap:4px;&quot;>
+              <input type=&quot;checkbox&quot; id=&quot;chk_ulld_target&quot; ${_annoChecked('ulld','target')?'checked':''} onchange=&quot;toggleULLDAnnotation('target',this.checked)&quot;>
+              <span style=&quot;color:#d94f4f;&quot;>Target</span>
+            </label>
+            <label style=&quot;cursor:pointer;display:flex;align-items:center;gap:4px;&quot;>
+              <input type=&quot;checkbox&quot; id=&quot;chk_ulld_assumption&quot; ${_annoChecked('ulld','assumption')?'checked':''} onchange=&quot;toggleULLDAnnotation('assumption',this.checked)&quot;>
+              <span style=&quot;color:#1a7a1a;&quot;>Assumption</span>
+            </label>
+          </span>
+        </div>
         <div class=&quot;chart-wrap&quot;><canvas id=&quot;${cpId}&quot;></canvas></div>
-        <div class=&quot;target-note&quot;>— 2026 target ${TARGET_YIELD}%</div>
+        <div class=&quot;target-note&quot;>— 2026 target ${TARGET_YIELD}% &nbsp;|&nbsp; Assumption Q1-Q4: 91.7% / 91.7% / 91.7% / 91.7%</div>
       </div>
     </div>
 
@@ -6116,8 +6315,18 @@ function renderULLDTab() {
     const ulldWatTrend = computeWatYield(combined, ['ULLD'], reportMode === 'monthly');
     const hasUlldWat   = ulldWatTrend.some(v => v != null);
 
+    // Build assumption line for ULLD
+    const ulldAssumptionLine = labels.map(lbl => {
+      const q = lblToQuarter(lbl);
+      return q &amp;&amp; ASSUMPTION_YIELD.ulld[q] != null ? ASSUMPTION_YIELD.ulld[q] : null;
+    });
+    const showUlldTarget     = _annoChecked('ulld', 'target');
+    const showUlldAssumption = _annoChecked('ulld', 'assumption');
+
     // CP yield combo chart (Input bars + Final Yield line + CP Yield line + WAT Yield line)
-    chartInstances[cpId] = makeULLDComboChart(cpId, labels, inputData, finalYData, cpYData, TARGET_YIELD, hasUlldWat ? ulldWatTrend : null);
+    chartInstances[cpId] = makeULLDComboChart(cpId, labels, inputData, finalYData, cpYData,
+      showUlldTarget ? TARGET_YIELD : null, hasUlldWat ? ulldWatTrend : null,
+      showUlldAssumption &amp;&amp; ulldAssumptionLine.some(v=>v!=null) ? ulldAssumptionLine : null);
 
     // Extra die (edge die) chart: dice(pcs) bars + dice Yield(%) line
     chartInstances[edgeId] = makeULLDEdgeChart(edgeId, labels, dicePcsData, diceYieldData);
@@ -6127,7 +6336,7 @@ function renderULLDTab() {
   });
 }
 
-function makeULLDComboChart(id, labels, barData, finalYData, cpYData, target, watYieldTrend) {
+function makeULLDComboChart(id, labels, barData, finalYData, cpYData, target, watYieldTrend, assumptionData) {
   const ctx = document.getElementById(id).getContext('2d');
 
   const datasets = [
@@ -6161,7 +6370,27 @@ function makeULLDComboChart(id, labels, barData, finalYData, cpYData, target, wa
     });
   }
 
-  const allYields = [...(finalYData||[]), ...(cpYData||[]), ...(watYieldTrend||[])].filter(v => v != null);
+  // Assumption Yield line — green dashed, no points
+  if (assumptionData &amp;&amp; assumptionData.some(v => v != null)) {
+    datasets.push({
+      type: 'line', label: 'Assumption Yield (%)', data: assumptionData,
+      borderColor: '#1a9a1a', backgroundColor: 'transparent',
+      borderWidth: 2, borderDash: [8,4],
+      pointRadius: 0, yAxisID: 'yYield', tension: 0, order: 0, spanGaps: true
+    });
+  }
+
+  const allYields = [...(finalYData||[]), ...(cpYData||[]), ...(watYieldTrend||[]), ...(assumptionData||[])].filter(v => v != null);
+
+  // Build annotations
+  const annotations = {};
+  if (target) {
+    annotations.targetLine = {
+      type: 'line', yMin: target, yMax: target, yScaleID: 'yYield',
+      borderColor: '#d94f4f', borderWidth: 1.5, borderDash: [6,3],
+      label: { content: `Target ${target}%`, enabled: true, position: 'end', font: { size: 10 }, color: '#d94f4f', backgroundColor: 'rgba(255,255,255,0.7)' }
+    };
+  }
 
   return new Chart(ctx, {
     data: { labels, datasets },
@@ -6169,15 +6398,7 @@ function makeULLDComboChart(id, labels, barData, finalYData, cpYData, target, wa
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { position: 'bottom', labels: { font: { size: 11 } } },
-        annotation: target ? {
-          annotations: {
-            targetLine: {
-              type: 'line', yMin: target, yMax: target, yScaleID: 'yYield',
-              borderColor: '#d94f4f', borderWidth: 1.5, borderDash: [6,3],
-              label: { content: `Target ${target}%`, enabled: true, position: 'end', font: { size: 10 }, color: '#d94f4f', backgroundColor: 'rgba(255,255,255,0.7)' }
-            }
-          }
-        } : {},
+        annotation: Object.keys(annotations).length ? { annotations } : {},
         tooltip: { mode: 'index', intersect: false }
       },
       scales: {
@@ -6829,6 +7050,9 @@ function renderStripPage(pageId, type) {
 
   function yieldClass(v) { return v >= TARGET ? 'good' : v >= TARGET-1 ? 'warn' : 'bad'; }
 
+  const _stripAssumptionKey = type === 'AC' ? 'stripAC' : 'stripCC';
+  const _stripChkId = `chk_strip_${type}`;
+
   page.innerHTML = `
     <button class=&quot;export-png-btn&quot; onclick=&quot;exportPagePNG('${pageId}','Strip_${type}_${new Date().toISOString().slice(0,10)}.png')&quot;>📷 Export PNG</button>
     <div class=&quot;stats-row&quot;>
@@ -6840,11 +7064,50 @@ function renderStripPage(pageId, type) {
       <div class=&quot;stat-card&quot;><div class=&quot;stat-label&quot;>Total Output (pcs)</div><div class=&quot;stat-value&quot;>${totalOutput.toLocaleString()}</div></div>
     </div>
 
+    <div style=&quot;overflow-x:auto;margin:4px 0 0 0;&quot;>
+      <table style=&quot;border-collapse:collapse;font-size:12px;width:100%;&quot;>
+        <thead>
+          <tr>
+            <th style=&quot;background:#ffd966;border:1px solid #ccc;padding:4px 10px;text-align:center;&quot;>2026 Target Yield</th>
+            <th colspan=&quot;4&quot; style=&quot;background:#bdd7ee;border:1px solid #ccc;padding:4px 10px;text-align:center;&quot;>2026 Assumption Yield</th>
+          </tr>
+          <tr>
+            <th style=&quot;background:#ffd966;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${TARGET}%</th>
+            <th style=&quot;background:#bdd7ee;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>Q1'26</th>
+            <th style=&quot;background:#bdd7ee;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>Q2'26</th>
+            <th style=&quot;background:#bdd7ee;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>Q3'26</th>
+            <th style=&quot;background:#bdd7ee;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>Q4'26</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style=&quot;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${TARGET}%</td>
+            <td style=&quot;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${ASSUMPTION_YIELD[_stripAssumptionKey]['Q1\'26']}%</td>
+            <td style=&quot;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${ASSUMPTION_YIELD[_stripAssumptionKey]['Q2\'26']}%</td>
+            <td style=&quot;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${ASSUMPTION_YIELD[_stripAssumptionKey]['Q3\'26']}%</td>
+            <td style=&quot;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${ASSUMPTION_YIELD[_stripAssumptionKey]['Q4\'26']}%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
     <div class=&quot;chart-row&quot;>
       <div class=&quot;chart-card&quot;>
-        <div class=&quot;chart-card-title&quot;>ULLD strip test ${type} yield chart</div>
+        <div class=&quot;chart-card-title&quot; style=&quot;display:flex;align-items:center;justify-content:space-between;&quot;>
+          <span>ULLD strip test ${type} yield chart</span>
+          <span style=&quot;display:flex;gap:12px;font-size:12px;font-weight:400;&quot;>
+            <label style=&quot;cursor:pointer;display:flex;align-items:center;gap:4px;&quot;>
+              <input type=&quot;checkbox&quot; id=&quot;${_stripChkId}_target&quot; ${_annoChecked(`strip_${type}`,'target')?'checked':''} onchange=&quot;toggleStripAnnotation('${type}','target',this.checked)&quot;>
+              <span style=&quot;color:#d94f4f;&quot;>Target</span>
+            </label>
+            <label style=&quot;cursor:pointer;display:flex;align-items:center;gap:4px;&quot;>
+              <input type=&quot;checkbox&quot; id=&quot;${_stripChkId}_assumption&quot; ${_annoChecked(`strip_${type}`,'assumption')?'checked':''} onchange=&quot;toggleStripAnnotation('${type}','assumption',this.checked)&quot;>
+              <span style=&quot;color:#1a7a1a;&quot;>Assumption</span>
+            </label>
+          </span>
+        </div>
         <div class=&quot;chart-wrap&quot; style=&quot;height:300px&quot;><canvas id=&quot;${chartId}&quot;></canvas></div>
-        <div class=&quot;target-note&quot;>— 2026 target ${TARGET}%</div>
+        <div class=&quot;target-note&quot;>— 2026 target ${TARGET}% &nbsp;|&nbsp; Assumption Q1-Q4: 98.5% / 98.5% / 98.5% / 98.5%</div>
       </div>
     </div>
 
@@ -6902,15 +7165,30 @@ function renderStripPage(pageId, type) {
         plugins: {
           legend: { position: 'bottom', labels: { font: { size: 10 } } },
           tooltip: { mode: 'index', intersect: false },
-          annotation: {
-            annotations: {
-              targetLine: {
+          annotation: (() => {
+            const stripAssumptionKey = type === 'AC' ? 'stripAC' : 'stripCC';
+            const showT = _annoChecked(`strip_${type}`, 'target');
+            const showA = _annoChecked(`strip_${type}`, 'assumption');
+            const anns = {};
+            if (showT) {
+              anns.targetLine = {
                 type: 'line', yMin: TARGET, yMax: TARGET, yScaleID: 'yYield',
                 borderColor: '#d94f4f', borderWidth: 1.5, borderDash: [6,3],
                 label: { content: `2026 target ${TARGET}%`, display: true, position: 'end', font: { size: 10 }, color: '#d94f4f', backgroundColor: 'rgba(255,255,255,0.7)' }
+              };
+            }
+            if (showA) {
+              const assumptionVal = ASSUMPTION_YIELD[stripAssumptionKey] ? ASSUMPTION_YIELD[stripAssumptionKey][&quot;Q1'26&quot;] : null;
+              if (assumptionVal != null) {
+                anns.assumptionLine = {
+                  type: 'line', yMin: assumptionVal, yMax: assumptionVal, yScaleID: 'yYield',
+                  borderColor: '#1a9a1a', borderWidth: 1.5, borderDash: [8,4],
+                  label: { content: `Assumption ${assumptionVal}%`, display: true, position: 'start', font: { size: 10 }, color: '#1a9a1a', backgroundColor: 'rgba(255,255,255,0.7)' }
+                };
               }
             }
-          }
+            return { annotations: anns };
+          })()
         },
         scales: {
           x: { ticks: { font: { size: 10 }, maxRotation: 45 } },
@@ -7185,15 +7463,54 @@ function renderStripPageMonthly(pageId, type) {
       <div class=&quot;stat-card&quot;><div class=&quot;stat-label&quot;>Total Output (pcs)</div><div class=&quot;stat-value&quot;>${totalOutput.toLocaleString()}</div></div>
     </div>
 
+    <div style=&quot;overflow-x:auto;margin:4px 0 0 0;&quot;>
+      <table style=&quot;border-collapse:collapse;font-size:12px;width:100%;&quot;>
+        <thead>
+          <tr>
+            <th style=&quot;background:#ffd966;border:1px solid #ccc;padding:4px 10px;text-align:center;&quot;>2026 Target Yield</th>
+            <th colspan=&quot;4&quot; style=&quot;background:#bdd7ee;border:1px solid #ccc;padding:4px 10px;text-align:center;&quot;>2026 Assumption Yield</th>
+          </tr>
+          <tr>
+            <th style=&quot;background:#ffd966;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${TARGET}%</th>
+            <th style=&quot;background:#bdd7ee;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>Q1'26</th>
+            <th style=&quot;background:#bdd7ee;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>Q2'26</th>
+            <th style=&quot;background:#bdd7ee;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>Q3'26</th>
+            <th style=&quot;background:#bdd7ee;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>Q4'26</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style=&quot;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${TARGET}%</td>
+            <td style=&quot;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${ASSUMPTION_YIELD[type==='AC'?'stripAC':'stripCC']['Q1\'26']}%</td>
+            <td style=&quot;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${ASSUMPTION_YIELD[type==='AC'?'stripAC':'stripCC']['Q2\'26']}%</td>
+            <td style=&quot;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${ASSUMPTION_YIELD[type==='AC'?'stripAC':'stripCC']['Q3\'26']}%</td>
+            <td style=&quot;border:1px solid #ccc;padding:3px 8px;text-align:center;&quot;>${ASSUMPTION_YIELD[type==='AC'?'stripAC':'stripCC']['Q4\'26']}%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
     <div class=&quot;chart-row&quot;>
       <div class=&quot;chart-card&quot;>
-        <div class=&quot;chart-card-title&quot;>ULLD strip test ${type} yield chart — Monthly (Quarterly + Monthly trend)</div>
+        <div class=&quot;chart-card-title&quot; style=&quot;display:flex;align-items:center;justify-content:space-between;&quot;>
+          <span>ULLD strip test ${type} yield chart — Monthly (Quarterly + Monthly trend)</span>
+          <span style=&quot;display:flex;gap:12px;font-size:12px;font-weight:400;&quot;>
+            <label style=&quot;cursor:pointer;display:flex;align-items:center;gap:4px;&quot;>
+              <input type=&quot;checkbox&quot; id=&quot;chk_strip_${type}m_target&quot; ${_annoChecked(`strip_${type}m`,'target')?'checked':''} onchange=&quot;toggleStripAnnotation('${type}m','target',this.checked)&quot;>
+              <span style=&quot;color:#d94f4f;&quot;>Target</span>
+            </label>
+            <label style=&quot;cursor:pointer;display:flex;align-items:center;gap:4px;&quot;>
+              <input type=&quot;checkbox&quot; id=&quot;chk_strip_${type}m_assumption&quot; ${_annoChecked(`strip_${type}m`,'assumption')?'checked':''} onchange=&quot;toggleStripAnnotation('${type}m','assumption',this.checked)&quot;>
+              <span style=&quot;color:#1a7a1a;&quot;>Assumption</span>
+            </label>
+          </span>
+        </div>
         <div style=&quot;display:flex;gap:8px;align-items:center;justify-content:center;margin-bottom:6px;&quot;>
           <span style=&quot;font-size:11px;color:#9a7a00;background:#fff8d0;border:1px solid #e8d880;border-radius:4px;padding:2px 8px;&quot;>◀ Last 5 Qtrs</span>
           <span style=&quot;font-size:11px;color:#1a4a8a;background:#eef5ff;border:1px solid #b0d0f0;border-radius:4px;padding:2px 8px;&quot;>Last 5 Mo ▶</span>
         </div>
         <div class=&quot;chart-wrap&quot; style=&quot;height:300px&quot;><canvas id=&quot;${chartId}&quot;></canvas></div>
-        <div class=&quot;target-note&quot;>— 2026 target ${TARGET}%</div>
+        <div class=&quot;target-note&quot;>— 2026 target ${TARGET}% &nbsp;|&nbsp; Assumption Q1-Q4: 98.5% / 98.5% / 98.5% / 98.5%</div>
       </div>
     </div>
 
@@ -7258,21 +7575,37 @@ function renderStripPageMonthly(pageId, type) {
         plugins: {
           legend: { position: 'bottom', labels: { font: { size: 10 } } },
           tooltip: { mode: 'index', intersect: false },
-          annotation: {
-            annotations: {
-              targetLine: {
-                type: 'line', yMin: TARGET, yMax: TARGET, yScaleID: 'yYield',
-                borderColor: '#d94f4f', borderWidth: 1.5, borderDash: [6,3],
-                label: { content: `2026 target ${TARGET}%`, display: true, position: 'end', font: { size: 10 }, color: '#d94f4f', backgroundColor: 'rgba(255,255,255,0.7)' }
-              },
+          annotation: (() => {
+            const stripAssumptionKey = type === 'AC' ? 'stripAC' : 'stripCC';
+            const showT = _annoChecked(`strip_${type}m`, 'target');
+            const showA = _annoChecked(`strip_${type}m`, 'assumption');
+            const anns = {
               // Divider between quarterly and monthly sections
               dividerLine: {
                 type: 'line', xMin: qCount - 0.5, xMax: qCount - 0.5,
                 borderColor: '#e8d880', borderWidth: 2, borderDash: [4,4],
                 label: { content: 'Qtr ↔ Mo', display: true, position: 'start', font: { size: 10 }, color: '#9a7a00', backgroundColor: 'rgba(255,250,220,0.8)' }
               }
+            };
+            if (showT) {
+              anns.targetLine = {
+                type: 'line', yMin: TARGET, yMax: TARGET, yScaleID: 'yYield',
+                borderColor: '#d94f4f', borderWidth: 1.5, borderDash: [6,3],
+                label: { content: `2026 target ${TARGET}%`, display: true, position: 'end', font: { size: 10 }, color: '#d94f4f', backgroundColor: 'rgba(255,255,255,0.7)' }
+              };
             }
-          }
+            if (showA) {
+              const assumptionVal = ASSUMPTION_YIELD[stripAssumptionKey] ? ASSUMPTION_YIELD[stripAssumptionKey][&quot;Q1'26&quot;] : null;
+              if (assumptionVal != null) {
+                anns.assumptionLine = {
+                  type: 'line', yMin: assumptionVal, yMax: assumptionVal, yScaleID: 'yYield',
+                  borderColor: '#1a9a1a', borderWidth: 1.5, borderDash: [8,4],
+                  label: { content: `Assumption ${assumptionVal}%`, display: true, position: 'start', font: { size: 10 }, color: '#1a9a1a', backgroundColor: 'rgba(255,255,255,0.7)' }
+                };
+              }
+            }
+            return { annotations: anns };
+          })()
         },
         scales: {
           x: { ticks: { font: { size: 10 }, maxRotation: 45 } },

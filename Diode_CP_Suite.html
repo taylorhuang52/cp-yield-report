@@ -9202,7 +9202,7 @@ function showFileSizeAlert() {
 function attachFileSizeGuards() {
   // ulldMultiFile / ulldDirFile are handled by ulldRegisterFiles which calls
   // checkFileSize directly — skip them here to avoid double-checking
-  const skipIds = new Set(['ulldMultiFile', 'ulldDirFile']);
+  const skipIds = new Set(['ulldMultiFile', 'ulldDirFile', 'bhm-listFile', 'bhm-xlsFiles']);
 
   document.querySelectorAll('input[type="file"]').forEach(input => {
     if (input.dataset.sizeGuard) return;

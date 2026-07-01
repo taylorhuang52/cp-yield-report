@@ -2423,17 +2423,18 @@
 
       <label for="zipFile">Single Lot ZIP</label>
       <input id="zipFile" type="file" accept=".zip,application/zip">
-      <label for="headerFile" title="EK/RK/NK → LLD; RP → ULLD (optional, auto-detected from ZIP filename)">Header CSV <span style="font-weight:400;color:#888;font-size:10px;">(optional, auto-detected by Lot No.)</span></label>
+      <label for="headerFile" title="EK/RK/NK → LLD (auto-picks full or reduced item set by column count); RP → ULLD (optional, auto-detected from ZIP filename)">Header CSV <span style="font-weight:400;color:#888;font-size:10px;">(optional, auto-detected by Lot No. &amp; test-item count)</span></label>
       <input id="headerFile" type="file" accept=".csv,text/csv">
       <div style="display:flex;gap:6px;margin-top:6px;">
-        <button class="hm-btn" id="btnLLD" style="background:#e8f4fd;border-color:#90c8f0;color:#1565a8;font-weight:600;flex:1;" title="Load LLD header">LLD</button>
+        <button class="hm-btn" id="btnLLD" style="background:#e8f4fd;border-color:#90c8f0;color:#1565a8;font-weight:600;flex:1;" title="Load full LLD header (more test items)">LLD</button>
+        <button class="hm-btn" id="btnLLD2" style="background:#eef4e8;border-color:#a8cf90;color:#3a7a1a;font-weight:600;flex:1;" title="Load reduced LLD header (fewer test items)">LLD-2</button>
         <button class="hm-btn" id="btnULLD" style="background:#fef3e2;border-color:#f0b840;color:#8a5a00;font-weight:600;flex:1;" title="Load ULLD header">ULLD</button>
       </div>
       <div class="hm-status" id="headerPresetStatus" style="font-size:11px;min-height:16px;"></div>
       <div class="hm-buttons">
         <button class="hm-btn" id="mergeBtn">Merge & Download CSV</button>
       </div>
-      <div class="hm-status" id="mergeStatus">Uses chars 9-10 of each CSV filename as Wafer_ID; skips first 35 rows.</div>
+      <div class="hm-status" id="mergeStatus">Uses chars 9-10 of each CSV filename as Wafer_ID; skips first 35 rows. LLD header auto-picks full vs. reduced (LLD-2) test-item set by matching data column count.</div>
     </div>
 
     <!-- Load CSV -->
@@ -10770,7 +10771,8 @@ function parseLogMeta(rawText) {
       csvHandles.sort((a, b) => a.name.localeCompare(b.name));
 
       // Build merged CSV in memory (same format as ZIP merge)
-      const { line: headerLine, label: headerLabel } = autoHeaderLine(lot);
+      const firstSampleText = (await (await csvHandles[0].handle.getFile()).text()).replace(/^\uFEFF/, "");
+      const { line: headerLine, label: headerLabel } = autoHeaderLine(lot, firstDataLine(firstSampleText));
       const out = [headerLine];
       for (const { handle: fh, name } of csvHandles) {
         const baseName = name.replace(/\.[^.]+$/, "");
@@ -11058,8 +11060,8 @@ async function buildExtDirIndex(dirHandle, onProgress, _basePath) {
 
       for (let i = 0; i < lots.length; i++) {
         const lot = lots[i];
-        // Auto-detect header per Lot No.
-        const { line: headerLine, label: headerLabel } = autoHeaderLine(lot);
+        // Header prefix detection (LLD vs ULLD) per Lot No.; LLD variant (full/reduced) resolved below once data is read.
+        let { line: headerLine, label: headerLabel } = autoHeaderLine(lot);
         setBatchStatus(`🔎 (${i+1}/${total}) Looking up ${lot}.zip [${headerLabel}] ...`, "#1565a8");
         try {
           const found = zipIndex[lot + ".zip"] || null;
@@ -11080,6 +11082,10 @@ async function buildExtDirIndex(dirHandle, onProgress, _basePath) {
           if (!csvEntries.length) {
             results.push({ lotNo: lot, pngBlob: null, status: "NO_CSV" });
             continue;
+          }
+          if (headerLabel === 'LLD') {
+            const sampleRaw = await csvEntries[0].text();
+            headerLine = autoHeaderLine(lot, firstDataLine(sampleRaw)).line;
           }
           const out = [headerLine];
           for (const entry of csvEntries) {
@@ -11328,7 +11334,7 @@ async function buildExtDirIndex(dirHandle, onProgress, _basePath) {
 
       for (let i = 0; i < lots.length; i++) {
         const lot = lots[i];
-        const { line: headerLine, label: headerLabel } = autoHeaderLine(lot);
+        let { line: headerLine, label: headerLabel } = autoHeaderLine(lot);
         setStatus(`🔎 (${i+1}/${total}) Looking up folder: ${lot} [${headerLabel}] ...`, "#1565a8");
         try {
           const found = dirIndex[lot.toLowerCase()] || null;
@@ -11355,6 +11361,11 @@ async function buildExtDirIndex(dirHandle, onProgress, _basePath) {
           }
 
           csvHandles.sort((a, b) => a.name.localeCompare(b.name));
+
+          if (headerLabel === 'LLD') {
+            const sampleText = (await (await csvHandles[0].handle.getFile()).text()).replace(/^\uFEFF/, "");
+            headerLine = autoHeaderLine(lot, firstDataLine(sampleText)).line;
+          }
 
           setStatus(`⚙️ (${i+1}/${total}) Merging ${csvHandles.length} CSV(s) from ${lot} ...`, "#1565a8");
           const out = [headerLine];
@@ -11560,15 +11571,17 @@ async function mergeZipCsv() {
     try {
         hmEls.mergeBtn.disabled = true;
         setMergeStatus("Reading ZIP...", false);
-        // Header priority: ① user-selected headerFile → ② auto-detect from ZIP filename
+        // Header priority: ① user-selected headerFile (truly manual) → ② auto-detect from ZIP filename + data column count
         const headerFile = hmEls.headerFile.files && hmEls.headerFile.files[0];
-        let headerLine, headerSource;
-        if (headerFile) {
+        const isManualHeader = !!headerFile && hmEls.headerFile.dataset.isAuto === '0';
+        let headerLine, headerSource, lotNo;
+        if (isManualHeader) {
             headerLine = firstLine(await headerFile.text()).replace(/^\uFEFF/, "");
             if (!headerLine.trim()) throw new Error("Header CSV first row is empty.");
             headerSource = "(manual)";
         } else {
-            const lotNo = zipFile.name.replace(/\.zip$/i, "");
+            lotNo = zipFile.name.replace(/\.zip$/i, "");
+            // Placeholder until we've read a sample data row below (only matters for the LLD vs LLD-2 choice)
             const auto = autoHeaderLine(lotNo);
             headerLine = auto.line;
             headerSource = "(auto " + auto.label + "）";
@@ -11579,8 +11592,9 @@ async function mergeZipCsv() {
                                   .sort((a, b) => baseName(a.name).localeCompare(baseName(b.name)));
         if (!csvEntries.length) throw new Error("No CSV files found inside ZIP.");
         // Parse metadata (Production ID, test limits) from the first CSV entry
+        let firstRaw = "";
         try {
-          const firstRaw = await csvEntries[0].text();
+          firstRaw = await csvEntries[0].text();
           hmLogMeta = parseLogMeta(firstRaw);
           console.log("[parseLogMeta] productModel:", hmLogMeta.productModel);
           console.log("[parseLogMeta] limits:", Object.keys(hmLogMeta.limits).length, hmLogMeta.limits);
@@ -11588,6 +11602,14 @@ async function mergeZipCsv() {
         } catch(e) {
           console.error("[parseLogMeta] error:", e);
           hmLogMeta = { productModel: null, limits: {} };
+        }
+        // Re-resolve auto header now that real data is available: pick the LLD variant
+        // (full vs. reduced test-item set) whose column count matches the data.
+        if (!isManualHeader) {
+            const auto = autoHeaderLine(lotNo, firstDataLine(firstRaw));
+            headerLine = auto.line;
+            headerSource = "(auto " + (auto.variant === 'LLD2' ? 'LLD-2 (reduced)' : auto.label) + "）";
+            setMergeStatus("Header " + headerSource + "，Reading ZIP...", false);
         }
         const out = [headerLine];
         let totalRows = 0;
@@ -12071,6 +12093,8 @@ function downloadPng() {
 // EMBEDDED PRESET HEADERS (base64)
 // ═══════════════════════════════════════════════════════════
 const LLD_B64  = "77u/V2FmZXJfSUQsU2VyaWFsLEhCLFNCLFgsWSxDb250YWN0KDEpLENvbnRhY3QoMiksQ29udGFjdCgzKSxDb250YWN0KDQpLFZaMF81VixWWjBfMjBWLFZaMCxJUjAsRElSMCxWRjAsVloxLFZaMixEVlosSVIyXzEsSVIyXzFfMSxESVIyXzEsVkYxLElSMl8yLFZaMw0K";
+// LLD — reduced test-item variant (fewer columns than LLD_B64; missing VZ1 / IR2_1_1 / DIR2_1 / IR2_2)
+const LLD2_B64 = "77u/V2FmZXJfSUQsU2VyaWFsLEhCLFNCLFgsWSxDb250YWN0KDEpLENvbnRhY3QoMiksQ29udGFjdCgzKSxDb250YWN0KDQpLFZaMF81VixWWjBfMjBWLFZaMCxJUjAsRElSMCxWRjAsVloyLERWWixJUjJfMSxWRjEsVlozDQo=";
 const ULLD_B64 = "77u/V2FmZXJfSUQsU2VyaWFsLEhCLFNCLFgsWSxUZXN0IFRpbWUoMCksQjZfQ29udGFjdDEoMSksQjdfQ29udGFjdDIoMiksQjhfQ29udGFjdDMoMyksQjlfQ29udGFjdDQoNCksQjEwX0NvbnRhY3Q1KDUpLElHU1MyRixJR1NTMyxJR1NTMlIsSURTUzIsUklEU1MyLFZGU0RTMSxCVkRTU18xMDB1QSxCVkRTUzIsQlZEU1MzLEJWRFNTXzEwMG1BLERlbHRhMSxWVEgxLFZUSDIsRGVsdGEyLElHU1MyRl8yLEIzN19SZXNpc3RvcixCMzVfSURTUzJfdGVzdDINCg==";
 
 function b64ToFile(b64, filename) {
@@ -12080,11 +12104,12 @@ function b64ToFile(b64, filename) {
   return new File([bytes], filename, { type: 'text/csv' });
 }
 
-function injectHeaderFile(file, label) {
+function injectHeaderFile(file, label, isAuto) {
   const dt = new DataTransfer();
   dt.items.add(file);
   const input = document.getElementById('headerFile');
   input.files = dt.files;
+  input.dataset.isAuto = isAuto ? '1' : '0';
   // Show label
   const status = document.getElementById('headerPresetStatus');
   status.textContent = '✅ Loaded ' + label + ' header';
@@ -12092,42 +12117,83 @@ function injectHeaderFile(file, label) {
 }
 
 document.getElementById('btnLLD').addEventListener('click', function() {
-  injectHeaderFile(b64ToFile(LLD_B64,  'LLD_header.csv'),  'LLD');
+  injectHeaderFile(b64ToFile(LLD_B64,  'LLD_header.csv'),  'LLD', false);
+});
+
+document.getElementById('btnLLD2').addEventListener('click', function() {
+  injectHeaderFile(b64ToFile(LLD2_B64, 'LLD2_header.csv'), 'LLD-2 (reduced)', false);
 });
 
 document.getElementById('btnULLD').addEventListener('click', function() {
-  injectHeaderFile(b64ToFile(ULLD_B64, 'ULLD_header.csv'), 'ULLD');
+  injectHeaderFile(b64ToFile(ULLD_B64, 'ULLD_header.csv'), 'ULLD', false);
 });
 
-// ── Auto-detect header by Lot No. ─────────────────────────────
-// EK / RK / NK → LLD    |    RP → ULLD
-// Returns { line: string, label: 'LLD'|'ULLD' }
-function autoHeaderLine(lotNo) {
-  // Use TextDecoder to correctly handle UTF-8 BOM (\xef\xbb\xbf) that atob() preserves as raw bytes
-  function b64ToHeaderLine(b64) {
-    const bin = atob(b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const text = new TextDecoder('utf-8').decode(bytes); // TextDecoder strips UTF-8 BOM automatically
-    return text.split(/\r?\n/)[0];
+// A real user file pick (native browser 'change' event) always counts as manual.
+// Programmatic injectHeaderFile() calls above do not dispatch a 'change' event,
+// so this only fires when the user actually chooses a file via the picker.
+document.getElementById('headerFile').addEventListener('change', function() {
+  this.dataset.isAuto = '0';
+});
+
+// ── Header helpers ──────────────────────────────────────────────
+// Use TextDecoder to correctly handle UTF-8 BOM (\xef\xbb\xbf) that atob() preserves as raw bytes
+function b64ToHeaderLine(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const text = new TextDecoder('utf-8').decode(bytes); // TextDecoder strips UTF-8 BOM automatically
+  return text.split(/\r?\n/)[0];
+}
+function countCsvColumns(line) {
+  return line ? line.split(",").length : 0;
+}
+// Find the first non-empty data row of a raw test-log CSV (data rows start at line index 35)
+function firstDataLine(rawText) {
+  const lines = (rawText || "").replace(/^\uFEFF/, "").split(/\r?\n/);
+  for (let i = 35; i < lines.length; i++) {
+    const t = lines[i].replace(/\r$/, "");
+    if (t.trim()) return t;
   }
-  const prefix = (lotNo || '').trim().toUpperCase().slice(0, 2);
-  if (prefix === 'RP') {
-    return { line: b64ToHeaderLine(ULLD_B64), label: 'ULLD' };
-  }
-  return { line: b64ToHeaderLine(LLD_B64), label: 'LLD' };
+  return "";
+}
+// Pick the LLD header variant whose column count best matches a sample data row.
+// LLD_B64  = full test-item set (more columns)
+// LLD2_B64 = reduced test-item set (fewer columns)
+// Returns { line, variant: 'LLD'|'LLD2' }
+function pickLLDHeaderLine(sampleDataLine) {
+  const v1 = b64ToHeaderLine(LLD_B64);
+  const v2 = b64ToHeaderLine(LLD2_B64);
+  if (!sampleDataLine) return { line: v1, variant: 'LLD' }; // no data to inspect yet → default to full header
+  const n = countCsvColumns(sampleDataLine);
+  const c1 = countCsvColumns(v1), c2 = countCsvColumns(v2);
+  return (Math.abs(n - c2) < Math.abs(n - c1)) ? { line: v2, variant: 'LLD2' } : { line: v1, variant: 'LLD' };
 }
 
-// Auto-inject header when ZIP is selected (if no manual header chosen)
+// ── Auto-detect header by Lot No. (+ optional sample data row to pick LLD variant) ──
+// EK / RK / NK → LLD (full or reduced, chosen by column count)    |    RP → ULLD
+// Returns { line: string, label: 'LLD'|'ULLD', variant: 'LLD'|'LLD2'|'ULLD' }
+function autoHeaderLine(lotNo, sampleDataLine) {
+  const prefix = (lotNo || '').trim().toUpperCase().slice(0, 2);
+  if (prefix === 'RP') {
+    return { line: b64ToHeaderLine(ULLD_B64), label: 'ULLD', variant: 'ULLD' };
+  }
+  const picked = pickLLDHeaderLine(sampleDataLine);
+  return { line: picked.line, label: 'LLD', variant: picked.variant };
+}
+
+// Note: the ZIP-select auto-inject below only sets a *placeholder* header (label/prefix
+// detection only — no data has been read yet). mergeZipCsv() re-resolves the actual LLD
+// variant (full vs. reduced) once it has read a sample data row from the ZIP, as long as
+// the header input is still flagged as auto (dataset.isAuto === '1').
 document.getElementById('zipFile').addEventListener('change', function() {
   const file = this.files && this.files[0];
   if (!file) return;
   const headerInput = document.getElementById('headerFile');
-  const hasManual = headerInput.files && headerInput.files.length > 0;
+  const hasManual = headerInput.files && headerInput.files.length > 0 && headerInput.dataset.isAuto === '0';
   if (hasManual) return; // Manual selection present, skip auto-inject
   const lotNo = file.name.replace(/\.zip$/i, '');
   const { label } = autoHeaderLine(lotNo);
-  injectHeaderFile(b64ToFile(label === 'ULLD' ? ULLD_B64 : LLD_B64, label + '_header.csv'), label + '(auto)');
+  injectHeaderFile(b64ToFile(label === 'ULLD' ? ULLD_B64 : LLD_B64, label + '_header.csv'), label + '(auto)', true);
 });
 
 // ══════════════════════════════════════════════════════════════

@@ -2156,6 +2156,33 @@
         </div>
       </div>
 
+      <div class="row g-2 align-items-end mt-1">
+        <div class="col-6">
+          <label class="fw-bold mb-1" style="font-size:0.85rem;">Y-Axis Min</label>
+          <select id="yAxisMinSelect" class="form-select form-select-sm">
+            <option value="">Auto</option>
+            <option value="50">50%</option>
+            <option value="60">60%</option>
+            <option value="70">70%</option>
+            <option value="80">80%</option>
+            <option value="90">90%</option>
+            <option value="100">100%</option>
+          </select>
+        </div>
+        <div class="col-6">
+          <label class="fw-bold mb-1" style="font-size:0.85rem;">Y-Axis Max</label>
+          <select id="yAxisMaxSelect" class="form-select form-select-sm">
+            <option value="">Auto</option>
+            <option value="50">50%</option>
+            <option value="60">60%</option>
+            <option value="70">70%</option>
+            <option value="80">80%</option>
+            <option value="90">90%</option>
+            <option value="100" selected>100%</option>
+          </select>
+        </div>
+      </div>
+
       <label class="fw-bold mb-1 mt-2" style="font-size:0.85rem;">Part No <span class="fw-normal text-muted">(multi-select)</span></label>
       <select id="partNoSelect" class="form-select mb-1" multiple disabled></select>
       <div class="select-hint">Ctrl+Click (Win) / Cmd+Click (Mac) to select multiple</div>
@@ -2322,6 +2349,33 @@
               <option value="DBV">DBV</option>
               <option value="DBV_1mA">DBV_1mA</option>
             </optgroup>
+          </select>
+        </div>
+      </div>
+
+      <div class="row g-2 align-items-end mb-2">
+        <div class="col-6">
+          <label class="fw-bold mb-1" style="font-size:0.85rem;">Y-Axis Min</label>
+          <select id="ulldYAxisMinSelect" class="form-select form-select-sm">
+            <option value="">Auto</option>
+            <option value="50">50%</option>
+            <option value="60">60%</option>
+            <option value="70">70%</option>
+            <option value="80">80%</option>
+            <option value="90">90%</option>
+            <option value="100">100%</option>
+          </select>
+        </div>
+        <div class="col-6">
+          <label class="fw-bold mb-1" style="font-size:0.85rem;">Y-Axis Max</label>
+          <select id="ulldYAxisMaxSelect" class="form-select form-select-sm">
+            <option value="">Auto</option>
+            <option value="50">50%</option>
+            <option value="60">60%</option>
+            <option value="70">70%</option>
+            <option value="80">80%</option>
+            <option value="90">90%</option>
+            <option value="100" selected>100%</option>
           </select>
         </div>
       </div>
@@ -10342,10 +10396,26 @@ function getAutoYScale(datasets, isYield) {
     };
 }
 
+// Read a user-selected Y-axis min/max pair from two <select> elements.
+// Returns { minVal, maxVal } (each null if left on "Auto"), swapped if reversed.
+function getYRangeOverride(minSelId, maxSelId) {
+    const minEl = document.getElementById(minSelId);
+    const maxEl = document.getElementById(maxSelId);
+    let minVal = (minEl && minEl.value !== '') ? parseFloat(minEl.value) : null;
+    let maxVal = (maxEl && maxEl.value !== '') ? parseFloat(maxEl.value) : null;
+    if (minVal !== null && maxVal !== null && minVal > maxVal) { const t = minVal; minVal = maxVal; maxVal = t; }
+    return { minVal, maxVal };
+}
+
 function renderChart(datasets, deviceLabel, yLabel, isYield, isTimeX) {
     const ctx = document.getElementById('yieldChart').getContext('2d');
     if (chartInstance) chartInstance.destroy();
     const yScaleCfg = getAutoYScale(datasets, isYield);
+    if (isYield) {
+        const { minVal, maxVal } = getYRangeOverride('yAxisMinSelect', 'yAxisMaxSelect');
+        if (minVal !== null) yScaleCfg.min = minVal;
+        if (maxVal !== null) yScaleCfg.max = maxVal;
+    }
     const xScaleCfg = isTimeX
         ? { type: 'time', time: { unit: 'week' }, title: { display: true, text: 'RUN ON (Week)', font: { size: 12 } } }
         : { type: 'category', title: { display: true, text: 'Lot No', font: { size: 12 } }, ticks: { maxRotation: 45, minRotation: 30 } };
@@ -12517,6 +12587,11 @@ function ulldRenderChart(datasets, yLabel, isTimeX, isYield) {
   const ctx = document.getElementById('ulldChart').getContext('2d');
   if (ulldChartInst) ulldChartInst.destroy();
   const yScaleCfg = getAutoYScale(datasets, isYield);
+  if (isYield) {
+    const { minVal, maxVal } = getYRangeOverride('ulldYAxisMinSelect', 'ulldYAxisMaxSelect');
+    if (minVal !== null) yScaleCfg.min = minVal;
+    if (maxVal !== null) yScaleCfg.max = maxVal;
+  }
 
   const xScaleCfg = isTimeX
     ? { type:'time', time:{unit:'week'}, title:{display:true, text:'RUN ON (Week)', font:{size:12}} }

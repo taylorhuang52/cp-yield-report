@@ -12418,9 +12418,9 @@ document.getElementById('ulldBtnGenerate').addEventListener('click', function() 
   const isOverlay = yCol === 'WAT+CP Yield';
   const isYield   = isOverlay || yCol === 'WAT Yield' || yCol === 'CP Yield' || yCol === 'Yield gap' || yCol === 'Yield(%)';
 
-  // ULLD colour pairs: WAT = navy/blue family, CP = orange/amber family
-  const ULLD_WAT = ['#1565c0','#1976d2','#1a237e','#0288d1','#01579b','#283593','#0d47a1','#006064'];
-  const ULLD_CP  = ['#e65100','#f57c00','#ef6c00','#ff8f00','#e64a19','#bf360c','#ff6d00','#ff9800'];
+  // ULLD colour pairs: WAT = red family, CP = green family (matches LLD WAT Monitor)
+  const ULLD_WAT = ['#e6194b','#c0392b','#e74c3c','#ff6b6b','#c0392b','#922b21','#f1948a','#ec407a'];
+  const ULLD_CP  = ['#3cb44b','#27ae60','#2ecc71','#a9dfbf','#1e8449','#58d68d','#a3e4d7','#52be80'];
 
   function ulldGetPoints(matches, col) {
     return matches.map(m => {

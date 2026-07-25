@@ -5912,12 +5912,7 @@ function _renderTabPageHTML(tabIdx, tabData, tabCfg, combined, labels, inputData
   const _cpPngName = tabCfg.label.replace(/[^a-zA-Z0-9]/g,'_') + '_' + (isMonthly?'Monthly_':'') + new Date().toISOString().slice(0,10) + '.png';
 
   // Quarterly/Monthly divider hint for chart subtitle
-  const chartSubtitle = isMonthly
-    ? `<div style=&quot;display:flex;gap:8px;justify-content:center;margin-bottom:4px;&quot;>
-        <span style=&quot;font-size:11px;background:#fff8d0;color:#9a7a00;border:1px solid #e8d880;border-radius:4px;padding:1px 7px;&quot;>◀ Last 5 Qtrs</span>
-        <span style=&quot;font-size:11px;background:#eef5ff;color:#1a4a8a;border:1px solid #b0d0f0;border-radius:4px;padding:1px 7px;&quot;>Last 5 Mo ▶</span>
-      </div>`
-    : '';
+  const chartSubtitle = '';
 
   // Build assumption yield table HTML for CP tabs
   const _assumptionQtrs = [&quot;Q1'26&quot;, &quot;Q2'26&quot;, &quot;Q3'26&quot;, &quot;Q4'26&quot;];
@@ -7583,10 +7578,6 @@ function renderStripPageMonthly(pageId, type) {
             </label>
           </span>
         </div>
-        <div style=&quot;display:flex;gap:8px;align-items:center;justify-content:center;margin-bottom:6px;&quot;>
-          <span style=&quot;font-size:11px;color:#9a7a00;background:#fff8d0;border:1px solid #e8d880;border-radius:4px;padding:2px 8px;&quot;>◀ Last 5 Qtrs</span>
-          <span style=&quot;font-size:11px;color:#1a4a8a;background:#eef5ff;border:1px solid #b0d0f0;border-radius:4px;padding:2px 8px;&quot;>Last 5 Mo ▶</span>
-        </div>
         <div class=&quot;chart-wrap&quot; style=&quot;height:300px&quot;><canvas id=&quot;${chartId}&quot;></canvas></div>
         <div class=&quot;target-note&quot;>— 2026 target ${TARGET}% &nbsp;|&nbsp; Assumption Q1-Q4: 98.5% / 98.5% / 98.5% / 98.5%</div>
       </div>
@@ -7657,14 +7648,7 @@ function renderStripPageMonthly(pageId, type) {
             const stripAssumptionKey = type === 'AC' ? 'stripAC' : 'stripCC';
             const showT = _annoChecked(`strip_${type}m`, 'target');
             const showA = _annoChecked(`strip_${type}m`, 'assumption');
-            const anns = {
-              // Divider between quarterly and monthly sections
-              dividerLine: {
-                type: 'line', xMin: qCount - 0.5, xMax: qCount - 0.5,
-                borderColor: '#e8d880', borderWidth: 2, borderDash: [4,4],
-                label: { content: 'Qtr ↔ Mo', display: true, position: 'start', font: { size: 10 }, color: '#9a7a00', backgroundColor: 'rgba(255,250,220,0.8)' }
-              }
-            };
+            const anns = {};
             if (showT) {
               anns.targetLine = {
                 type: 'line', yMin: TARGET, yMax: TARGET, yScaleID: 'yYield',

@@ -1780,6 +1780,16 @@
 .merge-btn:not(:disabled):hover { background: #2F528F; transform: translateY(-1px); }
 .merge-btn:not(:disabled):active { transform: translateY(0); }
 .merge-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.merge-btn-discount { margin-top: 10px; }
+.merge-btn-discount:disabled { background: #F0E9D6; color: #A8955A; cursor: not-allowed; }
+.merge-btn-discount:not(:disabled) { background: #C09000; color: #fff; box-shadow: 0 4px 16px rgba(192,144,0,.35); }
+.merge-btn-discount:not(:disabled):hover { background: #967000; transform: translateY(-1px); }
+.merge-btn-discount:not(:disabled):active { transform: translateY(0); }
+.merge-btn-reject { margin-top: 10px; }
+.merge-btn-reject:disabled { background: #F0DAD6; color: #B08A82; cursor: not-allowed; }
+.merge-btn-reject:not(:disabled) { background: #C0392B; color: #fff; box-shadow: 0 4px 16px rgba(192,57,43,.35); }
+.merge-btn-reject:not(:disabled):hover { background: #96281B; transform: translateY(-1px); }
+.merge-btn-reject:not(:disabled):active { transform: translateY(0); }
 .log-box { background: #1A2340; color: #A8C4E8; border-radius: 8px; padding: 16px 18px; font-family: 'Consolas','Courier New',monospace; font-size: 12px; line-height: 1.8; max-height: 200px; overflow-y: auto; margin-top: 16px; display: none; }
 .log-box.active { display: block; }
 .log-line { margin: 0; }
@@ -2617,7 +2627,7 @@
 <div id="stp-page-report" class="stp-page stp-active active">
 <div class="container">
   <h2>Strip Test Report Generator</h2>
-  <div class="subtitle">[模式：LoggerData 專用 | 分母：169]</div>
+  <div class="subtitle">[模式：LoggerData 專用 | 分母：Input Die]</div>
 
   <div class="drop-zone-r" id="dropZone">
     <i data-lucide="file-spreadsheet"></i>
@@ -2859,6 +2869,18 @@
     <span id="m-btnText">Output — 產出 StripTest_Summary_yyyymmdd.xlsx</span>
   </button>
 
+  <button class="merge-btn merge-btn-discount" id="m-discountBtn" disabled onclick="doDiscountExport()">
+    <div class="spinner" id="m-discountSpinner"></div>
+    <svg id="m-discountBtnIcon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    <span id="m-discountBtnText">Output — 產出 StripTest_Discount_Summary_yyyymmdd.xlsx</span>
+  </button>
+
+  <button class="merge-btn merge-btn-reject" id="m-rejectBtn" disabled onclick="doRejectExport()">
+    <div class="spinner" id="m-rejectSpinner"></div>
+    <svg id="m-rejectBtnIcon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    <span id="m-rejectBtnText">Output — 產出 StripTest_Reject_Summary_yyyymmdd.xlsx</span>
+  </button>
+
   <div class="progress-bar-wrap" id="m-progressWrap">
     <div class="progress-bar" id="m-progressBar"></div>
   </div>
@@ -2922,6 +2944,21 @@
           <div class="bhm-progress-bar" id="bhm-progressBar"></div>
         </div>
         <div class="bhm-log" id="bhm-log">等待中...</div>
+      </section>
+
+      <!-- Run: Pass/Fail Heatmap (whole-lot, not by test item) -->
+      <section class="group">
+        <h2>⑤ Pass/Fail Heatmap（不分測項）</h2>
+        <div class="status" style="margin-bottom:8px;">
+          每個 lot 輸出一張整批 die 圖：Pass(綠) / Fail(紅) / 未測(白)，不分測項。
+        </div>
+        <button class="bhm-run-btn" id="bhm-runPassFailBtn" disabled style="background:#b5451b">
+          產生 Pass/Fail Heatmap 並下載 ZIP
+        </button>
+        <div class="bhm-progress-wrap" id="bhm-pfProgressWrap">
+          <div class="bhm-progress-bar" id="bhm-pfProgressBar"></div>
+        </div>
+        <div class="bhm-log" id="bhm-pfLog">等待中...</div>
       </section>
     </aside>
 
@@ -6519,7 +6556,7 @@ function makeULLDParetoChart(id, labels, ppmData) {
       datasets: [
         {
           type: 'bar', label: 'Defect rate (PPM)', data: sortedPPM,
-          backgroundColor: 'rgba(100,160,230,0.6)', borderColor: 'rgba(42,106,176,0.8)',
+          backgroundColor: 'rgba(205,133,90,0.75)', borderColor: 'rgba(190,110,65,0.9)',
           borderWidth: 1, yAxisID: 'yPPM', order: 2
         },
         {
@@ -6970,18 +7007,18 @@ const STRIP_MONTH_LABELS = {
 // We show BVDSS (BVDSS2+BVDSS1), VTH<1.5V, VTH>6V, VFSD, IPD-10V, IDSS (IDSS1+IDSS2+IDSS3)
 const STRIP_DEFECT_DEFS = {
   AC: [
-    { key: 'BVDSS',      cols: ['BVDSS 2','BVDSS 1'],     color: 'rgba(180,120,60,0.75)' },
-    { key: 'VTH < 1.5V', cols: ['VTH < 1.5 V'],           color: 'rgba(180,120,60,0.60)' },
-    { key: 'VTH > 6V',   cols: ['VTH > 6 V'],             color: 'rgba(180,120,60,0.50)' },
-    { key: 'VFSD',       cols: ['VFSD'],                   color: 'rgba(180,120,60,0.40)' },
-    { key: 'IPD',        cols: ['IPD-10V'],                color: 'rgba(180,120,60,0.30)' },
+    { key: 'BVDSS',      cols: ['BVDSS 2','BVDSS 1'],     color: 'rgba(205,133,90,0.75)' },
+    { key: 'VTH < 1.5V', cols: ['VTH < 1.5 V'],           color: 'rgba(205,133,90,0.75)' },
+    { key: 'VTH > 6V',   cols: ['VTH > 6 V'],             color: 'rgba(205,133,90,0.75)' },
+    { key: 'VFSD',       cols: ['VFSD'],                   color: 'rgba(205,133,90,0.75)' },
+    { key: 'IPD',        cols: ['IPD-10V'],                color: 'rgba(205,133,90,0.75)' },
   ],
   CC: [
-    { key: 'IDSS',       cols: ['IDSS1','IDSS2','IDSS3'],  color: 'rgba(180,120,60,0.75)' },
-    { key: 'BVDSS',      cols: ['BVDSS 2','BVDSS 1'],     color: 'rgba(180,120,60,0.60)' },
-    { key: 'VTH > 6V',   cols: ['VTH > 6 V'],             color: 'rgba(180,120,60,0.50)' },
-    { key: 'VTH < 1.5V', cols: ['VTH < 1.5 V'],           color: 'rgba(180,120,60,0.40)' },
-    { key: 'IPD',        cols: ['IPD-10V'],                color: 'rgba(180,120,60,0.30)' },
+    { key: 'IDSS',       cols: ['IDSS1','IDSS2','IDSS3'],  color: 'rgba(205,133,90,0.75)' },
+    { key: 'BVDSS',      cols: ['BVDSS 2','BVDSS 1'],     color: 'rgba(205,133,90,0.75)' },
+    { key: 'VTH > 6V',   cols: ['VTH > 6 V'],             color: 'rgba(205,133,90,0.75)' },
+    { key: 'VTH < 1.5V', cols: ['VTH < 1.5 V'],           color: 'rgba(205,133,90,0.75)' },
+    { key: 'IPD',        cols: ['IPD-10V'],                color: 'rgba(205,133,90,0.75)' },
   ]
 };
 
@@ -12831,7 +12868,7 @@ function stpSwitchPage(pageId, btn) {
 // PAGE 1 — STRIP TEST REPORT GENERATOR
 // ══════════════════════════════════════════════════════════════════════════════
 const TARGET_SHEET = "LoggerData";
-const UNITS_PER_SLOT = 169;
+const UNITS_PER_SLOT = 169; // legacy fixed denominator, no longer used — slot yield now uses pass/input die actually tested per strip
 const ROW_MIN=3, ROW_MAX=4, ROW_HEADER=9, ROW_DATA=10;
 const JUDGED_ITEMS=["VTH","VFSD","BVDSS 2","BVDSS 1","Delta3","IPD-10V","IDSS1","IDSS2","IDSS3"];
 const SLOTS=Array.from({length:24},(_,i)=>(i+1).toString().padStart(2,'0'));
@@ -12903,6 +12940,7 @@ function parseWorkbook(entry){
   const vthCol=colIdx("VTH"),remarkCol=colIdx("Remark");
   const failCounts={};JUDGED_ITEMS.forEach(it=>failCounts[it]=0);
   const subPass={};
+  const subInput={};
   let input=0,output=0,vthLt15=0,vthGt6=0;
   for(let r=ROW_DATA;r<rows.length;r++){
     const row=rows[r]||[];
@@ -12920,10 +12958,15 @@ function parseWorkbook(entry){
     });
     if(diePassed)output++;
     const sub=remarkCol!==undefined?extractSubBatch(row[remarkCol]):null;
-    if(sub){if(subPass[sub]===undefined)subPass[sub]=0;if(diePassed)subPass[sub]++;}
+    if(sub){
+      if(subPass[sub]===undefined)subPass[sub]=0;
+      if(subInput[sub]===undefined)subInput[sub]=0;
+      subInput[sub]++;
+      if(diePassed)subPass[sub]++;
+    }
   }
   const subBatchYield={};
-  Object.entries(subPass).forEach(([slot,pass])=>{subBatchYield[slot]=pass/UNITS_PER_SLOT;});
+  Object.entries(subPass).forEach(([slot,pass])=>{const denom=subInput[slot]||0;subBatchYield[slot]=denom>0?pass/denom:0;});
   return{fileName:entry.name.replace(/^.*[\\\/]/,''),lotNo:baseName(entry.name),testDateTime:formatFileTime(entry),input,output,vthLt15,vthGt6,failCounts,subBatchYield};
 }
 
@@ -12981,65 +13024,52 @@ document.getElementById('btnExport').onclick=async()=>{
 function slotColor(v){if(v===null||v===undefined||v==="")return null;if(v<0.80)return{bg:'#c0392b',fg:'#fff'};if(v<0.90)return{bg:'#e67e22',fg:'#fff'};if(v<0.95)return{bg:'#c9a800',fg:'#000'};return{bg:'#27ae60',fg:'#fff'};}
 
 // ── AUTO FAIL HEATMAP DOWNLOAD ──────────────────────────────────────────────
-// Map from JUDGED_ITEMS display names → CSV column names used in hmConvertXlsArrayBuffer output
-const FAIL_PARAM_CSV_MAP={
-  "VTH":       "VTH",
-  "VFSD":      "VFSD",
-  "BVDSS 2":   "BVDSS_2",
-  "BVDSS 1":   "BVDSS_1",
-  "Delta3":    "Delta3",
-  "IPD-10V":   "IPD_10V",
-  "IDSS1":     "IDSS1",
-  "IDSS2":     "IDSS2",
-  "IDSS3":     "IDSS3"
-};
-// Param limits keyed by CSV column name (same as HM_ALL_PARAM_LIMITS keys)
-const FAIL_PARAM_LIMITS={
-  VTH:      [1.5,6.0],
-  VFSD:     [0.4,0.9],
-  BVDSS_2:  [19.65,23.0],
-  BVDSS_1:  [19.65,22.5],
-  Delta3:   [0.02,2.0],
-  IPD_10V:  [20.0,40.0],
-  IDSS1:    [0.0,10.0],
-  IDSS2:    [0.0,10.0],
-  IDSS3:    [0.0,10.0]
-};
+// Rule: for a whole lot, if ANY strip yield < 90%, output ONE heatmap for the
+// entire lot. The heatmap does not distinguish by test item — each die is
+// simply Pass (green) / Fail (red) / Untested (white).
+const STRIP_FAIL_THRESHOLD=0.90;
+const HM_PASS_COLOR=[39,174,96];     // green
+const HM_FAIL_COLOR=[192,57,43];     // red
+const HM_UNTESTED_COLOR=[255,255,255]; // white
 
-// Off-screen canvas used for batch heatmap rendering
-function autoHmRenderToCanvas(csvText, lotName, paramCsvName){
+// Off-screen canvas used for batch heatmap rendering — whole-lot pass/fail map
+function autoHmRenderLotToCanvas(csvText, lotName){
   // Parse CSV
   const parsed=hmParseCsv(csvText);
   const headers=parsed.headers;
   const rows=parsed.rows;
   const idxOf=name=>headers.findIndex(h=>h.toLowerCase()===name.toLowerCase());
-  const idxBin=idxOf("Bin"),idxX=idxOf("X"),idxY=idxOf("Y"),idxWafer=idxOf("Wafer_ID"),idxParam=idxOf(paramCsvName);
-  if(idxBin<0||idxX<0||idxY<0||idxWafer<0||idxParam<0) return null;
+  const idxX=idxOf("X"),idxY=idxOf("Y"),idxWafer=idxOf("Wafer_ID");
+  // Prefer the recomputed DiePass column (judged from measured values vs. limits, same rule as the
+  // summary yield). Fall back to raw Bin===1 only for older CSVs that predate this column.
+  const idxDiePass=idxOf("DiePass");
+  const idxBin=idxOf("Bin");
+  if((idxDiePass<0&&idxBin<0)||idxX<0||idxY<0||idxWafer<0) return null;
 
-  // Build wafers map with param values
+  // Build wafers (strips) map with pass/fail per die
   const wafers=new Map();
   for(const cols of rows){
-    const bin=parseInt(cols[idxBin]||"",10);
     const x=parseInt(cols[idxX]||"",10);
     const y=parseInt(cols[idxY]||"",10);
     const wid=parseInt(cols[idxWafer]||"",10);
-    if(!Number.isFinite(bin)||!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(wid))continue;
-    const rawVal=cols[idxParam]||"";
-    const numVal=rawVal.trim()===""?null:Number(rawVal);
-    const hasVal=numVal!==null&&Number.isFinite(numVal);
+    if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(wid))continue;
+    let pass;
+    if(idxDiePass>=0){
+      pass=parseInt(cols[idxDiePass]||"",10)===1;
+    }else{
+      const bin=parseInt(cols[idxBin]||"",10);
+      if(!Number.isFinite(bin))continue;
+      pass=bin===1;
+    }
     if(!wafers.has(wid))wafers.set(wid,[]);
-    wafers.get(wid).push({Bin:bin,X:x,Y:y,Value:hasVal?numVal:0,HasValue:hasVal});
+    wafers.get(wid).push({X:x,Y:y,Pass:pass});
   }
   if(!wafers.size)return null;
-
-  const limits=FAIL_PARAM_LIMITS[paramCsvName];
-  const loLimit=limits?limits[0]:null;
-  const hiLimit=limits?limits[1]:null;
 
   const allDies=[...wafers.values()].flat();
   const maxX=allDies.length?Math.max(...allDies.map(d=>d.X)):13;
   const maxY=allDies.length?Math.max(...allDies.map(d=>d.Y)):13;
-  const cellW=28,cellH=18,fontSize=6;
+  const cellW=28,cellH=18;
   const TITLE_H=80,WAFER_LABEL_H=18,WAFER_PAD_X=10,WAFER_PAD_Y=14,MARGIN=20,COLS=4,GRID_ROWS=6;
   const waferW=maxX*cellW,waferH=maxY*cellH;
   const totalW=MARGIN*2+COLS*waferW+(COLS-1)*WAFER_PAD_X;
@@ -13050,17 +13080,11 @@ function autoHmRenderToCanvas(csvText, lotName, paramCsvName){
   const ctx=canvas.getContext("2d");
   ctx.fillStyle="#fff";ctx.fillRect(0,0,totalW,totalH);ctx.imageSmoothingEnabled=false;
 
-  let limitSuffix="";
-  if(loLimit!=null||hiLimit!=null){
-    const fmtG=(v,d)=>Number.isFinite(v)?Number(v.toPrecision(d)).toString():"";
-    limitSuffix=`  [${loLimit==null?"-∞":fmtG(loLimit,4)} ~ ${hiLimit==null?"+∞":fmtG(hiLimit,4)}]`;
-  }
-  const title=`${lotName} ${paramCsvName} Strip Heatmap${limitSuffix}`;
+  const title=`${lotName} Fail Heatmap`;
   ctx.fillStyle="#0050c8";ctx.font="700 34px Arial";ctx.textAlign="center";ctx.textBaseline="middle";
   ctx.fillText(title,totalW/2,TITLE_H/2);
   ctx.font="700 11px Arial";ctx.textAlign="left";ctx.textBaseline="top";
 
-  const BIN_COLORS=new Map([[1,[0,200,0]],[2,[50,180,50]],[3,[200,200,0]],[4,[255,128,0]],[5,[255,0,0]],[6,[180,0,180]]]);
   for(let gridCol=0;gridCol<COLS;gridCol++){
     for(let gridRow=0;gridRow<GRID_ROWS;gridRow++){
       const baseId=gridCol*GRID_ROWS+1;const wid=baseId+(GRID_ROWS-1-gridRow);
@@ -13072,20 +13096,11 @@ function autoHmRenderToCanvas(csvText, lotName, paramCsvName){
         for(let dx=1;dx<=maxX;dx++){
           const px=ox+(dx-1)*cellW,py=oy+(maxY-dy)*cellH;
           const die=lookup.get(`${dx},${dy}`);
-          let color=[255,255,255];let oos=false;
-          if(die){
-            oos=die.HasValue&&((loLimit!=null&&die.Value<loLimit)||(hiLimit!=null&&die.Value>hiLimit));
-            color=oos?[210,210,210]:(BIN_COLORS.get(die.Bin)||[160,160,160]);
-          }
+          const color=die?(die.Pass?HM_PASS_COLOR:HM_FAIL_COLOR):HM_UNTESTED_COLOR;
           ctx.fillStyle=`rgb(${color[0]},${color[1]},${color[2]})`;
           ctx.fillRect(px,py,Math.max(1,cellW-1),Math.max(1,cellH-1));
-          if(die&&die.HasValue){
-            const fmtG=(v,d)=>Number(v.toPrecision(d)).toString();
-            const text=fmtG(die.Value,4);
-            ctx.fillStyle=oos?"#a00000":"#000";
-            ctx.font=`${fontSize}px Arial`;ctx.textAlign="center";ctx.textBaseline="middle";
-            ctx.fillText(text,px+cellW/2,py+cellH/2);
-          }
+          ctx.strokeStyle="#ccc";ctx.lineWidth=1;
+          ctx.strokeRect(px+0.5,py+0.5,Math.max(1,cellW-1),Math.max(1,cellH-1));
         }
       }
     }
@@ -13104,35 +13119,23 @@ document.getElementById('btnAutoFailHeatmap').onclick=async()=>{
   btn.disabled=true;btn.textContent="處理中...";
 
   try{
-    // 1. Identify which params have fail rate > 1% in ANY lot
-    const THRESHOLD=0.01;
-    // failedParams: Set of JUDGED_ITEMS display names
-    const failedParams=new Set();
-    // failedLots: Map<lotName, Set<paramDisplayName>> — which lots have fails (for labelling)
-    const failedLots=new Map();
-
+    // 1. Identify lots where ANY strip (subBatchYield) has yield < 90%
+    const failedLotKeys=new Set();
     for(const d of finalResults){
       const lotKey=d.lotNo||d.fileName||"unknown";
-      for(const item of JUDGED_ITEMS){
-        const count=d.failCounts[item]||0;
-        const rate=d.input>0?count/d.input:0;
-        if(rate>THRESHOLD){
-          failedParams.add(item);
-          if(!failedLots.has(lotKey))failedLots.set(lotKey,new Set());
-          failedLots.get(lotKey).add(item);
-        }
-      }
+      const hasLowStrip=Object.values(d.subBatchYield||{}).some(y=>y<STRIP_FAIL_THRESHOLD);
+      if(hasLowStrip) failedLotKeys.add(lotKey);
     }
 
-    if(failedParams.size===0){
-      alert("所有參數 fail rate 均 ≤ 1%，無需產生 Heatmap。");
+    if(failedLotKeys.size===0){
+      alert("所有 lot 的每一條 strip 良率均 ≥ 90%，無需產生 Heatmap。");
       btn.disabled=false;btn.textContent="下載 Fail Heatmap";
       return;
     }
 
-    addLog(`偵測到 fail rate > 1% 的參數：${[...failedParams].join(", ")}`);
+    addLog(`偵測到至少一條 strip 良率 < 90% 的 lot：${[...failedLotKeys].join(", ")}`);
 
-    // 2. Convert each raw XLS file that belongs to a lot with fails to CSV, then render heatmaps
+    // 2. Convert each raw XLS file that belongs to a flagged lot to CSV, then render ONE whole-lot heatmap
     const zip=new JSZip();
     let pngCount=0;
 
@@ -13140,21 +13143,15 @@ document.getElementById('btnAutoFailHeatmap').onclick=async()=>{
       // Determine which lot this entry belongs to
       const lotName=entry.name.replace(/^.*[\\/]/,"").replace(/\.[^.]+$/,"");
 
-      // Find the matching finalResult to know which params failed
+      // Find the matching finalResult to know if this lot was flagged
       const result=finalResults.find(r=>
         (r.lotNo||"")===lotName ||
         (r.fileName||"").replace(/\.[^.]+$/,"")=== lotName
       );
       if(!result)continue;
 
-      // Determine which params failed for this lot
-      const lotFailParams=[];
-      for(const item of JUDGED_ITEMS){
-        const count=result.failCounts[item]||0;
-        const rate=result.input>0?count/result.input:0;
-        if(rate>THRESHOLD) lotFailParams.push(item);
-      }
-      if(lotFailParams.length===0)continue;
+      const lotKey=result.lotNo||result.fileName||"unknown";
+      if(!failedLotKeys.has(lotKey))continue;
 
       // Convert XLS → CSV using Page 2's existing parser
       let csvText;
@@ -13165,20 +13162,16 @@ document.getElementById('btnAutoFailHeatmap').onclick=async()=>{
         continue;
       }
 
-      // Render one PNG per failing param
-      for(const item of lotFailParams){
-        const csvParamName=FAIL_PARAM_CSV_MAP[item];
-        if(!csvParamName)continue;
-        try{
-          const canvas=autoHmRenderToCanvas(csvText,lotName,csvParamName);
-          if(!canvas){addLog(`[警告] ${lotName} ${item} 無法渲染 heatmap`,true);continue;}
-          const blob=await canvasToPngBlob(canvas);
-          zip.file(`${lotName}_${csvParamName}.png`,blob);
-          pngCount++;
-          addLog(`  ✓ ${lotName} ${item} heatmap`);
-        }catch(err){
-          addLog(`[警告] ${lotName} ${item} 渲染失敗: ${err.message}`,true);
-        }
+      // Render ONE pass/fail heatmap for the whole lot (all test items combined)
+      try{
+        const canvas=autoHmRenderLotToCanvas(csvText,lotName);
+        if(!canvas){addLog(`[警告] ${lotName} 無法渲染 heatmap`,true);continue;}
+        const blob=await canvasToPngBlob(canvas);
+        zip.file(`${lotName}_FailHeatmap.png`,blob);
+        pngCount++;
+        addLog(`  ✓ ${lotName} heatmap`);
+      }catch(err){
+        addLog(`[警告] ${lotName} 渲染失敗: ${err.message}`,true);
       }
     }
 
@@ -13300,7 +13293,7 @@ function hmConvertXlsArrayBuffer(buffer){
   const minRow=allRows.get(3)||new Map();
   const maxRow=allRows.get(4)||new Map();
   const lim={vthLo:hmGetD(minRow,4,1.5),vthHi:hmGetD(maxRow,4,6.0),vfsdLo:hmGetD(minRow,7,0.4),vfsdHi:hmGetD(maxRow,7,0.9),bv2Lo:hmGetD(minRow,8,19.65),bv2Hi:hmGetD(maxRow,8,23.0),bv1Lo:hmGetD(minRow,9,19.65),bv1Hi:hmGetD(maxRow,9,22.5),deltaLo:hmGetD(minRow,10,0.02),deltaHi:hmGetD(maxRow,10,2.0),ipdLo:hmGetD(minRow,11,20.0),ipdHi:hmGetD(maxRow,11,40.0),idss:hmGetD(maxRow,12,10.0)};
-  const out=["Serial,Bin,X,Y,X_old,Y_old,VTH,GET VTH <1.5V,GET VTH >6V,VFSD,BVDSS_2,BVDSS_1,Delta3,IPD_10V,IDSS1,IDSS2,IDSS3,BVDSS_bin1,BVDSS_bin2,Wafer_ID"];
+  const out=["Serial,Bin,X,Y,X_old,Y_old,VTH,GET VTH <1.5V,GET VTH >6V,VFSD,BVDSS_2,BVDSS_1,Delta3,IPD_10V,IDSS1,IDSS2,IDSS3,BVDSS_bin1,BVDSS_bin2,Wafer_ID,DiePass"];
   let globalSerial=0;let converted=0;
   const rowIndexes=[...allRows.keys()].sort((a,b)=>a-b);
   for(const rowIdx of rowIndexes){
@@ -13315,7 +13308,11 @@ function hmConvertXlsArrayBuffer(buffer){
     const serialObj=row.get(0);const serial=typeof serialObj==="number"?Math.trunc(serialObj):globalSerial;
     const vth=hmFmtD(row,4);const gtvLo=hmFmtD(row,5);const gtvHi=hmFmtD(row,6);const vfsd=hmFmtD(row,7);const bv2=hmFmtD(row,8);const bv1=hmFmtD(row,9);const delta=hmFmtD(row,10);const ipd=hmFmtD(row,11);const idss1=hmFmtD(row,12);const idss2=hmFmtD(row,13);const idss3=hmFmtD(row,14);const bvBin1=hmFmtD(row,15);const bvBin2=hmFmtD(row,16);
     const binObj=row.get(1);const bin=typeof binObj==="number"?Math.trunc(binObj):hmCalcBin(vth,vfsd,bv2,bv1,delta,ipd,idss1,idss2,idss3,lim);
-    out.push([serial,bin,x,y,xOld,0,vth,gtvLo,gtvHi,vfsd,bv2,bv1,delta,ipd,idss1,idss2,idss3,bvBin1,bvBin2,waferId].join(","));converted++;
+    // DiePass is judged from the actual measured values against limits (same rule as the summary yield),
+    // NOT from the raw factory Bin code. The raw Bin scheme can use more than one "pass" bin (e.g. 1 and 2),
+    // so treating "Bin !== 1" as fail mis-flags large numbers of good die.
+    const diePass=hmCalcBin(vth,vfsd,bv2,bv1,delta,ipd,idss1,idss2,idss3,lim)===1?1:0;
+    out.push([serial,bin,x,y,xOld,0,vth,gtvLo,gtvHi,vfsd,bv2,bv1,delta,ipd,idss1,idss2,idss3,bvBin1,bvBin2,waferId,diePass].join(","));converted++;
   }
   if(!converted)throw new Error("LoggerData 中沒有可轉換的量測資料。");
   return out.join("\r\n")+"\r\n";
@@ -13573,6 +13570,7 @@ const M_NEW_HEADERS=['Test Date/ Time','Report Date','Lot No.','Input','Output',
 const M_DISPLAY_HEADERS=['Test Date/ Time','Report Date','Lot No.','Input','Output','Yield','VTH',null,'VTH < 1.5 V',null,'VTH > 6 V',null,'VFSD',null,'BVDSS 2',null,'BVDSS 1',null,'Delta3',null,'IPD-10V',null,'IDSS1',null,'IDSS2',null,'IDSS3',null,'01','02','03','04','05','06','07','08','09','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24'];
 const M_MERGED_PAIRS=[[7,8],[9,10],[11,12],[13,14],[15,16],[17,18],[19,20],[21,22],[23,24],[25,26],[27,28]];
 const M_PCT_COL_INDICES=new Set([5,7,9,11,13,15,17,19,21,23,25,27,...Array.from({length:24},(_,i)=>28+i)]);
+const M_POS_PCT_COL_INDICES=new Set(Array.from({length:24},(_,i)=>28+i)); // AC~AZ (pos_01~pos_24) 良率欄位，套用紅/黃/綠條件式格式
 const M_COL_WIDTHS=[14,12,24,10,10,10,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8];
 
 let mNewFiles=[],mOldFile=null,mNewData=[],mOldData=[];
@@ -13703,7 +13701,7 @@ function mUpdateStats(){
   }
 }
 
-function mCheckReady(){document.getElementById('m-mergeBtn').disabled=(mNewData.length===0);}
+function mCheckReady(){document.getElementById('m-mergeBtn').disabled=(mNewData.length===0);document.getElementById('m-discountBtn').disabled=(mNewData.length===0);document.getElementById('m-rejectBtn').disabled=(mNewData.length===0);}
 
 async function mBuildFinalXlsxBuffer(allRows){
   const wb=new ExcelJS.Workbook();const ws=wb.addWorksheet('Summary');
@@ -13715,6 +13713,13 @@ async function mBuildFinalXlsxBuffer(allRows){
   M_MERGED_PAIRS.forEach(([c1,c2])=>{ws.mergeCells(1,c1,1,c2);});
   ws.views=[{state:'frozen',xSplit:0,ySplit:1,topLeftCell:'A2',activePane:'bottomLeft'}];
   const zebraFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFDCE6F1'}};const dataFont={size:10,name:'Calibri'};
+  const dataFontBold={size:10,name:'Calibri',bold:true};
+  const posGoodFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFC6EFCE'}};   // 綠底 >90%
+  const posWarnFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFEB9C'}};   // 黃底 75%~90%
+  const posBadFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFC7CE'}};    // 紅底 <75%
+  const posGoodFont={size:10,name:'Calibri',color:{argb:'FF006100'}};
+  const posWarnFont={size:10,name:'Calibri',bold:true,color:{argb:'FF9C6500'}};
+  const posBadFont={size:10,name:'Calibri',bold:true,color:{argb:'FF9C0006'}};
   allRows.forEach((row,rowIdx)=>{
     const values=M_NEW_HEADERS.map((field,i)=>{let v=row[field];if(v===undefined||v===null)v='';if(i===1)return mFormatDate(v);return v;});
     const exRow=ws.addRow(values);const isZebra=(rowIdx%2===0);
@@ -13722,6 +13727,12 @@ async function mBuildFinalXlsxBuffer(allRows){
       const colIdx=colNumber-1;const style={font:dataFont};
       if(isZebra)style.fill=zebraFill;
       if(M_PCT_COL_INDICES.has(colIdx)){style.numFmt='0.00%';if(cell.value!==''&&cell.value!==null&&!isNaN(Number(cell.value)))cell.value=Number(cell.value);}
+      if(M_POS_PCT_COL_INDICES.has(colIdx)&&cell.value!==''&&cell.value!==null&&!isNaN(Number(cell.value))){
+        const pct=Number(cell.value);
+        if(pct>0.9){style.fill=posGoodFill;style.font=posGoodFont;}
+        else if(pct>=0.75){style.fill=posWarnFill;style.font=posWarnFont;}
+        else{style.fill=posBadFill;style.font=posBadFont;}
+      }
       cell.style=style;
     });
   });
@@ -13754,6 +13765,161 @@ function doMerge(){
       document.getElementById('m-successDesc').textContent=`共 ${allRows.length} 筆（新 ${mNewData.length} + 舊 ${filteredOld.length}${dupSummary}），已依時間由新到舊排序`;
     }catch(err){mLog(`合併失敗: ${err.message}`,'err');console.error(err);}
     document.getElementById('m-spinner').style.display='none';document.getElementById('m-btnIcon').style.display='';document.getElementById('m-btnText').textContent='Output — 產出 StripTest_Summary_yyyymmdd.xlsx';document.getElementById('m-mergeBtn').disabled=(mNewData.length===0);
+  },80);
+}
+
+// Returns true if this row has at least one AC~AZ (pos_01~pos_24) value <=90%
+// (i.e. it should be KEPT in the Discount Summary). Rows where every valid
+// AC~AZ value is >90% return false and are dropped from the report.
+function mRowHasDiscount(row){
+  for(let i=28;i<=51;i++){
+    const field=M_NEW_HEADERS[i];
+    const v=row[field];
+    if(v===''||v===null||v===undefined)continue;
+    const num=Number(v);
+    if(isNaN(num))continue;
+    if(num<=0.9)return true;
+  }
+  return false;
+}
+
+async function mBuildDiscountXlsxBuffer(allRows){
+  const wb=new ExcelJS.Workbook();const ws=wb.addWorksheet('Discount Summary');
+  ws.columns=M_COL_WIDTHS.map(w=>({width:w}));
+  const headerValues=M_DISPLAY_HEADERS.map(h=>h===null?'':h);
+  const headerRow=ws.addRow(headerValues);headerRow.height=24;
+  const headerStyle={font:{bold:true,color:{argb:'FFFFFFFF'},size:11,name:'Calibri'},fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFC09000'}},alignment:{horizontal:'center',vertical:'middle',wrapText:true},border:{top:{style:'thin',color:{argb:'FF8A6600'}},bottom:{style:'thin',color:{argb:'FF8A6600'}},left:{style:'thin',color:{argb:'FF8A6600'}},right:{style:'thin',color:{argb:'FF8A6600'}}}};
+  headerRow.eachCell({includeEmpty:true},cell=>{cell.style=headerStyle;});
+  M_MERGED_PAIRS.forEach(([c1,c2])=>{ws.mergeCells(1,c1,1,c2);});
+  ws.views=[{state:'frozen',xSplit:0,ySplit:1,topLeftCell:'A2',activePane:'bottomLeft'}];
+  const zebraFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFDF3D6'}};const dataFont={size:10,name:'Calibri'};
+  const posWarnFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFEB9C'}};   // 黃底 75%~90%
+  const posBadFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFC7CE'}};    // 紅底 <75%
+  const posWarnFont={size:10,name:'Calibri',bold:true,color:{argb:'FF9C6500'}};
+  const posBadFont={size:10,name:'Calibri',bold:true,color:{argb:'FF9C0006'}};
+  allRows.forEach((row,rowIdx)=>{
+    const values=M_NEW_HEADERS.map((field,i)=>{let v=row[field];if(v===undefined||v===null)v='';if(i===1)return mFormatDate(v);return v;});
+    const exRow=ws.addRow(values);const isZebra=(rowIdx%2===0);
+    exRow.eachCell({includeEmpty:true},(cell,colNumber)=>{
+      const colIdx=colNumber-1;const style={font:dataFont};
+      if(isZebra)style.fill=zebraFill;
+      if(M_PCT_COL_INDICES.has(colIdx)){style.numFmt='0.00%';if(cell.value!==''&&cell.value!==null&&!isNaN(Number(cell.value)))cell.value=Number(cell.value);}
+      if(M_POS_PCT_COL_INDICES.has(colIdx)&&cell.value!==''&&cell.value!==null&&!isNaN(Number(cell.value))){
+        const pct=Number(cell.value);
+        if(pct>=0.75&&pct<=0.9){style.fill=posWarnFill;style.font=posWarnFont;}
+        else if(pct<0.75){style.fill=posBadFill;style.font=posBadFont;}
+      }
+      cell.style=style;
+    });
+  });
+  const buffer=await wb.xlsx.writeBuffer();return buffer;
+}
+
+function doDiscountExport(){
+  document.getElementById('m-successBanner').classList.remove('active');
+  document.getElementById('m-logBox').innerHTML='';document.getElementById('m-logBox').classList.add('active');
+  document.getElementById('m-discountSpinner').style.display='block';document.getElementById('m-discountBtnIcon').style.display='none';
+  document.getElementById('m-discountBtnText').textContent='產生中…';document.getElementById('m-discountBtn').disabled=true;
+  mSetProgress(10);
+  setTimeout(async()=>{
+    try{
+      mLog('━━━━━━━━ 開始產出 Discount Summary ━━━━━━━━','info');mLog(`每日報表：${mNewData.length} 筆`,'info');mLog(`歷史報表：${mOldData.length} 筆`,'info');mSetProgress(20);
+      const newLotSet=new Set();mNewData.forEach(r=>newLotSet.add(String(r['Lot No.']).trim()));mSetProgress(30);
+      const dupLots=new Map();
+      const filteredOld=mOldData.filter(r=>{const lot=String(r['Lot No.']).trim();if(newLotSet.has(lot)){dupLots.set(lot,(dupLots.get(lot)||0)+1);return false;}return true;});
+      if(dupLots.size===0){mLog('✓ 無重複 Lot No.，所有歷史資料直接保留','ok');}
+      else{mLog(`━━ 重複 Lot No. 過濾：共 ${dupLots.size} 個批號 ━━`,'warn');let totalRemoved=0;dupLots.forEach((cnt,lot)=>{totalRemoved+=cnt;});mLog(`→ 歷史報表共刪除 ${totalRemoved} 筆重複資料`,'warn');mLog(`→ 歷史報表保留 ${filteredOld.length} 筆`,'ok');}
+      mSetProgress(40);
+      const allRows=[...mNewData,...filteredOld];mLog(`━━ 合併：新資料 ${mNewData.length} 筆 + 舊資料 ${filteredOld.length} 筆 = ${allRows.length} 筆 ━━`,'ok');mSetProgress(50);
+      mLog('依時間排序（新→舊）…','info');allRows.sort((a,b)=>mSortKey(b)-mSortKey(a));mSetProgress(58);
+      mLog('篩選 AC~AZ 欄位（移除全數 >90% 的列）…','info');
+      const discountRows=allRows.filter(r=>mRowHasDiscount(r));
+      const removedCount=allRows.length-discountRows.length;
+      mLog(`→ 共移除 ${removedCount} 筆（AC~AZ 良率全數 >90%），保留 ${discountRows.length} 筆`,'ok');mSetProgress(72);
+      mLog('建立樣式化 xlsx 工作表（黃底粗體 75%~90% / 紅底粗體 <75%）…','info');const buf=await mBuildDiscountXlsxBuffer(discountRows);mSetProgress(90);
+      const today=new Date();const ymd=today.getFullYear().toString()+String(today.getMonth()+1).padStart(2,'0')+String(today.getDate()).padStart(2,'0');const filename=`StripTest_Discount_Summary_${ymd}.xlsx`;
+      const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+      mSetProgress(100);mLog('━━━━━━━━ 完成 ━━━━━━━━','ok');mLog(`✓ 檔案已下載：${filename}（共 ${discountRows.length} 筆）`,'ok');
+      document.getElementById('m-successBanner').classList.add('active');document.getElementById('m-successTitle').textContent=`${filename} 已下載`;
+      document.getElementById('m-successDesc').textContent=`共 ${discountRows.length} 筆（已排除 AC~AZ 欄位全數 >90% 的 ${removedCount} 筆），已依時間由新到舊排序`;
+    }catch(err){mLog(`產出失敗: ${err.message}`,'err');console.error(err);}
+    document.getElementById('m-discountSpinner').style.display='none';document.getElementById('m-discountBtnIcon').style.display='';document.getElementById('m-discountBtnText').textContent='Output — 產出 StripTest_Discount_Summary_yyyymmdd.xlsx';document.getElementById('m-discountBtn').disabled=(mNewData.length===0);
+  },80);
+}
+
+// Returns true if this row has at least one AC~AZ (pos_01~pos_24) value <75%
+// (i.e. it should be KEPT in the Reject Summary). Rows where every valid
+// AC~AZ value is >=75% return false and are dropped from the report.
+function mRowHasReject(row){
+  for(let i=28;i<=51;i++){
+    const field=M_NEW_HEADERS[i];
+    const v=row[field];
+    if(v===''||v===null||v===undefined)continue;
+    const num=Number(v);
+    if(isNaN(num))continue;
+    if(num<0.75)return true;
+  }
+  return false;
+}
+
+async function mBuildRejectXlsxBuffer(allRows){
+  const wb=new ExcelJS.Workbook();const ws=wb.addWorksheet('Reject Summary');
+  ws.columns=M_COL_WIDTHS.map(w=>({width:w}));
+  const headerValues=M_DISPLAY_HEADERS.map(h=>h===null?'':h);
+  const headerRow=ws.addRow(headerValues);headerRow.height=24;
+  const headerStyle={font:{bold:true,color:{argb:'FFFFFFFF'},size:11,name:'Calibri'},fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFC0392B'}},alignment:{horizontal:'center',vertical:'middle',wrapText:true},border:{top:{style:'thin',color:{argb:'FF922B21'}},bottom:{style:'thin',color:{argb:'FF922B21'}},left:{style:'thin',color:{argb:'FF922B21'}},right:{style:'thin',color:{argb:'FF922B21'}}}};
+  headerRow.eachCell({includeEmpty:true},cell=>{cell.style=headerStyle;});
+  M_MERGED_PAIRS.forEach(([c1,c2])=>{ws.mergeCells(1,c1,1,c2);});
+  ws.views=[{state:'frozen',xSplit:0,ySplit:1,topLeftCell:'A2',activePane:'bottomLeft'}];
+  const zebraFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF9DEDC'}};const dataFont={size:10,name:'Calibri'};
+  const posBadFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFC7CE'}};    // 紅底 <75%
+  const posBadFont={size:10,name:'Calibri',bold:true,color:{argb:'FF9C0006'}};
+  allRows.forEach((row,rowIdx)=>{
+    const values=M_NEW_HEADERS.map((field,i)=>{let v=row[field];if(v===undefined||v===null)v='';if(i===1)return mFormatDate(v);return v;});
+    const exRow=ws.addRow(values);const isZebra=(rowIdx%2===0);
+    exRow.eachCell({includeEmpty:true},(cell,colNumber)=>{
+      const colIdx=colNumber-1;const style={font:dataFont};
+      if(isZebra)style.fill=zebraFill;
+      if(M_PCT_COL_INDICES.has(colIdx)){style.numFmt='0.00%';if(cell.value!==''&&cell.value!==null&&!isNaN(Number(cell.value)))cell.value=Number(cell.value);}
+      if(M_POS_PCT_COL_INDICES.has(colIdx)&&cell.value!==''&&cell.value!==null&&!isNaN(Number(cell.value))){
+        const pct=Number(cell.value);
+        if(pct<0.75){style.fill=posBadFill;style.font=posBadFont;}
+      }
+      cell.style=style;
+    });
+  });
+  const buffer=await wb.xlsx.writeBuffer();return buffer;
+}
+
+function doRejectExport(){
+  document.getElementById('m-successBanner').classList.remove('active');
+  document.getElementById('m-logBox').innerHTML='';document.getElementById('m-logBox').classList.add('active');
+  document.getElementById('m-rejectSpinner').style.display='block';document.getElementById('m-rejectBtnIcon').style.display='none';
+  document.getElementById('m-rejectBtnText').textContent='產生中…';document.getElementById('m-rejectBtn').disabled=true;
+  mSetProgress(10);
+  setTimeout(async()=>{
+    try{
+      mLog('━━━━━━━━ 開始產出 Reject Summary ━━━━━━━━','info');mLog(`每日報表：${mNewData.length} 筆`,'info');mLog(`歷史報表：${mOldData.length} 筆`,'info');mSetProgress(20);
+      const newLotSet=new Set();mNewData.forEach(r=>newLotSet.add(String(r['Lot No.']).trim()));mSetProgress(30);
+      const dupLots=new Map();
+      const filteredOld=mOldData.filter(r=>{const lot=String(r['Lot No.']).trim();if(newLotSet.has(lot)){dupLots.set(lot,(dupLots.get(lot)||0)+1);return false;}return true;});
+      if(dupLots.size===0){mLog('✓ 無重複 Lot No.，所有歷史資料直接保留','ok');}
+      else{mLog(`━━ 重複 Lot No. 過濾：共 ${dupLots.size} 個批號 ━━`,'warn');let totalRemoved=0;dupLots.forEach((cnt,lot)=>{totalRemoved+=cnt;});mLog(`→ 歷史報表共刪除 ${totalRemoved} 筆重複資料`,'warn');mLog(`→ 歷史報表保留 ${filteredOld.length} 筆`,'ok');}
+      mSetProgress(40);
+      const allRows=[...mNewData,...filteredOld];mLog(`━━ 合併：新資料 ${mNewData.length} 筆 + 舊資料 ${filteredOld.length} 筆 = ${allRows.length} 筆 ━━`,'ok');mSetProgress(50);
+      mLog('依時間排序（新→舊）…','info');allRows.sort((a,b)=>mSortKey(b)-mSortKey(a));mSetProgress(58);
+      mLog('篩選 AC~AZ 欄位（移除 >=75% 的列）…','info');
+      const rejectRows=allRows.filter(r=>mRowHasReject(r));
+      const removedCount=allRows.length-rejectRows.length;
+      mLog(`→ 共移除 ${removedCount} 筆（AC~AZ 良率全數 >=75%），保留 ${rejectRows.length} 筆`,'ok');mSetProgress(72);
+      mLog('建立樣式化 xlsx 工作表（紅底粗體 <75%）…','info');const buf=await mBuildRejectXlsxBuffer(rejectRows);mSetProgress(90);
+      const today=new Date();const ymd=today.getFullYear().toString()+String(today.getMonth()+1).padStart(2,'0')+String(today.getDate()).padStart(2,'0');const filename=`StripTest_Reject_Summary_${ymd}.xlsx`;
+      const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+      mSetProgress(100);mLog('━━━━━━━━ 完成 ━━━━━━━━','ok');mLog(`✓ 檔案已下載：${filename}（共 ${rejectRows.length} 筆）`,'ok');
+      document.getElementById('m-successBanner').classList.add('active');document.getElementById('m-successTitle').textContent=`${filename} 已下載`;
+      document.getElementById('m-successDesc').textContent=`共 ${rejectRows.length} 筆（已排除 AC~AZ 欄位全數 >=75% 的 ${removedCount} 筆），已依時間由新到舊排序`;
+    }catch(err){mLog(`產出失敗: ${err.message}`,'err');console.error(err);}
+    document.getElementById('m-rejectSpinner').style.display='none';document.getElementById('m-rejectBtnIcon').style.display='';document.getElementById('m-rejectBtnText').textContent='Output — 產出 StripTest_Reject_Summary_yyyymmdd.xlsx';document.getElementById('m-rejectBtn').disabled=(mNewData.length===0);
   },80);
 }
 
@@ -13840,6 +14006,7 @@ function doMerge(){
     const hasParams = grid.querySelectorAll('input:checked').length > 0;
     const hasFiles = bhmStripList.length > 0 && bhmXlsMap.size > 0;
     $('bhm-runBtn').disabled = !(hasParams && hasFiles);
+    $('bhm-runPassFailBtn').disabled = !hasFiles;
   }
 
   grid.addEventListener('change', checkReady);
@@ -13986,6 +14153,121 @@ function doMerge(){
     const a = document.createElement('a');
     a.href=url; a.download=`BatchHeatmap_${todayStr()}.zip`; a.click();
     setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  });
+
+  // --- Pass/Fail Heatmap (whole-lot, not by test item) ---
+  function bhmPfLog(msg, isErr=false){
+    const logEl = $('bhm-pfLog');
+    const line = document.createElement('div');
+    if(isErr) line.className='err';
+    line.textContent = msg;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  function bhmPfClearLog(){ $('bhm-pfLog').innerHTML=''; }
+  function bhmPfSetProgress(pct){ $('bhm-pfProgressBar').style.width = pct+'%'; }
+  function bhmPfShowProgress(show){
+    $('bhm-pfProgressWrap').classList.toggle('show', show);
+    if(show) bhmPfSetProgress(0);
+  }
+
+  $('bhm-runPassFailBtn').addEventListener('click', async()=>{
+    const btn = $('bhm-runPassFailBtn');
+    btn.disabled = true;
+    btn.textContent = '處理中...';
+    bhmPfClearLog();
+    bhmPfShowProgress(true);
+    bhmPfSetProgress(3);
+
+    const zip = new JSZip();
+    let pngCount = 0;
+    const total = bhmStripList.length;
+    let done = 0;
+    const pfCanvases = [];
+
+    try{
+      for(const lotFileName of bhmStripList){
+        const xlsFile = bhmXlsMap.get(lotFileName.toLowerCase().trim());
+        const lotName = lotFileName.replace(/\.[^.]+$/, '');
+        if(!xlsFile){
+          bhmPfLog(`[跳過] 找不到檔案：${lotFileName}`, true);
+          done++;
+          bhmPfSetProgress(3 + Math.round(done/total*90));
+          continue;
+        }
+
+        // Convert XLS → CSV (adds DiePass column, judged the same way as the summary yield)
+        let csvText;
+        try{
+          const buf = await xlsFile.arrayBuffer();
+          csvText = hmConvertXlsArrayBuffer(buf);
+        }catch(err){
+          bhmPfLog(`[錯誤] ${lotFileName} 轉換失敗：${err.message}`, true);
+          done++;
+          bhmPfSetProgress(3 + Math.round(done/total*90));
+          continue;
+        }
+
+        // Render ONE whole-lot Pass(綠)/Fail(紅)/未測(白) heatmap — same logic as Report Generator's Fail Heatmap
+        try{
+          const canvas = autoHmRenderLotToCanvas(csvText, lotName);
+          if(!canvas){
+            bhmPfLog(`[警告] ${lotName}：無法渲染（資料缺失）`, true);
+          }else{
+            const blob = await canvasToPngBlob(canvas);
+            zip.file(`${lotName}_PassFailHeatmap.png`, blob);
+            pngCount++;
+            pfCanvases.push({name: lotName, canvas});
+            bhmPfLog(`✓ ${lotName} heatmap`);
+          }
+        }catch(err){
+          bhmPfLog(`[錯誤] ${lotName}：${err.message}`, true);
+        }
+        done++;
+        bhmPfSetProgress(3 + Math.round(done/total*90));
+      }
+
+      if(pngCount === 0){
+        bhmPfLog('未產生任何 Heatmap，請確認 XLS 檔案格式。', true);
+        return;
+      }
+
+      // Show previews (reuses the same preview grid as the param-based batch heatmap)
+      $('bhm-emptyStage').style.display = 'none';
+      $('bhm-resultsWrap').style.display = '';
+      $('bhm-resultTitle').textContent = `預覽 (${pngCount} 張 Pass/Fail Heatmap)`;
+      $('bhm-resultsGrid').innerHTML = '';
+      bhmRenderedCanvases = pfCanvases.map(({name,canvas})=>({name, param:'PassFailHeatmap', canvas}));
+      pfCanvases.forEach(({name, canvas})=>{
+        const card = document.createElement('div');
+        card.className = 'bhm-result-card';
+        card.innerHTML = `<div class="bhm-result-card-title">${name} — Pass/Fail</div>`;
+        const img = document.createElement('img');
+        img.src = canvas.toDataURL('image/png');
+        img.style.cssText = 'width:100%;height:auto;display:block;';
+        card.appendChild(img);
+        $('bhm-resultsGrid').appendChild(card);
+      });
+
+      bhmPfSetProgress(97);
+      const zipBlob = await zip.generateAsync({type:'blob'});
+      const zipName = `PassFailHeatmap_${todayStr()}.zip`;
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href=url; a.download=zipName; a.click();
+      setTimeout(()=>URL.revokeObjectURL(url), 2000);
+      bhmPfSetProgress(100);
+      bhmPfLog(`✅ 完成！共 ${pngCount} 張 → ${zipName}`);
+      $('bhm-topStatus').textContent = `完成：${pngCount} 張 Pass/Fail heatmap 已下載`;
+
+    }catch(err){
+      bhmPfLog(`批次處理失敗：${err.message}`, true);
+      console.error(err);
+    }finally{
+      btn.disabled = false;
+      btn.textContent = '產生 Pass/Fail Heatmap 並下載 ZIP';
+      setTimeout(()=>bhmPfShowProgress(false), 700);
+    }
   });
 
   // Render function (adapted from autoHmRenderToCanvas but with explicit limits)

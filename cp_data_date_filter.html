@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CP Report Data 日期篩選工具</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --bg:#f5f6f8;
+    --panel:#ffffff;
+    --border:#dfe3e8;
+    --text:#1f2430;
+    --text-soft:#5b6472;
+    --accent:#2563eb;
+    --accent-soft:#eaf1ff;
+    --good:#16a34a;
+    --warn:#d97706;
+    --bad:#dc2626;
+    --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    padding:32px 16px 80px;
+  }
+  .wrap{max-width:860px;margin:0 auto;}
+  h1{font-size:22px;margin:0 0 4px;}
+  .sub{color:var(--text-soft);font-size:14px;margin:0 0 28px;}
+  .card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:22px 24px;
+    margin-bottom:18px;
+  }
+  .card h2{
+    font-size:15px;
+    margin:0 0 14px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .step-num{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:20px;height:20px;
+    border-radius:50%;
+    background:var(--accent);
+    color:#fff;
+    font-size:12px;
+    font-weight:600;
+  }
+  .drop{
+    border:2px dashed var(--border);
+    border-radius:8px;
+    padding:26px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  .drop:hover, .drop.dragover{
+    border-color:var(--accent);
+    background:var(--accent-soft);
+  }
+  .drop input{display:none;}
+  .drop .hint{color:var(--text-soft);font-size:13px;margin-top:6px;}
+  .filename{
+    margin-top:12px;
+    font-size:13px;
+    color:var(--text);
+    font-family:var(--mono);
+    word-break:break-all;
+  }
+  .row{
+    display:flex;
+    gap:14px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+  input[type=date]{
+    font-size:14px;
+    padding:8px 10px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    color:var(--text);
+  }
+  .radio-group{display:flex;gap:16px;font-size:13px;color:var(--text-soft);}
+  .radio-group label{display:flex;align-items:center;gap:6px;cursor:pointer;}
+  button{
+    font-size:14px;
+    font-weight:600;
+    padding:10px 18px;
+    border-radius:7px;
+    border:none;
+    cursor:pointer;
+    transition:opacity .15s, transform .05s;
+  }
+  button:active{transform:translateY(1px);}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  .btn-primary{background:var(--accent);color:#fff;}
+  .btn-primary:hover:not(:disabled){opacity:.9;}
+  .btn-secondary{background:#eef0f3;color:var(--text);}
+  .btn-secondary:hover:not(:disabled){opacity:.85;}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px;}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);}
+  th{color:var(--text-soft);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.02em;}
+  td.num{text-align:right;font-family:var(--mono);}
+  .tag{
+    display:inline-block;
+    padding:1px 8px;
+    border-radius:999px;
+    font-size:11px;
+    font-weight:600;
+  }
+  .tag-removed{background:#fde8e8;color:var(--bad);}
+  .tag-kept{background:#e7f7ec;color:var(--good);}
+  .tag-unknown{background:#fef3e2;color:var(--warn);}
+  .note{font-size:12px;color:var(--text-soft);margin-top:10px;line-height:1.6;}
+  .status{
+    font-size:13px;
+    padding:10px 12px;
+    border-radius:7px;
+    margin-top:14px;
+    display:none;
+  }
+  .status.show{display:block;}
+  .status.ok{background:#e7f7ec;color:var(--good);}
+  .status.err{background:#fde8e8;color:var(--bad);}
+  .status.info{background:var(--accent-soft);color:var(--accent);}
+  .field-name{font-family:var(--mono);font-size:12px;color:var(--accent);}
+  .disabled-section{opacity:.45;pointer-events:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CP Report Data 日期篩選工具</h1>
+  <p class="sub">上傳 CP_Report_Data 的 JSON（或原始 .zip）檔案，設定日期後，會將該日期以前的資料從各資料表中移除，並產生新的 JSON 檔供下載。</p>
+
+  <div class="card">
+    <h2><span class="step-num">1</span>上傳資料檔案</h2>
+    <label class="drop" id="dropZone">
+      <input type="file" id="fileInput" accept=".json,.zip">
+      <div>📄 點擊選擇檔案，或將 .json / .zip 檔拖曳到這裡</div>
+      <div class="hint">支援直接上傳解壓後的 .json，或原始 .zip 壓縮檔</div>
+    </label>
+    <div class="filename" id="fileName"></div>
+    <div class="status" id="loadStatus"></div>
+  </div>
+
+  <div class="card disabled-section" id="settingsCard">
+    <h2><span class="step-num">2</span>設定篩選日期</h2>
+    <div class="row">
+      <input type="date" id="cutoffDate">
+      <div class="radio-group">
+        <label><input type="radio" name="mode" value="keepOnAfter" checked> 保留此日期(含)之後的資料</label>
+        <label><input type="radio" name="mode" value="keepAfter"> 保留此日期之後的資料（不含當天）</label>
+      </div>
+    </div>
+    <div class="note">
+      資料集內各資料表使用的日期欄位不同，本工具會自動依下列欄位判斷日期：<br>
+      dailyRaw → <span class="field-name">Test Date</span>（Excel 序列日期）／
+      watYieldRaw → <span class="field-name">runOn</span>／
+      ulldYield → <span class="field-name">Test  Date</span>／
+      ulldDetail → <span class="field-name">Test Date</span>／
+      stripRaw → <span class="field-name">Report Date</span><br>
+      watRaw 本身沒有日期欄位，會依 <span class="field-name">lot</span> 對應 watYieldRaw 篩選後仍存在的批號來決定是否保留；找不到對應批號的記錄會保留並標記為「無法判斷」。
+    </div>
+  </div>
+
+  <div class="card disabled-section" id="previewCard">
+    <h2><span class="step-num">3</span>預覽篩選結果</h2>
+    <button class="btn-secondary" id="previewBtn">重新計算預覽</button>
+    <table id="previewTable" style="display:none">
+      <thead>
+        <tr><th>資料表</th><th class="num">原始筆數</th><th class="num">移除</th><th class="num">保留</th><th class="num">無法判斷日期</th></tr>
+      </thead>
+      <tbody id="previewBody"></tbody>
+    </table>
+  </div>
+
+  <div class="card disabled-section" id="exportCard">
+    <h2><span class="step-num">4</span>產生並下載新的 JSON</h2>
+    <button class="btn-primary" id="exportBtn">產生篩選後的 JSON 檔</button>
+    <div class="status" id="exportStatus"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const DATE_FIELDS = {
+    dailyRaw:    { field: 'Test Date',   type: 'excel' },
+    watYieldRaw: { field: 'runOn',       type: 'iso'   },
+    ulldYield:   { field: 'Test  Date',  type: 'iso'   },
+    ulldDetail:  { field: 'Test Date',   type: 'iso'   },
+    stripRaw:    { field: 'Report Date', type: 'iso'   }
+  };
+  const LABELS = {
+    dailyRaw: 'dailyRaw', watRaw: 'watRaw', watYieldRaw: 'watYieldRaw',
+    ulldYield: 'ulldYield', ulldDetail: 'ulldDetail', stripRaw: 'stripRaw'
+  };
+
+  let rawData = null;
+  let sourceFileBaseName = 'CP_Report_Data';
+
+  const fileInput   = document.getElementById('fileInput');
+  const dropZone    = document.getElementById('dropZone');
+  const fileNameEl  = document.getElementById('fileName');
+  const loadStatus  = document.getElementById('loadStatus');
+  const settingsCard= document.getElementById('settingsCard');
+  const previewCard = document.getElementById('previewCard');
+  const exportCard  = document.getElementById('exportCard');
+  const cutoffInput = document.getElementById('cutoffDate');
+  const previewBtn  = document.getElementById('previewBtn');
+  const previewTable= document.getElementById('previewTable');
+  const previewBody = document.getElementById('previewBody');
+  const exportBtn   = document.getElementById('exportBtn');
+  const exportStatus= document.getElementById('exportStatus');
+
+  function showStatus(el, msg, type){
+    el.textContent = msg;
+    el.className = 'status show ' + type;
+  }
+
+  function excelSerialToDate(serial){
+    // Excel 序列日期（1899-12-30 為第 0 天）
+    return new Date(Date.UTC(1899, 11, 30) + Number(serial) * 86400000);
+  }
+
+  function getRecordDate(record, config){
+    const raw = record[config.field];
+    if (raw === null || raw === undefined || raw === '') return null;
+    if (config.type === 'excel'){
+      const d = excelSerialToDate(raw);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function getCutoff(){
+    const val = cutoffInput.value;
+    if (!val) return null;
+    const mode = document.querySelector('input[name=mode]:checked').value;
+    const d = new Date(val + 'T00:00:00.000Z');
+    if (mode === 'keepAfter'){
+      d.setUTCDate(d.getUTCDate() + 1); // 隔天 00:00 起才算「之後」
+    }
+    return d;
+  }
+
+  // 依日期欄位篩選一般資料表，回傳 { kept, removed, unknown }
+  function filterByDate(arr, config, cutoff){
+    const kept = [], removed = [];
+    let unknown = 0;
+    arr.forEach(rec => {
+      const d = getRecordDate(rec, config);
+      if (d === null){ kept.push(rec); unknown++; return; }
+      if (d.getTime() >= cutoff.getTime()) kept.push(rec);
+      else removed.push(rec);
+    });
+    return { kept, removed, unknown };
+  }
+
+  // watRaw 沒有日期，依 lot 是否仍存在於篩選後的 watYieldRaw 判斷
+  function filterWatRaw(watRaw, watYieldKeptLots, watYieldAllLots){
+    const kept = [], removed = [];
+    let unknown = 0;
+    watRaw.forEach(rec => {
+      const lot = rec.lot;
+      if (!watYieldAllLots.has(lot)){
+        kept.push(rec); unknown++; return; // 找不到對應資料，無法判斷，保留
+      }
+      if (watYieldKeptLots.has(lot)) kept.push(rec);
+      else removed.push(rec);
+    });
+    return { kept, removed, unknown };
+  }
+
+  function computeResults(){
+    const cutoff = getCutoff();
+    if (!cutoff || !rawData) return null;
+
+    const results = {};
+    Object.keys(DATE_FIELDS).forEach(key => {
+      if (!Array.isArray(rawData[key])) return;
+      results[key] = filterByDate(rawData[key], DATE_FIELDS[key], cutoff);
+    });
+
+    if (Array.isArray(rawData.watRaw)){
+      const watYieldAllLots = new Set((rawData.watYieldRaw || []).map(r => r.lot));
+      const watYieldKeptLots = new Set((results.watYieldRaw ? results.watYieldRaw.kept : (rawData.watYieldRaw||[])).map(r => r.lot));
+      results.watRaw = filterWatRaw(rawData.watRaw, watYieldKeptLots, watYieldAllLots);
+    }
+    return results;
+  }
+
+  function renderPreview(){
+    const results = computeResults();
+    if (!results){
+      showStatus(exportStatus, '請先選擇日期', 'err');
+      return;
+    }
+    previewBody.innerHTML = '';
+    Object.keys(rawData).forEach(key => {
+      if (!Array.isArray(rawData[key])) return;
+      const total = rawData[key].length;
+      const r = results[key];
+      const removedCount = r ? r.removed.length : 0;
+      const keptCount = r ? r.kept.length : total;
+      const unknownCount = r ? r.unknown : 0;
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + key + '</td>' +
+        '<td class="num">' + total.toLocaleString() + '</td>' +
+        '<td class="num"><span class="tag tag-removed">' + removedCount.toLocaleString() + '</span></td>' +
+        '<td class="num"><span class="tag tag-kept">' + keptCount.toLocaleString() + '</span></td>' +
+        '<td class="num">' + (unknownCount ? '<span class="tag tag-unknown">' + unknownCount.toLocaleString() + '</span>' : '—') + '</td>';
+      previewBody.appendChild(tr);
+    });
+    previewTable.style.display = '';
+  }
+
+  function enableSection(el){ el.classList.remove('disabled-section'); }
+  function disableSection(el){ el.classList.add('disabled-section'); }
+
+  function loadJSONObject(obj, baseName){
+    rawData = obj;
+    sourceFileBaseName = baseName || 'CP_Report_Data';
+    const arrayInfo = Object.keys(obj)
+      .filter(k => Array.isArray(obj[k]))
+      .map(k => k + '(' + obj[k].length + ')')
+      .join(', ');
+    showStatus(loadStatus, '載入成功：' + arrayInfo, 'ok');
+    enableSection(settingsCard);
+    enableSection(previewCard);
+    enableSection(exportCard);
+    previewTable.style.display = 'none';
+    previewBody.innerHTML = '';
+  }
+
+  async function handleFile(file){
+    fileNameEl.textContent = file.name;
+    loadStatus.className = 'status show info';
+    loadStatus.textContent = '讀取中…';
+    disableSection(settingsCard);
+    disableSection(previewCard);
+    disableSection(exportCard);
+
+    const baseName = file.name.replace(/\.(json|zip)$/i, '');
+
+    try {
+      if (/\.zip$/i.test(file.name)){
+        if (typeof JSZip === 'undefined'){
+          showStatus(loadStatus, '無法載入 JSZip 函式庫（可能離線），請改上傳解壓後的 .json 檔', 'err');
+          return;
+        }
+        const zip = await JSZip.loadAsync(file);
+        const jsonEntry = Object.values(zip.files).find(f => /\.json$/i.test(f.name) && !f.dir);
+        if (!jsonEntry){
+          showStatus(loadStatus, '壓縮檔內找不到 .json 檔', 'err');
+          return;
+        }
+        const text = await jsonEntry.async('string');
+        const obj = JSON.parse(text);
+        loadJSONObject(obj, baseName);
+      } else {
+        const text = await file.text();
+        const obj = JSON.parse(text);
+        loadJSONObject(obj, baseName);
+      }
+    } catch (err){
+      showStatus(loadStatus, '讀取失敗：' + err.message, 'err');
+    }
+  }
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', e => {
+    if (e.target.files[0]) handleFile(e.target.files[0]);
+  });
+  ['dragover','dragenter'].forEach(evt =>
+    dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.classList.add('dragover'); })
+  );
+  ['dragleave','drop'].forEach(evt =>
+    dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.classList.remove('dragover'); })
+  );
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+
+  previewBtn.addEventListener('click', () => {
+    if (!cutoffInput.value){
+      showStatus(loadStatus, '', 'info');
+      alert('請先選擇日期');
+      return;
+    }
+    renderPreview();
+  });
+
+  exportBtn.addEventListener('click', () => {
+    if (!rawData){ showStatus(exportStatus, '請先上傳資料', 'err'); return; }
+    if (!cutoffInput.value){ showStatus(exportStatus, '請先選擇日期', 'err'); return; }
+
+    const results = computeResults();
+    const output = Object.assign({}, rawData);
+    Object.keys(results).forEach(key => {
+      output[key] = results[key].kept;
+    });
+    output.filteredAt = new Date().toISOString();
+    output.filterCutoffDate = cutoffInput.value;
+    output.filterMode = document.querySelector('input[name=mode]:checked').value;
+
+    const blob = new Blob([JSON.stringify(output, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = sourceFileBaseName + '_filtered_from_' + cutoffInput.value + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showStatus(exportStatus, '已產生並下載：' + a.download, 'ok');
+  });
+})();
+</script>
+</body>
+</html>

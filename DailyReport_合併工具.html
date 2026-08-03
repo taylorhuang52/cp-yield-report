@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DailyReport 合併工具</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f6f8;
+    --panel:#ffffff;
+    --ink:#1c2530;
+    --sub:#5c6b7a;
+    --line:#dfe4ea;
+    --blue:#2b6cb0;
+    --blue-dark:#1e4e80;
+    --green:#2f855a;
+    --amber:#b7791f;
+    --red:#c53030;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang TC","Microsoft JhengHei",sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    padding:32px 20px 80px;
+  }
+  .wrap{max-width:1080px;margin:0 auto;}
+  h1{font-size:22px;margin:0 0 4px;}
+  .lead{color:var(--sub);font-size:14px;margin:0 0 28px;line-height:1.6;}
+  .lead code{background:#eef1f4;padding:1px 6px;border-radius:4px;font-family:var(--mono);font-size:12.5px;}
+
+  .drop{
+    border:2px dashed #b7c1cc;
+    border-radius:12px;
+    background:var(--panel);
+    padding:36px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  .drop.drag{border-color:var(--blue); background:#eaf2fb;}
+  .drop .icon{font-size:30px;margin-bottom:8px;}
+  .drop .main{font-size:15px;font-weight:600;}
+  .drop .sub{font-size:12.5px;color:var(--sub);margin-top:4px;}
+  input[type=file]{display:none;}
+
+  .files{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+    margin-top:18px;
+  }
+  @media (max-width:720px){.files{grid-template-columns:1fr;}}
+
+  .fcard{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:14px 16px;
+    position:relative;
+    min-height:96px;
+  }
+  .fcard.empty{
+    display:flex;align-items:center;justify-content:center;
+    color:#a7b0ba;font-size:13px;border-style:dashed;
+  }
+  .fcard .name{font-weight:600;font-size:13.5px;word-break:break-all;padding-right:22px;}
+  .fcard .meta{font-size:12px;color:var(--sub);margin-top:6px;line-height:1.7;}
+  .fcard .meta b{color:var(--ink);font-family:var(--mono);}
+  .fcard .remove{
+    position:absolute;top:10px;right:10px;
+    width:20px;height:20px;border-radius:50%;
+    border:none;background:#eef1f4;color:var(--sub);
+    cursor:pointer;font-size:13px;line-height:20px;padding:0;
+  }
+  .fcard .remove:hover{background:#e2e7ec;color:var(--red);}
+  .badge{
+    display:inline-block;font-size:11px;padding:2px 7px;border-radius:20px;
+    margin-top:8px;font-weight:600;
+  }
+  .badge.newer{background:#e6f4ea;color:var(--green);}
+  .badge.older{background:#fdf3e2;color:var(--amber);}
+  .badge.err{background:#fbe9e9;color:var(--red);}
+
+  .actions{
+    display:flex;align-items:center;gap:12px;margin:24px 0 8px;flex-wrap:wrap;
+  }
+  button.primary{
+    background:var(--blue);color:#fff;border:none;
+    padding:11px 22px;border-radius:8px;font-size:14px;font-weight:600;
+    cursor:pointer;transition:background .15s;
+  }
+  button.primary:hover:not(:disabled){background:var(--blue-dark);}
+  button.primary:disabled{background:#c3cdd6;cursor:not-allowed;}
+  button.ghost{
+    background:transparent;border:1px solid var(--line);color:var(--sub);
+    padding:10px 18px;border-radius:8px;font-size:13.5px;cursor:pointer;
+  }
+  button.ghost:hover{border-color:#b7c1cc;color:var(--ink);}
+  .status{font-size:13px;color:var(--sub);}
+  .status.err{color:var(--red);}
+
+  .panel{
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:20px 22px;margin-top:18px;
+  }
+  .panel h2{font-size:15px;margin:0 0 14px;}
+
+  .stats{display:flex;gap:28px;flex-wrap:wrap;margin-bottom:6px;}
+  .stat .num{font-family:var(--mono);font-size:22px;font-weight:700;}
+  .stat .lbl{font-size:12px;color:var(--sub);margin-top:2px;}
+  .stat.win .num{color:var(--blue);}
+  .stat.dup .num{color:var(--amber);}
+
+  .dup-list{
+    margin-top:14px;border-top:1px solid var(--line);padding-top:12px;
+    max-height:160px;overflow:auto;font-size:12px;color:var(--sub);font-family:var(--mono);
+  }
+  .dup-list div{padding:2px 0;}
+
+  table.preview{
+    width:100%;border-collapse:collapse;font-size:12px;margin-top:6px;
+  }
+  .tablewrap{overflow:auto;max-height:420px;border:1px solid var(--line);border-radius:8px;margin-top:14px;}
+  table.preview th, table.preview td{
+    border-bottom:1px solid var(--line);border-right:1px solid #eef1f4;
+    padding:6px 9px;text-align:left;white-space:nowrap;
+  }
+  table.preview th{
+    background:#f7f9fb;position:sticky;top:0;font-weight:600;color:var(--sub);z-index:1;
+  }
+  table.preview tr:hover td{background:#fafcfe;}
+  .src-a{color:#2b6cb0;font-weight:600;}
+  .src-b{color:#2f855a;font-weight:600;}
+
+  .download-bar{
+    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;
+    margin-top:18px;padding-top:16px;border-top:1px solid var(--line);
+  }
+  .fname{font-family:var(--mono);font-size:12.5px;color:var(--sub);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>DailyReport 合併工具</h1>
+  <p class="lead">
+    拖曳兩個 <code>DailyReport_yyyymmddhhmmss.xls</code> 檔案進行合併。<br>
+    合併規則：以 <b>Test Date</b> + <b>Test Time</b> 兩欄判斷是否為同一筆資料；若重複，保留檔名日期時間較新的檔案中的那一列，結果不重複列。
+  </p>
+
+  <div class="drop" id="drop">
+    <div class="icon">📂</div>
+    <div class="main">拖曳檔案到這裡，或點擊選擇檔案</div>
+    <div class="sub">支援 .xls / .xlsx，請選擇 2 個 DailyReport 檔案</div>
+    <input type="file" id="fileInput" accept=".xls,.xlsx" multiple>
+  </div>
+
+  <div class="files">
+    <div class="fcard empty" id="slotA">尚未選擇檔案 A</div>
+    <div class="fcard empty" id="slotB">尚未選擇檔案 B</div>
+  </div>
+
+  <div class="actions">
+    <button class="primary" id="mergeBtn" disabled>合併兩個檔案</button>
+    <button class="ghost" id="resetBtn">清空重來</button>
+    <span class="status" id="status"></span>
+  </div>
+
+  <div class="panel" id="resultPanel" style="display:none;">
+    <h2>合併結果</h2>
+    <div class="stats">
+      <div class="stat"><div class="num" id="statA">0</div><div class="lbl">檔案 A 筆數</div></div>
+      <div class="stat"><div class="num" id="statB">0</div><div class="lbl">檔案 B 筆數</div></div>
+      <div class="stat dup"><div class="num" id="statDup">0</div><div class="lbl">重複（已用新檔覆蓋）</div></div>
+      <div class="stat win"><div class="num" id="statTotal">0</div><div class="lbl">合併後總筆數</div></div>
+    </div>
+    <div class="dup-list" id="dupList" style="display:none;"></div>
+
+    <div class="tablewrap">
+      <table class="preview" id="previewTable"></table>
+    </div>
+
+    <div class="download-bar">
+      <span class="fname" id="outName"></span>
+      <button class="primary" id="downloadBtn">下載合併檔案 (.xlsx)</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('fileInput');
+const slotA = document.getElementById('slotA');
+const slotB = document.getElementById('slotB');
+const mergeBtn = document.getElementById('mergeBtn');
+const resetBtn = document.getElementById('resetBtn');
+const statusEl = document.getElementById('status');
+const resultPanel = document.getElementById('resultPanel');
+const downloadBtn = document.getElementById('downloadBtn');
+const outNameEl = document.getElementById('outName');
+
+let slots = [null, null]; // parsed file data objects
+let mergedResult = null;  // {header1, header2, rows: [{row, source}], dupCount, dupKeys}
+
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+drop.addEventListener('drop', e => {
+  e.preventDefault();
+  drop.classList.remove('drag');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+resetBtn.addEventListener('click', resetAll);
+
+function resetAll(){
+  slots = [null, null];
+  renderSlot(0); renderSlot(1);
+  mergeBtn.disabled = true;
+  statusEl.textContent = '';
+  statusEl.className = 'status';
+  resultPanel.style.display = 'none';
+  mergedResult = null;
+  fileInput.value = '';
+}
+
+function handleFiles(fileList){
+  const files = Array.from(fileList).filter(f => /\.(xls|xlsx)$/i.test(f.name));
+  if (!files.length) return;
+  for (const f of files){
+    const idx = slots[0] === null ? 0 : (slots[1] === null ? 1 : 1); // fill A then B, overwrite B if both full
+    loadFile(f, idx);
+  }
+}
+
+function extractTimestamp(name){
+  const m = name.match(/(\d{14})/);
+  return m ? m[1] : null;
+}
+
+function formatTs(ts){
+  if(!ts) return '無法辨識日期時間';
+  return `${ts.slice(0,4)}/${ts.slice(4,6)}/${ts.slice(6,8)} ${ts.slice(8,10)}:${ts.slice(10,12)}:${ts.slice(12,14)}`;
+}
+
+async function loadFile(file, idx){
+  statusEl.textContent = `正在讀取 ${file.name} ...`;
+  statusEl.className = 'status';
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array', cellDates:true});
+    const sheetName = wb.SheetNames[0];
+    const ws = wb.Sheets[sheetName];
+    const aoa = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
+    const header1 = aoa[0] || [];
+    const header2 = aoa[1] || [];
+    const rows = aoa.slice(2).filter(r => r && r.some(v => v !== null && v !== undefined && v !== ''));
+    const timestamp = extractTimestamp(file.name);
+    const merges = (ws['!merges'] || []).filter(m => m.s.r === 0 && m.e.r === 0);
+
+    slots[idx] = {
+      name: file.name, timestamp, sheetName,
+      header1, header2, rows, merges
+    };
+    renderSlot(idx);
+    statusEl.textContent = '';
+    mergeBtn.disabled = !(slots[0] && slots[1]);
+    resultPanel.style.display = 'none';
+    mergedResult = null;
+  }catch(err){
+    console.error(err);
+    statusEl.textContent = `讀取 ${file.name} 失敗：${err.message}`;
+    statusEl.className = 'status err';
+  }
+}
+
+function renderSlot(idx){
+  const el = idx === 0 ? slotA : slotB;
+  const d = slots[idx];
+  if (!d){
+    el.className = 'fcard empty';
+    el.innerHTML = `尚未選擇檔案 ${idx===0?'A':'B'}`;
+    return;
+  }
+  el.className = 'fcard';
+  const badge = d.timestamp ? '' : `<span class="badge err">找不到 yyyymmddhhmmss</span>`;
+  el.innerHTML = `
+    <button class="remove" data-idx="${idx}" title="移除">✕</button>
+    <div class="name">${escapeHtml(d.name)}</div>
+    <div class="meta">
+      檔名時間戳：<b>${d.timestamp ? formatTs(d.timestamp) : '—'}</b><br>
+      資料列數：<b>${d.rows.length}</b>　工作表：<b>${escapeHtml(d.sheetName)}</b>
+    </div>
+    ${badge}
+  `;
+  el.querySelector('.remove').addEventListener('click', (e) => {
+    const i = Number(e.currentTarget.dataset.idx);
+    slots[i] = null;
+    renderSlot(i);
+    mergeBtn.disabled = true;
+    resultPanel.style.display = 'none';
+    mergedResult = null;
+  });
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function dateKeyPart(v){
+  if (v instanceof Date) return v.toISOString().slice(0,10);
+  return v === null || v === undefined ? '' : String(v).trim();
+}
+function timeKeyPart(v){
+  if (v instanceof Date) return v.toISOString().slice(11,19);
+  return v === null || v === undefined ? '' : String(v).trim();
+}
+function rowKey(row){
+  return dateKeyPart(row[0]) + '_' + timeKeyPart(row[1]);
+}
+function sortKey(row){
+  return dateKeyPart(row[0]) + 'T' + timeKeyPart(row[1]);
+}
+function displayDate(v){
+  if (v instanceof Date) return v.toISOString().slice(0,10);
+  return v ?? '';
+}
+function displayTime(v){
+  if (v instanceof Date) return v.toISOString().slice(11,19);
+  return v ?? '';
+}
+
+mergeBtn.addEventListener('click', () => {
+  if (!slots[0] || !slots[1]) return;
+  try{
+    mergedResult = doMerge(slots[0], slots[1]);
+    renderResult(mergedResult);
+    resultPanel.style.display = 'block';
+    resultPanel.scrollIntoView({behavior:'smooth', block:'start'});
+  }catch(err){
+    console.error(err);
+    statusEl.textContent = '合併時發生錯誤：' + err.message;
+    statusEl.className = 'status err';
+  }
+});
+
+function doMerge(fA, fB){
+  // decide which file is "newer" by filename timestamp; older-first so newer overwrites in the Map
+  const missingTs = !fA.timestamp || !fB.timestamp;
+  const order = [fA, fB].slice().sort((x, y) => {
+    const tx = x.timestamp || '';
+    const ty = y.timestamp || '';
+    return tx.localeCompare(ty); // ascending: older first, newer last (wins)
+  });
+
+  const map = new Map(); // key -> {row, sourceName, sourceLabel}
+  const dupKeys = [];
+  const labelOf = (f) => (f === fA ? 'A' : 'B');
+
+  order.forEach((f) => {
+    f.rows.forEach(row => {
+      const key = rowKey(row);
+      if (map.has(key)){
+        dupKeys.push({ key, keptFrom: labelOf(f), overwritten: map.get(key).sourceLabel });
+      }
+      map.set(key, { row, sourceName: f.name, sourceLabel: labelOf(f) });
+    });
+  });
+
+  const mergedRows = Array.from(map.values());
+  mergedRows.sort((a, b) => sortKey(a.row).localeCompare(sortKey(b.row)));
+
+  // prefer header/merges from whichever file has more columns defined, fallback to fA
+  const header1 = (fA.header1.length >= fB.header1.length) ? fA.header1 : fB.header1;
+  const header2 = (fA.header2.length >= fB.header2.length) ? fA.header2 : fB.header2;
+  const merges = (fA.merges && fA.merges.length ? fA.merges : fB.merges) || [];
+
+  return {
+    fA, fB, header1, header2, merges,
+    rows: mergedRows,
+    dupCount: dupKeys.length,
+    dupKeys,
+    missingTs
+  };
+}
+
+function renderResult(res){
+  document.getElementById('statA').textContent = res.fA.rows.length;
+  document.getElementById('statB').textContent = res.fB.rows.length;
+  document.getElementById('statDup').textContent = res.dupCount;
+  document.getElementById('statTotal').textContent = res.rows.length;
+
+  if (res.missingTs){
+    statusEl.textContent = '注意：至少一個檔名無法辨識出 yyyymmddhhmmss 時間戳，已依可辨識部分排序，請確認結果是否正確。';
+    statusEl.className = 'status err';
+  } else {
+    statusEl.textContent = `已完成合併，較新檔案為：${res.fA.timestamp > res.fB.timestamp ? res.fA.name : res.fB.name}`;
+    statusEl.className = 'status';
+  }
+
+  const dupListEl = document.getElementById('dupList');
+  if (res.dupKeys.length){
+    dupListEl.style.display = 'block';
+    dupListEl.innerHTML = res.dupKeys.map(d =>
+      `<div>重複：${escapeHtml(d.key.replace('_',' '))} → 保留 ${d.keptFrom} 檔（覆蓋 ${d.overwritten} 檔）</div>`
+    ).join('');
+  } else {
+    dupListEl.style.display = 'none';
+    dupListEl.innerHTML = '';
+  }
+
+  // preview table: use header2 as column titles, show up to 200 rows, add source column
+  const table = document.getElementById('previewTable');
+  const cols = res.header2.map((h, i) => h ?? `col${i+1}`);
+  let thead = '<thead><tr><th>#</th><th>來源</th>' + cols.map(c => `<th>${escapeHtml(String(c))}</th>`).join('') + '</tr></thead>';
+  const maxPreview = 200;
+  let tbody = '<tbody>' + res.rows.slice(0, maxPreview).map((r, i) => {
+    const cells = cols.map((_, ci) => {
+      let v = r.row[ci];
+      if (ci === 0) v = displayDate(v);
+      else if (ci === 1) v = displayTime(v);
+      return `<td>${v === null || v === undefined ? '' : escapeHtml(String(v))}</td>`;
+    }).join('');
+    const srcClass = r.sourceLabel === 'A' ? 'src-a' : 'src-b';
+    return `<tr><td>${i+1}</td><td class="${srcClass}">${r.sourceLabel}</td>${cells}</tr>`;
+  }).join('') + '</tbody>';
+  table.innerHTML = thead + tbody;
+
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const ts = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const outName = `DailyReport_${ts}.xlsx`;
+  outNameEl.textContent = `檔名：${outName}` + (res.rows.length > maxPreview ? `　（預覽僅顯示前 ${maxPreview} 列，下載檔案包含全部 ${res.rows.length} 列）` : '');
+  downloadBtn.onclick = () => downloadMerged(res, outName);
+}
+
+function downloadMerged(res, outName){
+  const aoa = [res.header1, res.header2, ...res.rows.map(r => r.row)];
+  const ws = XLSX.utils.aoa_to_sheet(aoa, {cellDates:true});
+  if (res.merges && res.merges.length){
+    ws['!merges'] = res.merges.map(m => ({ s:{r:m.s.r, c:m.s.c}, e:{r:m.e.r, c:m.e.c} }));
+  }
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (let r = 2; r <= range.e.r; r++){
+    const aAddr = XLSX.utils.encode_cell({r, c:0});
+    const bAddr = XLSX.utils.encode_cell({r, c:1});
+    if (ws[aAddr] && ws[aAddr].t === 'd') ws[aAddr].z = 'mm-dd-yy';
+    if (ws[bAddr] && ws[bAddr].t === 'd') ws[bAddr].z = 'h:mm:ss';
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, res.fA.sheetName || 'Merged');
+  XLSX.writeFile(wb, outName, {bookType:'xlsx'});
+}
+</script>
+</body>
+</html>

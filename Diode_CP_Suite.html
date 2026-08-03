@@ -4109,7 +4109,11 @@ function handleWAT(e) {
       watYieldData = [];
       rows.forEach(r => {
         const lot = r['Lot no.'] || r['Lot No'] || r['Lot'];
-        const dev = r['Device Mapping'] || r['device_mapping'];
+        let dev = r['Device Mapping'] || r['device_mapping'];
+        // Part No override: 15U → 50A550mV_27V_SEG page, 13U → 35A570mV_27V_Valeo page
+        const partNo = String(r['Part No'] || r['Part No.'] || r['PartNo'] || '').trim().toUpperCase();
+        if (partNo === '15U') dev = '50A550mV_27V_SEG';
+        else if (partNo === '13U') dev = '35A570mV_27V_Valeo';
         if (lot &amp;&amp; dev) watData[String(lot).trim()] = String(dev).trim();
         // Parse RUN ON and WAT Yield(%)
         const runOnRaw = r['RUN ON'];

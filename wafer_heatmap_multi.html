@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wafer Test Heatmap Viewer - Multi Wafer</title>
+<style>
+  :root{--bg:#f1f5f9;--panel:#fff;--border:#e2e8f0;--text:#0f172a;--muted:#64748b;--primary:#2563eb;--primary-soft:#eff6ff}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI","Microsoft JhengHei",Arial,sans-serif;background:var(--bg);color:var(--text)}
+  header{background:#0f172a;color:#fff;padding:14px 18px}
+  header h1{margin:0;font-size:20px}
+  header small{color:#cbd5e1}
+  .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:var(--panel);border-bottom:1px solid var(--border);padding:12px 18px}
+  .meta{display:flex;gap:14px;flex-wrap:wrap;font-size:14px;align-items:center}
+  .meta span{color:var(--muted)} .meta b{margin-left:4px}
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
+  button{border:1px solid #cbd5e1;background:#fff;color:var(--text);border-radius:8px;padding:8px 12px;cursor:pointer;font-size:14px}
+  button:hover{background:#f8fafc}
+  #fileInput{display:none}
+  #dropZone{margin:14px 18px;padding:18px;border:2px dashed #94a3b8;border-radius:12px;text-align:center;color:#475569;background:var(--panel);cursor:pointer;user-select:none}
+  #dropZone.drag{border-color:var(--primary);background:var(--primary-soft)}
+  #dropZone small{display:block;margin-top:6px;color:var(--muted)}
+  .wafer-bar{display:flex;gap:8px;flex-wrap:wrap;padding:0 18px 12px}
+  .chip{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:#e2e8f0;font-size:13px;cursor:pointer;user-select:none}
+  .chip.active{background:var(--primary);color:#fff}
+  .chip-x{border:none;background:transparent;color:inherit;cursor:pointer;font-size:14px;padding:0;line-height:1}
+  .empty-chip{color:var(--muted);font-size:13px;padding:6px 0}
+  .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:0 18px 14px}
+  .controls label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+  .controls select,.controls input{width:100%;padding:7px 8px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;font-size:14px}
+  .main{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:14px;align-items:start;padding:0 18px 18px}
+  .left{display:flex;flex-direction:column;gap:12px;min-width:0}
+  .viewer{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px;min-height:480px;overflow:auto}
+  .placeholder{min-height:420px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--muted);text-align:center;font-size:18px}
+  .wafer-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+  .wafer-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px}
+  .grid-card{cursor:pointer}
+  .selected-card{outline:3px solid var(--primary)}
+  .wafer-card-title{font-size:13px;font-weight:700;color:#334155;margin-bottom:8px;word-break:break-all}
+  .wafer-canvas{width:100%;height:auto;display:block;border-radius:8px;background:#fff}
+  .side{display:flex;flex-direction:column;gap:12px;min-width:0}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px}
+  .panel h2{margin:0 0 10px;font-size:15px}
+  .kv{display:grid;grid-template-columns:110px 1fr;gap:6px;font-size:13px;margin-bottom:6px}
+  .kv span{color:var(--muted)}
+  .muted{color:var(--muted);font-size:13px}
+  #waferTable{overflow:auto;max-height:280px}
+  #waferTable table{width:100%;border-collapse:collapse;font-size:12px;min-width:500px}
+  #waferTable th,#waferTable td{border-bottom:1px solid var(--border);padding:6px 4px;text-align:right;white-space:nowrap}
+  #waferTable th:first-child,#waferTable td:first-child{text-align:left}
+  #waferTable tbody tr:hover{cursor:pointer;background:#f8fafc}
+  #waferTable tr.selected-row{background:var(--primary-soft)}
+  #binLegend{display:flex;flex-wrap:wrap;gap:8px}
+  .bin-item{display:inline-flex;align-items:center;gap:6px;font-size:12px;background:#f8fafc;border:1px solid var(--border);padding:4px 8px;border-radius:999px}
+  .bin-swatch{width:12px;height:12px;border-radius:3px;display:inline-block}
+  #colorBar{width:100%;height:18px;border-radius:5px;display:block;border:1px solid var(--border)}
+  #colorLabels{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:4px}
+  .tooltip{position:fixed;display:none;z-index:999;pointer-events:none;background:rgba(15,23,42,.92);color:#fff;padding:8px 10px;border-radius:8px;font-size:12px;line-height:1.6;max-width:300px}
+  .die-info{margin-top:10px;font-size:13px;color:#334155;line-height:1.6}
+  .hist-header{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .hist-header h2{margin:0}
+  .hist-controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+  .hist-controls select,.hist-controls input{padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px}
+  .hist-controls button{padding:5px 10px;font-size:12px;border-radius:6px}
+  #histBinsInput{width:64px}
+  #histCanvas{width:100%;height:auto;display:block}
+  #histInfo{margin-top:6px;font-size:12px;color:var(--muted)}
+  @media (max-width:1100px){.main{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Wafer Test Heatmap Viewer</h1>
+  <small>Multi-Wafer Import / dlogTDO CSV / Heatmap / Bin Map / Overlay / Histogram / PNG Export</small>
+</header>
+
+<div class="topbar">
+  <div class="meta">
+    <div><span>Lot:</span><b id="metaLot">-</b></div>
+    <div><span>Wafer:</span><b id="metaWafer">-</b></div>
+    <div><span>Device:</span><b id="metaDevice">-</b></div>
+    <div><span>Temp:</span><b id="metaTemp">-</b></div>
+  </div>
+  <div class="actions">
+    <input type="file" id="fileInput" accept=".csv" multiple>
+    <button id="browseBtn">Data Source 📂</button>
+    <button id="clearBtn">Clear All</button>
+  </div>
+</div>
+
+<div id="dropZone">
+  Click or drag multiple wafer CSVs here
+  <small>支援 Craft dlogTDO CSV（Serial#/Bin#/XAdr/YAdr + Contact(1)... 測試列）與一般 CSV（X,Y,Bin,Value...）</small>
+</div>
+
+<div id="waferBar" class="wafer-bar"></div>
+
+<div class="controls">
+  <div><label>Layout</label>
+    <select id="layoutSelect"><option value="single">Single Wafer</option><option value="grid">Wafer Grid</option></select>
+  </div>
+  <div><label>Display Mode</label>
+    <select id="displayModeSelect"><option value="heatmap">Heatmap</option><option value="binmap">Bin Map</option><option value="overlay">Overlay</option></select>
+  </div>
+  <div><label>Test Parameter</label><select id="parameterSelect"></select></div>
+  <div><label>Color Scale</label>
+    <select id="colorScaleSelect"><option value="local">Per Wafer</option><option value="global">Global Across Wafers</option></select>
+  </div>
+  <div><label>Pass Bin(s)</label><input id="passBinsInput" value="1"></div>
+  <div><label>LSL</label><input id="lslInput" placeholder="Lower spec limit"></div>
+  <div><label>USL</label><input id="uslInput" placeholder="Upper spec limit"></div>
+</div>
+
+<div class="main">
+  <div class="left">
+    <div class="panel">
+      <div class="hist-header">
+        <h2>Wafer Map</h2>
+        <div class="hist-controls">
+          <button id="exportMapBtn">Output PNG 📷</button>
+        </div>
+      </div>
+      <div id="viewer" class="viewer"></div>
+    </div>
+
+    <div class="panel" id="histPanel">
+      <div class="hist-header">
+        <h2>Histogram / Probability Distribution</h2>
+        <div class="hist-controls">
+          <label>Source
+            <select id="histSource">
+              <option value="selected">Selected Wafer</option>
+              <option value="all">All Wafers</option>
+            </select>
+          </label>
+          <label>組距數
+            <input id="histBinsInput" type="number" min="5" max="100" value="20">
+          </label>
+          <label><input type="checkbox" id="histNormalChk" checked> 常態曲線</label>
+          <button id="exportHistBtn">Output PNG 📷</button>
+        </div>
+      </div>
+      <canvas id="histCanvas" width="960" height="320"></canvas>
+      <div id="histInfo"></div>
+    </div>
+  </div>
+
+  <div class="side">
+    <div class="panel">
+      <h2>Statistics</h2>
+      <div id="stats" class="muted">No wafer</div>
+      <div id="minmax" style="margin-top:10px"></div>
+      <div id="dieInfo" class="die-info">Hover a die</div>
+    </div>
+    <div class="panel"><h2>Wafer Table</h2><div id="waferTable" class="muted">No wafer</div></div>
+    <div class="panel"><h2>Bin Legend</h2><div id="binLegend" class="muted">No bin data</div></div>
+    <div class="panel"><h2>Color Scale</h2><canvas id="colorBar" width="320" height="18"></canvas><div id="colorLabels"></div></div>
+  </div>
+</div>
+
+<div id="tooltip" class="tooltip"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+const state = {
+  wafers: [], selectedId: null,
+  layout: "single", displayMode: "heatmap", colorScaleMode: "local",
+  parameter: "", passBins: new Set([1]), lsl: null, usl: null
+};
+
+const HEAT_STOPS = [
+  [0.00,[219,234,254]],[0.20,[59,130,246]],[0.45,[34,197,94]],
+  [0.65,[250,204,21]],[0.85,[249,115,22]],[1.00,[220,38,38]]
+];
+
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+else init();
+
+function init(){ bindEvents(); parsePassBins(); parseSpec(); refreshParameters(); renderAll(); }
+
+function bindEvents(){
+  $("browseBtn").addEventListener("click", () => $("fileInput").click());
+  $("fileInput").addEventListener("change", e => { handleFiles(e.target.files); e.target.value = ""; });
+
+  const dz = $("dropZone");
+  dz.addEventListener("click", () => $("fileInput").click());
+  ["dragenter","dragover"].forEach(evt => dz.addEventListener(evt, e => { e.preventDefault(); dz.classList.add("drag"); }));
+  ["dragleave","drop"].forEach(evt => dz.addEventListener(evt, e => {
+    e.preventDefault(); dz.classList.remove("drag");
+    if (evt === "drop") handleFiles(e.dataTransfer.files);
+  }));
+
+  $("clearBtn").addEventListener("click", clearAll);
+  $("layoutSelect").addEventListener("change", e => { state.layout = e.target.value; renderView(); });
+  $("displayModeSelect").addEventListener("change", e => { state.displayMode = e.target.value; renderView(); renderColorBar(); });
+  $("parameterSelect").addEventListener("change", e => {
+    state.parameter = e.target.value;
+    applyLimitsForParameter();
+    renderView(); renderStats(); renderColorBar(); renderHistogram();
+  });
+  $("colorScaleSelect").addEventListener("change", e => { state.colorScaleMode = e.target.value; renderView(); renderColorBar(); });
+  $("passBinsInput").addEventListener("input", () => { parsePassBins(); renderView(); renderStats(); renderBinLegend(); });
+  $("lslInput").addEventListener("input", () => { parseSpec(); renderStats(); renderHistogram(); });
+  $("uslInput").addEventListener("input", () => { parseSpec(); renderStats(); renderHistogram(); });
+
+  $("histSource").addEventListener("change", renderHistogram);
+  $("histBinsInput").addEventListener("input", debounce(renderHistogram, 200));
+  $("histNormalChk").addEventListener("change", renderHistogram);
+
+  $("exportMapBtn").addEventListener("click", exportMapPNG);
+  $("exportHistBtn").addEventListener("click", exportHistogramPNG);
+
+  window.addEventListener("resize", debounce(() => renderView(), 200));
+}
+
+function debounce(fn, ms){ let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
+async function handleFiles(fileList){
+  const files = Array.from(fileList || []).filter(f => /\.csv$/i.test(f.name) || (f.type && f.type.includes("csv")));
+  if (!files.length){ alert("請選擇 CSV 檔案"); return; }
+
+  let parsed = 0;
+  for (const file of files){
+    try{
+      const text = await file.text();
+      const result = parseCsvToWafers(text, file.name);
+      result.wafers.forEach(upsertWafer);
+      parsed += result.wafers.length;
+    }catch(err){ console.error(err); alert(`解析 ${file.name} 失敗：${err.message}`); }
+  }
+
+  if (!state.selectedId && state.wafers.length) state.selectedId = state.wafers[0].id;
+  refreshParameters();
+  applyLimitsForParameter();
+  renderAll();
+  if (!parsed) alert("未解析到有效 wafer。請確認 CSV 格式（dlogTDO 或含 X,Y 的一般 CSV）。");
+}
+
+/* ================= CSV parsing ================= */
+
+function parseCsvToWafers(text, fileName){
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const rows = parseCSVText(text);
+  if (rows.length < 2) return { wafers: [], parameters: [] };
+
+  const dlog = parseDlogFormat(rows, fileName);
+  if (dlog) return dlog;
+  return parseGenericFormat(rows, fileName);
+}
+
+function parseCSVText(text){
+  const rows = []; let row = [], cur = "", inQ = false;
+  for (let i = 0; i < text.length; i++){
+    const ch = text[i];
+    if (ch === '"'){ if (inQ && text[i+1] === '"'){ cur += '"'; i++; } else inQ = !inQ; }
+    else if (ch === "," && !inQ){ row.push(cur); cur = ""; }
+    else if ((ch === "\n" || ch === "\r") && !inQ){
+      if (ch === "\r" && text[i+1] === "\n") i++;
+      row.push(cur); cur = "";
+      if (row.length > 1 || row[0].trim() !== "") rows.push(row);
+      row = [];
+    } else cur += ch;
+  }
+  row.push(cur);
+  if (row.length > 1 || row[0].trim() !== "") rows.push(row);
+  return rows;
+}
+
+function parseDlogFormat(rows, fileName){
+  let headerIdx = -1;
+  for (let i = 0; i < rows.length; i++){
+    const first = String(rows[i][0] ?? "").trim().toLowerCase();
+    if (first.startsWith("serial#")){ headerIdx = i; break; }
+  }
+  if (headerIdx < 0) return null;
+
+  const prev = [];
+  for (let i = headerIdx - 1; i >= 0 && prev.length < 4; i--){
+    const r = rows[i];
+    if (r && r.some(c => String(c ?? "").trim() !== "")) prev.unshift(r);
+  }
+  let testNames = [], subNames = [], hiRow = [], loRow = [];
+  if (prev.length >= 4 && prev[0].some(c => /\(\d+\)\s*$/.test(String(c ?? "").trim()))){
+    testNames = prev[0]; subNames = prev[1]; hiRow = prev[2]; loRow = prev[3];
+  }
+
+  const meta = { lot: "", wafer: "", device: "", temp: "" };
+  for (let i = 0; i < headerIdx; i++){
+    const line = rows[i].join(",");
+    let m;
+    if ((m = line.match(/Lot ID\s*:\s*([^,]+)/i)))   meta.lot = m[1].trim();
+    if ((m = line.match(/Wafer ID\s*:\s*([^,]+)/i))) meta.wafer = m[1].trim();
+    if ((m = line.match(/Device Name\s*:\s*([^,]+)/i))) meta.device = m[1].trim();
+    if ((m = line.match(/Temperature:\s*([-\d.]+)/i)))  meta.temp = m[1].trim();
+  }
+
+  const h = rows[headerIdx].map(c => String(c ?? "").trim().toLowerCase());
+  const find = (...k) => h.findIndex(x => k.some(key => x.startsWith(key)));
+  const colBin = find("bin#","bin");
+  const colX = find("xadr","x");
+  const colY = find("yadr","y");
+  if (colX < 0 || colY < 0) return null;
+  const lastMeta = Math.max(colX, colY, colBin, find("sbin"));
+
+  const paramCols = [];
+  for (let i = 0; i < testNames.length; i++){
+    const name = String(testNames[i] ?? "").trim();
+    if (!name || i <= lastMeta) continue;
+    paramCols.push({
+      name, index: i,
+      unit: String(subNames[i] ?? "").trim(),
+      hi: toNumber(hiRow[i]), lo: toNumber(loRow[i])
+    });
+  }
+
+  const dies = [];
+  for (let r = headerIdx + 1; r < rows.length; r++){
+    const row = rows[r];
+    if (!row || row.every(c => String(c ?? "").trim() === "")) continue;
+    const x = toNumber(row[colX]), y = toNumber(row[colY]);
+    if (x == null || y == null) continue;
+    const die = { x, y, bin: colBin >= 0 ? toNumber(row[colBin]) : null, values: {} };
+    for (const pc of paramCols) die.values[pc.name] = toNumber(row[pc.index]);
+    dies.push(die);
+  }
+  if (!dies.length) return null;
+
+  const limits = {}, units = {};
+  paramCols.forEach(pc => { limits[pc.name] = { hi: pc.hi, lo: pc.lo }; units[pc.name] = pc.unit; });
+
+  const noExt = fileNameNoExt(fileName);
+  return {
+    wafers: [{
+      id: makeWaferId(meta.lot, meta.wafer, meta.device, meta.temp, noExt),
+      lot: meta.lot, wafer: meta.wafer || noExt, device: meta.device, temp: meta.temp,
+      fileName, dies,
+      parameters: paramCols.map(p => p.name),
+      limits, units, bounds: null, dieMap: null
+    }],
+    parameters: paramCols.map(p => p.name)
+  };
+}
+
+function parseGenericFormat(rows, fileName){
+  const headers = rows[0].map(h => String(h ?? "").trim());
+  const lower = headers.map(h => h.toLowerCase());
+  const xIndex = findXCol(lower), yIndex = findYCol(lower);
+  if (xIndex < 0 || yIndex < 0) return { wafers: [], parameters: [] };
+
+  const binIndex = lower.findIndex(h => h.includes("bin"));
+  const lotIndex = lower.findIndex(h => h.includes("lot"));
+  const waferIndex = lower.findIndex(h => h.includes("wafer"));
+  const deviceIndex = lower.findIndex(h => h.includes("device") || h.includes("product"));
+  const tempIndex = lower.findIndex(h => h.includes("temp"));
+  const reserved = new Set([xIndex,yIndex,binIndex,lotIndex,waferIndex,deviceIndex,tempIndex].filter(i => i >= 0));
+
+  const paramCols = [];
+  for (let i = 0; i < headers.length; i++){
+    if (reserved.has(i) || !headers[i]) continue;
+    if (isNumericColumn(rows, i)) paramCols.push({ name: headers[i], index: i });
+  }
+  if (!paramCols.length && binIndex >= 0) paramCols.push({ name: "Bin", index: binIndex });
+
+  const fileMeta = parseFileName(fileName);
+  const noExt = fileNameNoExt(fileName);
+  const waferMap = new Map();
+
+  for (let r = 1; r < rows.length; r++){
+    const row = rows[r];
+    if (!row || row.every(v => String(v ?? "").trim() === "")) continue;
+    const x = toNumber(row[xIndex]), y = toNumber(row[yIndex]);
+    if (x == null || y == null) continue;
+    const lot = getText(row, lotIndex, fileMeta.lot);
+    const wafer = getText(row, waferIndex, fileMeta.wafer || noExt);
+    const device = getText(row, deviceIndex, fileMeta.device);
+    const temp = getText(row, tempIndex, fileMeta.temp);
+    const id = makeWaferId(lot, wafer, device, temp, noExt);
+    if (!waferMap.has(id)){
+      waferMap.set(id, { id, lot, wafer, device, temp, fileName, dies: [],
+        parameters: paramCols.map(p => p.name), limits: {}, units: {}, bounds: null, dieMap: null });
+    }
+    const die = { x, y, bin: binIndex >= 0 ? toNumber(row[binIndex]) : null, values: {} };
+    for (const pc of paramCols) die.values[pc.name] = toNumber(row[pc.index]);
+    waferMap.get(id).dies.push(die);
+  }
+  return { wafers: Array.from(waferMap.values()), parameters: paramCols.map(p => p.name) };
+}
+
+/* ================= helpers ================= */
+
+function findXCol(lower){
+  const e = lower.findIndex(h => ["x","die_x","x_coord","xcoord"].includes(h));
+  if (e >= 0) return e;
+  return lower.findIndex(h => /(?:^|[^a-z0-9])x(?:$|[^a-z0-9])/.test(h));
+}
+function findYCol(lower){
+  const e = lower.findIndex(h => ["y","die_y","y_coord","ycoord"].includes(h));
+  if (e >= 0) return e;
+  return lower.findIndex(h => /(?:^|[^a-z0-9])y(?:$|[^a-z0-9])/.test(h));
+}
+function isNumericColumn(rows, idx, sample = 200){
+  let nonEmpty = 0, numeric = 0;
+  const end = Math.min(rows.length, sample + 1);
+  for (let i = 1; i < end; i++){
+    const s = String(rows[i]?.[idx] ?? "").trim();
+    if (!s) continue;
+    nonEmpty++;
+    if (Number.isFinite(Number(s))) numeric++;
+  }
+  return nonEmpty > 0 && numeric / nonEmpty >= 0.6;
+}
+function parseFileName(fileName){
+  const parts = fileNameNoExt(fileName).split(/[_\-;,\s]+/).filter(Boolean);
+  return { lot: parts[0] || "", wafer: parts[1] || "", device: parts[2] || "", temp: parts[3] || "" };
+}
+function fileNameNoExt(n){ return String(n || "").replace(/\.[^.]+$/, ""); }
+function makeWaferId(lot, wafer, device, temp, fb){
+  const c = s => String(s || "").trim().replace(/\s+/g, "_") || "NA";
+  return `${c(lot)}_${c(wafer || fb)}_${c(device)}_${c(temp)}`;
+}
+function getText(row, idx, fb){
+  if (idx >= 0 && row[idx] != null){ const s = String(row[idx]).trim(); if (s) return s; }
+  return String(fb ?? "").trim();
+}
+function toNumber(v){
+  if (v == null) return null;
+  const s = String(v).trim();
+  if (s === "") return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function upsertWafer(newW){
+  const idx = state.wafers.findIndex(w => w.id === newW.id);
+  if (idx < 0){ state.wafers.push(newW); return; }
+  const old = state.wafers[idx];
+  const map = new Map();
+  old.dies.forEach(d => map.set(dieKey(d), d));
+  newW.dies.forEach(d => {
+    const prev = map.get(dieKey(d));
+    if (prev){
+      prev.x = d.x; prev.y = d.y;
+      if (d.bin != null) prev.bin = d.bin;
+      prev.values = Object.assign({}, prev.values, d.values);
+    } else map.set(dieKey(d), d);
+  });
+  old.dies = Array.from(map.values());
+  old.parameters = Array.from(new Set([...(old.parameters || []), ...(newW.parameters || [])]));
+  old.limits = Object.assign({}, old.limits, newW.limits);
+  old.units = Object.assign({}, old.units, newW.units);
+  old.lot = newW.lot || old.lot; old.wafer = newW.wafer || old.wafer;
+  old.device = newW.device || old.device; old.temp = newW.temp || old.temp;
+  old.fileName = newW.fileName || old.fileName;
+  old.bounds = null; old.dieMap = null;
+}
+
+function dieKey(d){ return `${d.x},${d.y}`; }
+function ensureDieMap(w){ if (!w.dieMap){ w.dieMap = new Map(); w.dies.forEach(d => w.dieMap.set(dieKey(d), d)); } }
+function getBounds(w){
+  if (w.bounds) return w.bounds;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const d of w.dies){
+    if (d.x < minX) minX = d.x; if (d.x > maxX) maxX = d.x;
+    if (d.y < minY) minY = d.y; if (d.y > maxY) maxY = d.y;
+  }
+  w.bounds = Number.isFinite(minX) ? {minX,maxX,minY,maxY} : {minX:0,maxX:0,minY:0,maxY:0};
+  return w.bounds;
+}
+
+function parsePassBins(){
+  const set = new Set();
+  ($("passBinsInput").value || "").split(/[,;\s]+/).forEach(t => {
+    if (!t) return;
+    const n = Number(t);
+    if (Number.isFinite(n)) set.add(n);
+  });
+  state.passBins = set;
+}
+function parseSpec(){
+  const l = $("lslInput").value.trim(), u = $("uslInput").value.trim();
+  state.lsl = l === "" || !Number.isFinite(Number(l)) ? null : Number(l);
+  state.usl = u === "" || !Number.isFinite(Number(u)) ? null : Number(u);
+}
+
+function applyLimitsForParameter(){
+  const w = getSelected();
+  const lim = w?.limits?.[state.parameter];
+  if (lim){
+    $("lslInput").value = lim.lo ?? "";
+    $("uslInput").value = lim.hi ?? "";
+    parseSpec();
+  }
+}
+function hasLimits(p){
+  return state.wafers.some(w => { const l = w.limits?.[p]; return l && (l.hi != null || l.lo != null); });
+}
+
+function refreshParameters(){
+  const params = getAllParameters();
+  const select = $("parameterSelect");
+  const previous = state.parameter;
+  select.innerHTML = "";
+  if (!params.length){
+    state.parameter = "";
+    select.appendChild(new Option("No numeric parameter", ""));
+    return;
+  }
+  params.forEach(p => select.appendChild(new Option(p, p)));
+  let next = previous;
+  if (!next || !params.includes(next)){
+    next = params.find(p => /^value$/i.test(p)) ||
+           params.find(p => /value|param|result|test/i.test(p)) ||
+           params.find(hasLimits) || params[0];
+  }
+  state.parameter = next;
+  select.value = next;
+}
+function getAllParameters(){
+  const s = new Set();
+  state.wafers.forEach(w => (w.parameters || []).forEach(p => s.add(p)));
+  return Array.from(s);
+}
+
+function normalizeSelection(){
+  if (state.selectedId && !state.wafers.some(w => w.id === state.selectedId))
+    state.selectedId = state.wafers[0]?.id ?? null;
+  if (!state.selectedId && state.wafers.length) state.selectedId = state.wafers[0].id;
+}
+function getSelected(){ return state.wafers.find(w => w.id === state.selectedId) || state.wafers[0] || null; }
+
+function clearAll(){
+  if (!state.wafers.length || confirm("Clear all imported wafers?")){
+    state.wafers = []; state.selectedId = null;
+    refreshParameters(); renderAll();
+  }
+}
+function removeWafer(id){
+  state.wafers = state.wafers.filter(w => w.id !== id);
+  if (state.selectedId === id) state.selectedId = state.wafers[0]?.id ?? null;
+  refreshParameters(); renderAll();
+}
+
+function renderAll(){
+  normalizeSelection();
+  updateMetaLabels();
+  renderWaferBar();
+  renderView();
+  renderStats();
+  renderBinLegend();
+  renderColorBar();
+  renderHistogram();
+}
+
+function updateMetaLabels(){
+  const w = getSelected();
+  $("metaLot").textContent = w?.lot || "-";
+  $("metaWafer").textContent = w?.wafer || "-";
+  $("metaDevice").textContent = w?.device || "-";
+  $("metaTemp").textContent = w?.temp || "-";
+}
+
+function renderWaferBar(){
+  const bar = $("waferBar");
+  bar.innerHTML = "";
+  if (!state.wafers.length){
+    const d = document.createElement("div");
+    d.className = "empty-chip"; d.textContent = "尚未載入 wafer";
+    bar.appendChild(d);
+    return;
+  }
+  state.wafers.forEach(w => {
+    const chip = document.createElement("div");
+    chip.className = "chip" + (w.id === state.selectedId ? " active" : "");
+    chip.title = `${w.lot || "-"} / ${w.wafer || "-"} / ${w.device || "-"} / ${w.temp || "-"}\n${w.fileName}`;
+    const label = document.createElement("span");
+    label.textContent = w.wafer || w.id;
+    const del = document.createElement("button");
+    del.className = "chip-x"; del.textContent = "×"; del.title = "Remove this wafer";
+    del.addEventListener("click", e => { e.stopPropagation(); removeWafer(w.id); });
+    chip.addEventListener("click", () => { state.selectedId = w.id; renderAll(); });
+    chip.appendChild(label); chip.appendChild(del);
+    bar.appendChild(chip);
+  });
+}
+
+function renderView(){
+  const viewer = $("viewer");
+  viewer.innerHTML = "";
+  hideTooltip();
+  if (!state.wafers.length){
+    viewer.innerHTML = `<div class="placeholder"><div>Upload a wafer test CSV to visualize</div><small>支援多檔 CSV、拖曳、dlogTDO / 一般 CSV</small></div>`;
+    return;
+  }
+  const globalDomain = state.colorScaleMode === "global" ? computeDomainAll(state.parameter) : null;
+  if (state.layout === "single"){
+    const w = getSelected();
+    if (!w) return;
+    const size = Math.max(340, Math.min(680, (viewer.clientWidth || 700) - 20));
+    viewer.appendChild(createWaferCard(w, size, globalDomain));
+  } else {
+    const grid = document.createElement("div");
+    grid.className = "wafer-grid";
+    state.wafers.forEach(w => {
+      const card = createWaferCard(w, 290, globalDomain);
+      card.classList.add("grid-card");
+      if (w.id === state.selectedId) card.classList.add("selected-card");
+      card.addEventListener("click", () => { state.selectedId = w.id; renderAll(); });
+      grid.appendChild(card);
+    });
+    viewer.appendChild(grid);
+  }
+}
+
+function createWaferCard(w, size, globalDomain){
+  const card = document.createElement("div");
+  card.className = "wafer-card";
+  const title = document.createElement("div");
+  title.className = "wafer-card-title";
+  title.textContent = `${w.lot || "-"} / ${w.wafer || "-"} / ${w.device || "-"} / ${w.temp || "-"}`;
+  const canvas = document.createElement("canvas");
+  canvas.className = "wafer-canvas";
+  canvas.width = size; canvas.height = size;
+  drawWafer(canvas, w, globalDomain);
+  attachHover(canvas, w);
+  card.appendChild(title); card.appendChild(canvas);
+  return card;
+}
+
+function drawWafer(canvas, wafer, globalDomain){
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
+  if (!wafer.dies.length){
+    ctx.fillStyle = "#64748b"; ctx.font = "14px Arial"; ctx.textAlign = "center";
+    ctx.fillText("No dies", W/2, H/2);
+    return;
+  }
+  const b = getBounds(wafer);
+  const cols = b.maxX - b.minX + 1, rowsN = b.maxY - b.minY + 1;
+  const pad = 18;
+  const cell = Math.max(1, Math.min((W - pad*2)/cols, (H - pad*2)/rowsN));
+  const ox = pad + ((W - pad*2) - cell*cols)/2;
+  const oy = pad + ((H - pad*2) - cell*rowsN)/2;
+  canvas._geom = { ox, oy, cell, minX: b.minX, minY: b.minY, cols, rows: rowsN };
+
+  let domain = null;
+  if (state.displayMode !== "binmap")
+    domain = globalDomain ?? computeDomain(wafer, state.parameter);
+
+  ensureDieMap(wafer);
+  for (const die of wafer.dies){
+    const px = ox + (die.x - b.minX)*cell;
+    const py = oy + (die.y - b.minY)*cell;
+    const rs = Math.max(1, cell - 0.6);
+    let fill = "#e5e7eb";
+    if (state.displayMode === "binmap"){
+      fill = binColor(die.bin);
+    } else {
+      const v = getDieValue(die, state.parameter);
+      if (v != null && domain){
+        const range = domain[1] - domain[0];
+        fill = heatColor(range === 0 ? 0.5 : (v - domain[0]) / range);
+      } else fill = "#d1d5db";
+      if (state.displayMode === "overlay" && die.bin != null && !isPassBin(die.bin)){
+        ctx.fillStyle = fill; ctx.fillRect(px, py, rs, rs);
+        if (cell > 2){
+          const lw = Math.max(1, cell*0.14);
+          ctx.strokeStyle = "rgba(15,23,42,.82)"; ctx.lineWidth = lw;
+          ctx.strokeRect(px+lw/2, py+lw/2, Math.max(1,cell-lw), Math.max(1,cell-lw));
+        } else { ctx.fillStyle = "rgba(15,23,42,.35)"; ctx.fillRect(px, py, rs, rs); }
+        continue;
+      }
+    }
+    ctx.fillStyle = fill; ctx.fillRect(px, py, rs, rs);
+  }
+}
+
+function heatColor(t){
+  t = Math.max(0, Math.min(1, t));
+  for (let i = 0; i < HEAT_STOPS.length - 1; i++){
+    const [t0,c0] = HEAT_STOPS[i], [t1,c1] = HEAT_STOPS[i+1];
+    if (t >= t0 && t <= t1){
+      const p = (t - t0) / (t1 - t0 || 1);
+      return `rgb(${Math.round(c0[0]+(c1[0]-c0[0])*p)},${Math.round(c0[1]+(c1[1]-c0[1])*p)},${Math.round(c0[2]+(c1[2]-c0[2])*p)})`;
+    }
+  }
+  const c = HEAT_STOPS[HEAT_STOPS.length-1][1];
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+function binColor(bin){
+  if (bin == null) return "#d1d5db";
+  const known = {0:"#95a5a6",1:"#2ecc71",2:"#f1c40f",3:"#e67e22",4:"#e74c3c",5:"#9b59b6",6:"#3498db",7:"#1abc9c",8:"#7f8c8d"};
+  if (known[bin]) return known[bin];
+  return `hsl(${(Math.abs(Number(bin))*47)%360} 75% 50%)`;
+}
+function isPassBin(bin){ return bin != null && state.passBins.size > 0 && state.passBins.has(bin); }
+function getDieValue(die, param){
+  if (!param) return null;
+  if (String(param).toLowerCase() === "bin") return die.bin ?? die.values?.Bin ?? null;
+  const v = die.values ? die.values[param] : null;
+  return Number.isFinite(v) ? v : null;
+}
+function computeDomain(w, param){
+  let min = Infinity, max = -Infinity;
+  for (const d of w.dies){ const v = getDieValue(d, param); if (v == null) continue; if (v < min) min = v; if (v > max) max = v; }
+  return Number.isFinite(min) ? [min, max] : [0, 1];
+}
+function computeDomainAll(param){
+  let min = Infinity, max = -Infinity;
+  for (const w of state.wafers) for (const d of w.dies){
+    const v = getDieValue(d, param); if (v == null) continue;
+    if (v < min) min = v; if (v > max) max = v;
+  }
+  return Number.isFinite(min) ? [min, max] : [0, 1];
+}
+
+function attachHover(canvas, wafer){
+  canvas.addEventListener("mousemove", e => {
+    const g = canvas._geom; if (!g) return;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const x = (e.clientX - rect.left) * canvas.width / rect.width;
+    const y = (e.clientY - rect.top) * canvas.height / rect.height;
+    const col = Math.floor((x - g.ox) / g.cell), row = Math.floor((y - g.oy) / g.cell);
+    if (col < 0 || row < 0 || col >= g.cols || row >= g.rows){ hideTooltip(); return; }
+    ensureDieMap(wafer);
+    const die = wafer.dieMap.get(`${g.minX + col},${g.minY + row}`);
+    if (!die){ hideTooltip(); return; }
+    const value = getDieValue(die, state.parameter);
+    showTooltip(e, wafer, die, value);
+    updateDieInfo(wafer, die, value);
+  });
+  canvas.addEventListener("mouseleave", hideTooltip);
+}
+function paramLabel(w){
+  const unit = w?.units?.[state.parameter];
+  return `${state.parameter || "Value"}${unit ? " [" + unit + "]" : ""}`;
+}
+function showTooltip(e, wafer, die, value){
+  const tip = $("tooltip");
+  tip.style.display = "block";
+  tip.style.left = (e.clientX + 14) + "px";
+  tip.style.top = (e.clientY + 14) + "px";
+  tip.innerHTML = `<b>${escapeHtml(wafer.wafer || wafer.id)}</b><br>X: ${escapeHtml(die.x)} , Y: ${escapeHtml(die.y)}<br>Bin: ${escapeHtml(die.bin ?? "-")}<br>${escapeHtml(paramLabel(wafer))}: ${escapeHtml(formatNumber(value))}`;
+}
+function hideTooltip(){ $("tooltip").style.display = "none"; }
+function updateDieInfo(w, die, value){
+  $("dieInfo").innerHTML = `<b>Die Info</b><br>Wafer: ${escapeHtml(w.wafer || w.id)}<br>X: ${escapeHtml(die.x)}, Y: ${escapeHtml(die.y)}<br>Bin: ${escapeHtml(die.bin ?? "-")}<br>${escapeHtml(paramLabel(w))}: ${escapeHtml(formatNumber(value))}`;
+}
+
+/* ================= Histogram + Probability ================= */
+
+function renderHistogram(){
+  const canvas = $("histCanvas");
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
+
+  const param = state.parameter;
+  const src = $("histSource").value;
+  let values = [], title = "";
+
+  if (src === "all" && state.wafers.length){
+    state.wafers.forEach(w => { values = values.concat(getValues(w, param)); });
+    title = `All Wafers (${state.wafers.length})`;
+  } else {
+    const w = getSelected();
+    if (w){ values = getValues(w, param); title = w.wafer || w.id; }
+  }
+
+  const info = $("histInfo");
+  if (!param || values.length < 2){
+    ctx.fillStyle = "#64748b"; ctx.font = "14px Arial"; ctx.textAlign = "center";
+    ctx.fillText("No data for histogram", W/2, H/2);
+    info.textContent = "";
+    return;
+  }
+
+  let k = parseInt($("histBinsInput").value, 10);
+  if (!Number.isFinite(k)) k = 20;
+  k = Math.max(5, Math.min(100, k));
+
+  let min = Infinity, max = -Infinity;
+  for (const v of values){ if (v < min) min = v; if (v > max) max = v; }
+  if (min === max){ min -= 1; max += 1; }
+  const bw = (max - min) / k;
+
+  const counts = new Array(k).fill(0);
+  for (const v of values){
+    let i = Math.floor((v - min) / bw);
+    if (i >= k) i = k - 1;
+    if (i < 0) i = 0;
+    counts[i]++;
+  }
+  const total = values.length;
+  let maxCount = 1;
+  for (const c of counts) if (c > maxCount) maxCount = c;
+
+  const mL = 58, mR = 58, mT = 26, mB = 48;
+  const pw = W - mL - mR, ph = H - mT - mB;
+  const leftMax = niceCeil(maxCount);
+  const rightMax = leftMax / total * 100;
+
+  ctx.font = "11px Arial";
+  const ticks = 5;
+  for (let i = 0; i <= ticks; i++){
+    const y = mT + ph - ph * i / ticks;
+    ctx.strokeStyle = "#e2e8f0";
+    ctx.beginPath(); ctx.moveTo(mL, y); ctx.lineTo(mL + pw, y); ctx.stroke();
+    ctx.fillStyle = "#475569";
+    ctx.textAlign = "right";
+    ctx.fillText(String(Math.round(leftMax * i / ticks)), mL - 6, y + 4);
+    ctx.textAlign = "left";
+    const pv = rightMax * i / ticks;
+    ctx.fillText((pv < 10 ? pv.toFixed(1) : pv.toFixed(0)) + "%", mL + pw + 6, y + 4);
+  }
+
+  const barW = pw / k;
+  ctx.fillStyle = "rgba(59,130,246,.75)";
+  for (let i = 0; i < k; i++){
+    const h = counts[i] / leftMax * ph;
+    ctx.fillRect(mL + i * barW + 1, mT + ph - h, Math.max(1, barW - 2), h);
+  }
+
+  let sum = 0; for (const v of values) sum += v;
+  const mean = sum / total;
+  let vs = 0; for (const v of values) vs += (v - mean) ** 2;
+  const std = Math.sqrt(vs / (total - 1));
+
+  if ($("histNormalChk").checked && std > 0){
+    ctx.strokeStyle = "#dc2626"; ctx.lineWidth = 2;
+    ctx.beginPath();
+    const steps = 200;
+    for (let s = 0; s <= steps; s++){
+      const x = min + (max - min) * s / steps;
+      const pdf = Math.exp(-0.5 * ((x - mean) / std) ** 2) / (std * Math.sqrt(2 * Math.PI));
+      const c = pdf * bw * total;
+      const px = mL + (x - min) / (max - min) * pw;
+      const py = mT + ph - Math.min(c, leftMax) / leftMax * ph;
+      if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    ctx.lineWidth = 1;
+  }
+
+  vline(mean, "#0f172a", "mean");
+  vline(state.lsl, "#16a34a", "LSL");
+  vline(state.usl, "#16a34a", "USL");
+
+  function vline(val, color, label){
+    if (val == null || val < min || val > max) return;
+    const x = mL + (val - min) / (max - min) * pw;
+    ctx.strokeStyle = color; ctx.setLineDash([5,4]);
+    ctx.beginPath(); ctx.moveTo(x, mT); ctx.lineTo(x, mT + ph); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = color; ctx.textAlign = "left";
+    ctx.fillText(label, x + 3, mT + ph - 6);
+  }
+
+  ctx.fillStyle = "#475569"; ctx.textAlign = "center";
+  const xt = 6;
+  for (let i = 0; i <= xt; i++){
+    const v = min + (max - min) * i / xt;
+    const x = mL + pw * i / xt;
+    ctx.strokeStyle = "#94a3b8";
+    ctx.beginPath(); ctx.moveTo(x, mT + ph); ctx.lineTo(x, mT + ph + 4); ctx.stroke();
+    ctx.fillText(fmtTick(v), x, mT + ph + 18);
+  }
+
+  ctx.fillText(`組距 (class width = ${fmtTick(bw)})`, mL + pw/2, H - 8);
+  ctx.save(); ctx.translate(14, mT + ph/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText("Count", 0, 0); ctx.restore();
+  ctx.save(); ctx.translate(W - 10, mT + ph/2); ctx.rotate(Math.PI/2);
+  ctx.fillText("Percent (%)", 0, 0); ctx.restore();
+
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(59,130,246,.75)"; ctx.fillRect(mL + 8, mT + 4, 12, 10);
+  ctx.fillStyle = "#475569";
+  ctx.fillText(`Count (left)  -  ${param} [${title}]`, mL + 26, mT + 13);
+  ctx.strokeStyle = "#dc2626";
+  ctx.beginPath(); ctx.moveTo(mL + 8, mT + 24); ctx.lineTo(mL + 20, mT + 24); ctx.stroke();
+  ctx.fillText("Normal distribution % (right)", mL + 26, mT + 28);
+
+  info.textContent = `${param} [${title}]  N=${total} , bins=${k} , 組距寬=${fmtTick(bw)} , range=[${fmtTick(min)}, ${fmtTick(max)}] , mean=${fmtTick(mean)} , std=${fmtTick(std)}`;
+}
+
+function niceCeil(v){
+  if (v <= 10) return 10;
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  return Math.ceil(v / (p/2)) * (p/2);
+}
+function fmtTick(v){
+  if (!Number.isFinite(v)) return "-";
+  const a = Math.abs(v);
+  if (a >= 1000) return v.toFixed(0);
+  if (a >= 100) return v.toFixed(1);
+  if (a >= 1) return v.toFixed(2);
+  return v.toPrecision(3);
+}
+
+/* ================= PNG export ================= */
+
+function stamp(){ return new Date().toISOString().slice(0,19).replace(/[:T]/g,"-"); }
+function sanitize(s){ return String(s).replace(/[\\/:*?"<>|]+/g,"_"); }
+function downloadCanvas(canvas, filename){
+  const a = document.createElement("a");
+  a.download = filename;
+  a.href = canvas.toDataURL("image/png");
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function exportMapPNG(){
+  const cards = Array.from(document.querySelectorAll("#viewer .wafer-card"));
+  if (!cards.length){ alert("No wafer map to export"); return; }
+
+  const w0 = getSelected();
+  const lot = w0?.lot || "wafer";
+  const param = state.parameter || "param";
+  const when = new Date().toLocaleString();
+
+  if (cards.length === 1){
+    const card = cards[0];
+    const c = card.querySelector("canvas");
+    const title = card.querySelector(".wafer-card-title")?.textContent || "";
+    const out = document.createElement("canvas");
+    const topH = 48;
+    out.width = c.width + 20;
+    out.height = c.height + topH + 10;
+    const ctx = out.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, out.width, out.height);
+    ctx.fillStyle = "#0f172a"; ctx.font = "bold 15px Arial"; ctx.textAlign = "left";
+    ctx.fillText(`${title}  |  ${param}  |  ${state.displayMode}`, 10, 20);
+    ctx.fillStyle = "#64748b"; ctx.font = "12px Arial";
+    ctx.fillText(`Color Scale: ${state.colorScaleMode}   Export: ${when}`, 10, 38);
+    ctx.drawImage(c, 10, topH);
+    downloadCanvas(out, sanitize(`wafermap_${title}_${param}_${stamp()}.png`));
+    return;
+  }
+
+  const n = cards.length;
+  const cols = Math.ceil(Math.sqrt(n));
+  const rowsN = Math.ceil(n / cols);
+  const cell = 320, titleH = 26, pad = 12, topH = 52;
+  const out = document.createElement("canvas");
+  out.width = cols * cell + pad * 2;
+  out.height = rowsN * (cell + titleH) + pad * 2 + topH;
+  const ctx = out.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, out.width, out.height);
+  ctx.fillStyle = "#0f172a"; ctx.font = "bold 15px Arial"; ctx.textAlign = "left";
+  ctx.fillText(`${lot}  |  ${param}  |  ${state.displayMode}  |  ${n} wafers`, 12, 22);
+  ctx.fillStyle = "#64748b"; ctx.font = "12px Arial";
+  ctx.fillText(`Color Scale: ${state.colorScaleMode}   Export: ${when}`, 12, 40);
+
+  cards.forEach((card, i) => {
+    const c = card.querySelector("canvas");
+    const t = card.querySelector(".wafer-card-title")?.textContent || "";
+    const x = pad + (i % cols) * cell;
+    const y = topH + pad + Math.floor(i / cols) * (cell + titleH);
+    ctx.fillStyle = "#334155"; ctx.font = "bold 12px Arial"; ctx.textAlign = "left";
+    ctx.fillText(t, x + 6, y + 14);
+    ctx.drawImage(c, x + 6, y + 20, cell - 12, cell - 12);
+    ctx.strokeStyle = "#e2e8f0";
+    ctx.strokeRect(x + 4.5, y + 4.5, cell - 9, cell + titleH - 9);
+  });
+
+  downloadCanvas(out, sanitize(`wafermap_grid_${lot}_${param}_${stamp()}.png`));
+}
+
+function exportHistogramPNG(){
+  const src = $("histCanvas");
+  const info = $("histInfo").textContent || "";
+  if (!info){ alert("No histogram to export"); return; }
+
+  const out = document.createElement("canvas");
+  const topH = 48;
+  out.width = src.width;
+  out.height = src.height + topH;
+  const ctx = out.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, out.width, out.height);
+  ctx.fillStyle = "#0f172a"; ctx.font = "bold 15px Arial"; ctx.textAlign = "left";
+  ctx.fillText(`Histogram / Probability Distribution - ${state.parameter || ""}  [${$("histSource").value === "all" ? "All Wafers" : (getSelected()?.wafer || "")}]`, 12, 20);
+  ctx.fillStyle = "#64748b"; ctx.font = "12px Arial";
+  ctx.fillText(info, 12, 38);
+  ctx.drawImage(src, 0, topH);
+
+  downloadCanvas(out, sanitize(`histogram_${state.parameter}_${$("histSource").value}_${stamp()}.png`));
+}
+
+/* ================= stats / table / legend ================= */
+
+function renderStats(){
+  const w = getSelected();
+  if (!w){
+    $("stats").innerHTML = '<div class="muted">No wafer</div>';
+    $("minmax").innerHTML = "";
+    $("dieInfo").innerHTML = "Hover a die";
+    renderWaferTable();
+    return;
+  }
+  const s = calcStats(getValues(w, state.parameter));
+  const y = calcYield(w);
+  $("stats").innerHTML = `
+    <div class="kv"><span>Parameter</span><b>${escapeHtml(paramLabel(w))}</b></div>
+    <div class="kv"><span>Die Count</span><b>${s.n}</b></div>
+    <div class="kv"><span>Min</span><b>${fmt(s.min)}</b></div>
+    <div class="kv"><span>Max</span><b>${fmt(s.max)}</b></div>
+    <div class="kv"><span>Mean</span><b>${fmt(s.mean)}</b></div>
+    <div class="kv"><span>StdDev</span><b>${fmt(s.std)}</b></div>
+    <div class="kv"><span>Cp</span><b>${fmt(calcCp(s))}</b></div>
+    <div class="kv"><span>Cpk</span><b>${fmt(calcCpk(s))}</b></div>
+    <div class="kv"><span>Yield</span><b>${y == null ? "-" : (y*100).toFixed(2) + "%"}</b></div>`;
+  const mm = getMinMaxDies(w, state.parameter);
+  $("minmax").innerHTML = `
+    <div class="kv"><span>Min Die</span><b>${mm.min ? `(${mm.min.x}, ${mm.min.y}) / Bin ${escapeHtml(mm.min.bin ?? "-")} / ${escapeHtml(formatNumber(mm.min.value))}` : "-"}</b></div>
+    <div class="kv"><span>Max Die</span><b>${mm.max ? `(${mm.max.x}, ${mm.max.y}) / Bin ${escapeHtml(mm.max.bin ?? "-")} / ${escapeHtml(formatNumber(mm.max.value))}` : "-"}</b></div>`;
+  renderWaferTable();
+}
+
+function getValues(w, param){
+  const arr = [];
+  for (const d of w.dies){ const v = getDieValue(d, param); if (v != null) arr.push(v); }
+  return arr;
+}
+function calcStats(values){
+  if (!values.length) return { n: 0, min: null, max: null, mean: null, std: null };
+  let min = Infinity, max = -Infinity, sum = 0;
+  for (const v of values){ if (v < min) min = v; if (v > max) max = v; sum += v; }
+  const n = values.length, mean = sum / n;
+  let variance = 0;
+  if (n > 1){ for (const v of values) variance += (v - mean) ** 2; variance /= (n - 1); }
+  return { n, min, max, mean, std: Math.sqrt(variance) };
+}
+function getMinMaxDies(w, param){
+  let minD = null, maxD = null, minV = Infinity, maxV = -Infinity;
+  for (const d of w.dies){
+    const v = getDieValue(d, param); if (v == null) continue;
+    if (v < minV){ minV = v; minD = { x: d.x, y: d.y, bin: d.bin, value: v }; }
+    if (v > maxV){ maxV = v; maxD = { x: d.x, y: d.y, bin: d.bin, value: v }; }
+  }
+  return { min: minD, max: maxD };
+}
+function calcYield(w){
+  const withBin = w.dies.filter(d => d.bin != null);
+  if (!withBin.length || !state.passBins.size) return null;
+  return withBin.filter(d => state.passBins.has(d.bin)).length / withBin.length;
+}
+function calcCp(s){
+  if (state.lsl == null || state.usl == null || !s.n || !(s.std > 0)) return null;
+  const v = (state.usl - state.lsl) / (6 * s.std);
+  return Number.isFinite(v) ? v : null;
+}
+function calcCpk(s){
+  if (state.lsl == null || state.usl == null || !s.n || !(s.std > 0) || s.mean == null) return null;
+  const v = Math.min((state.usl - s.mean) / (3 * s.std), (s.mean - state.lsl) / (3 * s.std));
+  return Number.isFinite(v) ? v : null;
+}
+
+function renderWaferTable(){
+  const el = $("waferTable");
+  el.innerHTML = "";
+  if (!state.wafers.length){ el.innerHTML = '<div class="muted">No wafer</div>'; return; }
+  const table = document.createElement("table");
+  table.innerHTML = `<thead><tr><th>Wafer</th><th>Die</th><th>Yield</th><th>Min</th><th>Max</th><th>Mean</th><th>StdDev</th></tr></thead>`;
+  const tbody = document.createElement("tbody");
+  state.wafers.forEach(w => {
+    const s = calcStats(getValues(w, state.parameter));
+    const y = calcYield(w);
+    const tr = document.createElement("tr");
+    if (w.id === state.selectedId) tr.className = "selected-row";
+    tr.innerHTML = `<td>${escapeHtml(w.wafer || w.id)}</td><td>${s.n}</td><td>${y == null ? "-" : (y*100).toFixed(2) + "%"}</td><td>${fmt(s.min)}</td><td>${fmt(s.max)}</td><td>${fmt(s.mean)}</td><td>${fmt(s.std)}</td>`;
+    tr.addEventListener("click", () => { state.selectedId = w.id; renderAll(); });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  el.appendChild(table);
+}
+
+function renderBinLegend(){
+  const el = $("binLegend");
+  el.innerHTML = "";
+  const bins = new Set();
+  state.wafers.forEach(w => w.dies.forEach(d => { if (d.bin != null) bins.add(d.bin); }));
+  if (!bins.size){ el.innerHTML = '<div class="muted">No bin data</div>'; return; }
+  Array.from(bins).sort((a,b) => a-b).forEach(bin => {
+    const item = document.createElement("div");
+    item.className = "bin-item";
+    const sw = document.createElement("span");
+    sw.className = "bin-swatch"; sw.style.background = binColor(bin);
+    const lb = document.createElement("span");
+    lb.textContent = `Bin ${bin}${state.passBins.has(bin) ? " ✓" : ""}`;
+    item.appendChild(sw); item.appendChild(lb);
+    el.appendChild(item);
+  });
+}
+
+function renderColorBar(){
+  const canvas = $("colorBar"), ctx = canvas.getContext("2d"), labels = $("colorLabels");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (state.displayMode === "binmap"){
+    ctx.fillStyle = "#f8fafc"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#64748b"; ctx.font = "12px Arial"; ctx.textAlign = "center";
+    ctx.fillText("Bin Map uses categorical colors", canvas.width/2, 12);
+    labels.textContent = "";
+    return;
+  }
+  const w = getSelected();
+  const domain = state.colorScaleMode === "global" ? computeDomainAll(state.parameter) : (w ? computeDomain(w, state.parameter) : [0,1]);
+  const grad = ctx.createLinearGradient(0, 0, canvas.width, 0);
+  HEAT_STOPS.forEach(([t,c]) => grad.addColorStop(t, `rgb(${c[0]},${c[1]},${c[2]})`));
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  labels.innerHTML = `<span>${escapeHtml(fmt(domain[0]))}</span><span>${escapeHtml(fmt((domain[0]+domain[1])/2))}</span><span>${escapeHtml(fmt(domain[1]))}</span>`;
+}
+
+function fmt(v){ return v == null || !Number.isFinite(v) ? "-" : Number(v).toFixed(4); }
+function formatNumber(v){
+  if (v == null || !Number.isFinite(v)) return "-";
+  return Number.isInteger(v) ? String(v) : v.toFixed(4);
+}
+function escapeHtml(s){
+  return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+}
+</script>
+</body>
+</html>

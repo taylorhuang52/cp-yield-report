@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wafer Test Heatmap Viewer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+    background: #0f1117;
+    color: #e0e0e0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    background: #1a1d26;
+    border-bottom: 1px solid #2a2e3b;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  header h1 { font-size: 18px; font-weight: 600; color: #64b5f6; letter-spacing: 0.5px; }
+  .header-info { font-size: 12px; color: #8892a0; display: flex; gap: 16px; flex-wrap: wrap; }
+  .header-info span { display: flex; align-items: center; gap: 4px; }
+  .header-info .label { color: #5c6b7f; }
+  main { display: flex; flex: 1; overflow: hidden; }
+  aside {
+    width: 280px;
+    background: #16181f;
+    border-right: 1px solid #2a2e3b;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    overflow-y: auto;
+  }
+  .panel-title {
+    font-size: 13px; font-weight: 600; color: #8b95a5;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+  .control-group { display: flex; flex-direction: column; gap: 8px; }
+  label { font-size: 12px; color: #a0a8b8; }
+  select, input[type="file"] {
+    background: #1e212b;
+    border: 1px solid #2f3545;
+    border-radius: 6px;
+    padding: 8px 10px;
+    color: #e0e0e0;
+    font-size: 13px;
+    outline: none;
+    cursor: pointer;
+  }
+  select:focus { border-color: #64b5f6; }
+  .upload-zone {
+    border: 2px dashed #2f3545;
+    border-radius: 8px;
+    padding: 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #1a1d26;
+  }
+  .upload-zone:hover { border-color: #64b5f6; background: #1e2330; }
+  .upload-zone.dragover { border-color: #64b5f6; background: #1e2838; }
+  .upload-zone p { font-size: 12px; color: #6b7280; margin-top: 8px; }
+  .upload-zone .icon { font-size: 28px; color: #4a5568; }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .stat-card {
+    background: #1e212b;
+    border: 1px solid #2a2e3b;
+    border-radius: 6px;
+    padding: 10px;
+    text-align: center;
+  }
+  .stat-card .val { font-size: 16px; font-weight: 700; color: #64b5f6; }
+  .stat-card .lbl { font-size: 10px; color: #6b7280; margin-top: 2px; }
+  .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn {
+    background: #1e212b;
+    border: 1px solid #2f3545;
+    border-radius: 4px;
+    padding: 5px 10px;
+    font-size: 11px;
+    color: #a0a8b8;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn:hover { border-color: #64b5f6; color: #64b5f6; }
+  .btn.active { background: #64b5f6; border-color: #64b5f6; color: #0f1117; font-weight: 600; }
+  .content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    position: relative;
+    overflow: auto;
+  }
+  #waferCanvas {
+    background: #16181f;
+    border-radius: 12px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+    cursor: crosshair;
+  }
+  .legend-bar {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: #8892a0;
+  }
+  #legendCanvas { border-radius: 4px; }
+  .tooltip {
+    position: absolute;
+    background: rgba(22, 24, 31, 0.95);
+    border: 1px solid #2f3545;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #e0e0e0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.1s;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    z-index: 100;
+    min-width: 140px;
+  }
+  .tooltip .tt-title { font-weight: 600; color: #64b5f6; margin-bottom: 4px; font-size: 13px; }
+  .tooltip .tt-row { display: flex; justify-content: space-between; gap: 16px; margin: 2px 0; }
+  .tooltip .tt-row .tt-lbl { color: #6b7280; }
+  .bin-legend {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+    justify-content: center;
+  }
+  .bin-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #8892a0; }
+  .bin-dot { width: 10px; height: 10px; border-radius: 2px; }
+  .pass-rate {
+    font-size: 11px;
+    color: #4ade80;
+    background: rgba(74, 222, 128, 0.1);
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(74, 222, 128, 0.2);
+  }
+  .fail-rate {
+    font-size: 11px;
+    color: #f87171;
+    background: rgba(248, 113, 113, 0.1);
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(248, 113, 113, 0.2);
+  }
+  .empty-state {
+    text-align: center;
+    color: #4a5568;
+  }
+  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+  .color-presets { display: flex; gap: 4px; flex-wrap: wrap; }
+  .color-chip {
+    width: 28px; height: 20px;
+    border-radius: 3px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    position: relative;
+  }
+  .color-chip:hover { transform: scale(1.1); }
+  .color-chip.active { border-color: #fff; box-shadow: 0 0 0 1px #64b5f6; }
+</style>
+<base target="_blank">
+</head>
+<body>
+<header>
+  <h1>Wafer Test Heatmap Viewer</h1>
+  <div class="header-info" id="headerInfo">
+    <span><span class="label">Lot:</span> <span id="dispLot">-</span></span>
+    <span><span class="label">Wafer:</span> <span id="dispWafer">-</span></span>
+    <span><span class="label">Device:</span> <span id="dispDevice">-</span></span>
+    <span><span class="label">Temp:</span> <span id="dispTemp">-</span></span>
+    <span id="yieldBadge"></span>
+  </div>
+</header>
+
+<main>
+  <aside>
+    <div class="panel-title">Data Source</div>
+    <div class="upload-zone" id="uploadZone">
+      <div class="icon">📂</div>
+      <p>Click or drag CSV here</p>
+      <input type="file" id="fileInput" accept=".csv" style="display:none">
+    </div>
+
+    <div class="panel-title">Controls</div>
+    <div class="control-group">
+      <label>Display Mode</label>
+      <div class="btn-group">
+        <button class="btn active" data-mode="heatmap" onclick="setMode('heatmap')">Heatmap</button>
+        <button class="btn" data-mode="bin" onclick="setMode('bin')">Bin Map</button>
+        <button class="btn" data-mode="both" onclick="setMode('both')">Overlay</button>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <label>Test Parameter</label>
+      <select id="paramSelect" onchange="draw()"></select>
+    </div>
+
+    <div class="control-group">
+      <label>Color Scale</label>
+      <div class="color-presets" id="colorPresets"></div>
+    </div>
+
+    <div class="panel-title">Statistics</div>
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card"><div class="val" id="statMin">-</div><div class="lbl">Min</div></div>
+      <div class="stat-card"><div class="val" id="statMax">-</div><div class="lbl">Max</div></div>
+      <div class="stat-card"><div class="val" id="statMean">-</div><div class="lbl">Mean</div></div>
+      <div class="stat-card"><div class="val" id="statStd">-</div><div class="lbl">StdDev</div></div>
+      <div class="stat-card"><div class="val" id="statCp">-</div><div class="lbl">Cp</div></div>
+      <div class="stat-card"><div class="val" id="statCpk">-</div><div class="lbl">Cpk</div></div>
+    </div>
+
+    <div class="panel-title">Bin Legend</div>
+    <div class="bin-legend" id="binLegend"></div>
+  </aside>
+
+  <div class="content" id="contentArea">
+    <div class="empty-state" id="emptyState">
+      <div class="icon">📈</div>
+      <p>Upload a wafer test CSV to visualize</p>
+    </div>
+    <canvas id="waferCanvas" style="display:none"></canvas>
+    <div class="legend-bar" id="legendBar" style="display:none">
+      <span id="legendMin">Min</span>
+      <canvas id="legendCanvas" width="200" height="16"></canvas>
+      <span id="legendMax">Max</span>
+    </div>
+  </div>
+</main>
+
+<div class="tooltip" id="tooltip">
+  <div class="tt-title" id="ttTitle">Die Info</div>
+  <div class="tt-row"><span class="tt-lbl">X, Y</span><span id="ttXY"></span></div>
+  <div class="tt-row"><span class="tt-lbl">Bin</span><span id="ttBin"></span></div>
+  <div class="tt-row"><span class="tt-lbl">Value</span><span id="ttVal"></span></div>
+</div>
+
+<script>
+// ================== Color Scales ==================
+const COLOR_SCALES = {
+  viridis: t => {
+    const c = [[0.267,0.004,0.329],[0.283,0.141,0.458],[0.254,0.265,0.529],[0.207,0.372,0.553],[0.163,0.471,0.558],[0.128,0.567,0.551],[0.135,0.659,0.518],[0.267,0.749,0.441],[0.478,0.821,0.318],[0.741,0.873,0.154],[0.993,0.906,0.144]];
+    return interpMulti(c, t);
+  },
+  plasma: t => {
+    const c = [[0.050,0.029,0.529],[0.267,0.004,0.651],[0.445,0.047,0.675],[0.576,0.152,0.643],[0.682,0.267,0.575],[0.773,0.381,0.502],[0.854,0.502,0.424],[0.925,0.635,0.345],[0.976,0.775,0.286],[0.996,0.921,0.268],[0.940,0.975,0.131]];
+    return interpMulti(c, t);
+  },
+  coolwarm: t => {
+    const c = [[0.230,0.299,0.754],[0.436,0.619,0.873],[0.865,0.865,0.865],[0.957,0.647,0.509],[0.706,0.016,0.150]];
+    return interpMulti(c, t);
+  },
+  jet: t => {
+    const c = [[0,0,0.5],[0,0,1],[0,1,1],[1,1,0],[1,0,0],[0.5,0,0]];
+    return interpMulti(c, t);
+  },
+  turbo: t => {
+    const c = [[0.18995,0.07176,0.23217],[0.19484,0.28839,0.55202],[0.27031,0.54974,0.7336],[0.46253,0.74054,0.56876],[0.68894,0.84393,0.31095],[0.98746,0.87575,0.1219],[0.9763,0.9836,0.0805]];
+    return interpMulti(c, t);
+  },
+  inferno: t => {
+    const c = [[0.001,0.000,0.017],[0.069,0.026,0.106],[0.188,0.055,0.150],[0.337,0.094,0.156],[0.510,0.154,0.151],[0.700,0.236,0.146],[0.878,0.347,0.177],[0.969,0.516,0.302],[0.988,0.734,0.527],[0.973,0.905,0.782],[0.988,0.998,0.645]];
+    return interpMulti(c, t);
+  }
+};
+
+function interpMulti(colors, t) {
+  t = Math.max(0, Math.min(1, t));
+  const idx = t * (colors.length - 1);
+  const i0 = Math.floor(idx);
+  const i1 = Math.min(i0 + 1, colors.length - 1);
+  const f = idx - i0;
+  const r = colors[i0][0] + (colors[i1][0] - colors[i0][0]) * f;
+  const g = colors[i0][1] + (colors[i1][1] - colors[i0][1]) * f;
+  const b = colors[i0][2] + (colors[i1][2] - colors[i0][2]) * f;
+  return `rgb(${Math.round(r*255)},${Math.round(g*255)},${Math.round(b*255)})`;
+}
+
+const BIN_COLORS = {
+  1: '#4ade80', 8: '#fbbf24', 9: '#f87171',
+  17: '#a78bfa', 23: '#fb923c', 24: '#f472b6'
+};
+
+// ================== State ==================
+let rawData = [];
+let testParams = [];
+let currentParam = '';
+let currentMode = 'heatmap';
+let currentScale = 'viridis';
+let headerInfo = {};
+let dieSize = 0, offsetX = 0, offsetY = 0, waferRadius = 0;
+let dieMap = new Map();
+
+// ================== DOM ==================
+const fileInput = document.getElementById('fileInput');
+const uploadZone = document.getElementById('uploadZone');
+const paramSelect = document.getElementById('paramSelect');
+const canvas = document.getElementById('waferCanvas');
+const ctx = canvas.getContext('2d');
+const legendCanvas = document.getElementById('legendCanvas');
+const legendCtx = legendCanvas.getContext('2d');
+const tooltip = document.getElementById('tooltip');
+
+// Color preset chips
+const presetContainer = document.getElementById('colorPresets');
+Object.keys(COLOR_SCALES).forEach(name => {
+  const chip = document.createElement('div');
+  chip.className = 'color-chip' + (name === currentScale ? ' active' : '');
+  chip.title = name;
+  const c0 = COLOR_SCALES[name](0);
+  const c05 = COLOR_SCALES[name](0.5);
+  const c1 = COLOR_SCALES[name](1);
+  chip.style.background = `linear-gradient(to right, ${c0}, ${c05}, ${c1})`;
+  chip.onclick = () => {
+    currentScale = name;
+    document.querySelectorAll('.color-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    draw();
+  };
+  presetContainer.appendChild(chip);
+});
+
+// ================== File Upload ==================
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f && f.name.endsWith('.csv')) processFile(f);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) processFile(e.target.files[0]); });
+
+function processFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => parseCSV(e.target.result);
+  reader.readAsText(file);
+}
+
+// ================== CSV Parser (Corrected) ==================
+function parseCSV(text) {
+  const lines = text.split(/\r?\n/);
+  headerInfo = {};
+  let serialIdx = -1;
+
+  // Step 1: Find the data header line starting with "Serial#"
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    if (line.startsWith('Serial#')) { serialIdx = i; break; }
+    if (line.includes(':')) {
+      const idx = line.indexOf(':');
+      headerInfo[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
+    }
+  }
+  if (serialIdx < 0) { alert('Cannot find data header (Serial#)'); return; }
+
+  const serialCols = lines[serialIdx].trim().split(',');
+
+  // Step 2: Find parameter name row — it is ABOVE the Serial# line in ATE dlogTDO format
+  // Look upward from serialIdx, searching for a row where cols 6+ contain non-numeric param names
+  let paramCols = null;
+  for (let i = serialIdx - 1; i >= Math.max(0, serialIdx - 12); i--) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    const cols = line.split(',');
+    if (cols.length < 7) continue;
+
+    // Count how many cols 6+ look like parameter names (non-empty, non-numeric, length > 1)
+    let paramCount = 0;
+    for (let c = 6; c < cols.length; c++) {
+      const v = cols[c].trim();
+      if (v && v.length > 1 && isNaN(parseFloat(v))) {
+        paramCount++;
+      }
+    }
+    // Also reject if it looks like the test-number row (Contact(1), VZ0(5), etc.)
+    // The param name row should have MORE descriptive names than the number row
+    const firstParamCol = (cols[6] || '').trim();
+    const isNumberRow = firstParamCol.match(/^Contact\(\d+\)$/) || firstParamCol.match(/^VZ0\(\d+\)$/);
+
+    if (paramCount >= 3 && !isNumberRow) {
+      paramCols = cols;
+      break;
+    }
+  }
+
+  // Step 3: Find where actual data begins (first row after Serial# with integer Serial)
+  let dataStartIdx = -1;
+  for (let i = serialIdx + 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    const cols = line.split(',');
+    if (cols.length < 7) continue;
+    const serial = parseInt(cols[0]);
+    const site = parseInt(cols[1]);
+    const x = parseInt(cols[4]);
+    const y = parseInt(cols[5]);
+    if (!isNaN(serial) && !isNaN(site) && !isNaN(x) && !isNaN(y)) {
+      dataStartIdx = i;
+      break;
+    }
+  }
+  if (dataStartIdx < 0) { alert('Cannot find data rows'); return; }
+
+  // Step 4: Build testParams using paramCols (or fallback to serialCols)
+  testParams = [];
+  const nameSource = paramCols || serialCols;
+  for (let c = 6; c < nameSource.length; c++) {
+    let name = (nameSource[c] || '').trim();
+    if (!name || name === 'm' || name === 'm.1' || name === 'm.2' || name.startsWith('Unnamed')) {
+      name = `Param_${c - 5}`;
+    }
+    testParams.push({ name, idx: c });
+  }
+
+  // Step 5: Parse data rows
+  rawData = [];
+  for (let i = dataStartIdx; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    const cols = line.split(',');
+    if (cols.length < 7) continue;
+    const serial = parseInt(cols[0]);
+    if (isNaN(serial)) continue;
+    const site = parseInt(cols[1]);
+    const bin = parseInt(cols[2]);
+    const sbin = parseInt(cols[3]);
+    const x = parseInt(cols[4]);
+    const y = parseInt(cols[5]);
+    if (isNaN(x) || isNaN(y)) continue;
+
+    const row = { Serial: serial, Site: site, Bin: bin, SBin: sbin, X: x, Y: y };
+    for (const p of testParams) {
+      const v = cols[p.idx];
+      row[p.name] = (v === undefined || v.trim() === '') ? null : parseFloat(v);
+    }
+    rawData.push(row);
+  }
+
+  updateHeader();
+  populateParams();
+  document.getElementById('emptyState').style.display = 'none';
+  canvas.style.display = 'block';
+  document.getElementById('legendBar').style.display = 'flex';
+  draw();
+}
+
+function updateHeader() {
+  document.getElementById('dispLot').textContent = headerInfo['Lot ID'] || '-';
+  document.getElementById('dispWafer').textContent = headerInfo['Wafer ID'] || '-';
+  document.getElementById('dispDevice').textContent = headerInfo['Production ID'] || '-';
+  document.getElementById('dispTemp').textContent = (headerInfo['Handler/Prober Name'] || '').replace(/[()]/g, '') || '-';
+
+  const total = rawData.length;
+  const pass = rawData.filter(d => d.Bin === 1).length;
+  const fail = total - pass;
+  const yieldPct = total ? ((pass / total) * 100).toFixed(2) : 0;
+  document.getElementById('yieldBadge').innerHTML =
+    `<span class="pass-rate">Pass: ${pass} (${yieldPct}%)</span> <span class="fail-rate">Fail: ${fail}</span>`;
+
+  const binCounts = {};
+  rawData.forEach(d => { binCounts[d.Bin] = (binCounts[d.Bin] || 0) + 1; });
+  const legendEl = document.getElementById('binLegend');
+  legendEl.innerHTML = '';
+  Object.entries(binCounts).sort((a, b) => a[0] - b[0]).forEach(([bin, count]) => {
+    const color = BIN_COLORS[bin] || '#9ca3af';
+    const item = document.createElement('div');
+    item.className = 'bin-item';
+    item.innerHTML = `<div class="bin-dot" style="background:${color}"></div> Bin ${bin} (${count})`;
+    legendEl.appendChild(item);
+  });
+}
+
+function populateParams() {
+  paramSelect.innerHTML = '';
+  testParams.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.name;
+    opt.textContent = p.name;
+    paramSelect.appendChild(opt);
+  });
+  if (testParams.length) currentParam = testParams[0].name;
+}
+
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.btn[data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  draw();
+}
+
+// ================== Drawing ==================
+function draw() {
+  if (!rawData.length) return;
+  currentParam = paramSelect.value || currentParam;
+
+  const xs = rawData.map(d => d.X);
+  const ys = rawData.map(d => d.Y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const rangeX = maxX - minX + 1;
+  const rangeY = maxY - minY + 1;
+
+  dieMap.clear();
+  rawData.forEach(d => { dieMap.set(`${d.X},${d.Y}`, d); });
+
+  const contentArea = document.getElementById('contentArea');
+  const availW = contentArea.clientWidth - 40;
+  const availH = contentArea.clientHeight - 80;
+  const size = Math.min(availW, availH, 700);
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = size * dpr;
+  canvas.height = size * dpr;
+  canvas.style.width = size + 'px';
+  canvas.style.height = size + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const padding = 30;
+  const drawSize = size - padding * 2;
+  dieSize = Math.min(drawSize / rangeX, drawSize / rangeY);
+  offsetX = (size - dieSize * rangeX) / 2;
+  offsetY = (size - dieSize * rangeY) / 2;
+
+  ctx.fillStyle = '#16181f';
+  ctx.fillRect(0, 0, size, size);
+
+  const centerX = offsetX + (rangeX - 1) * dieSize / 2 + dieSize / 2;
+  const centerY = offsetY + (rangeY - 1) * dieSize / 2 + dieSize / 2;
+  waferRadius = Math.min(rangeX, rangeY) * dieSize * 0.55;
+
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, waferRadius, 0, Math.PI * 2);
+  ctx.strokeStyle = '#2f3545';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(30, 33, 43, 0.3)';
+  ctx.fill();
+
+  const values = rawData.map(d => d[currentParam]).filter(v => v !== null && !isNaN(v));
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const meanV = values.reduce((a, b) => a + b, 0) / values.length;
+  const stdV = Math.sqrt(values.reduce((sq, n) => sq + (n - meanV) ** 2, 0) / values.length);
+
+  document.getElementById('statMin').textContent = minV.toFixed(3);
+  document.getElementById('statMax').textContent = maxV.toFixed(3);
+  document.getElementById('statMean').textContent = meanV.toFixed(3);
+  document.getElementById('statStd').textContent = stdV.toFixed(3);
+
+  const usl = maxV + stdV;
+  const lsl = minV - stdV;
+  const cp = (usl - lsl) / (6 * stdV);
+  const cpu = (usl - meanV) / (3 * stdV);
+  const cpl = (meanV - lsl) / (3 * stdV);
+  const cpk = Math.min(cpu, cpl);
+  document.getElementById('statCp').textContent = isFinite(cp) ? cp.toFixed(2) : '-';
+  document.getElementById('statCpk').textContent = isFinite(cpk) ? cpk.toFixed(2) : '-';
+
+  for (let x = minX; x <= maxX; x++) {
+    for (let y = minY; y <= maxY; y++) {
+      const die = dieMap.get(`${x},${y}`);
+      const px = offsetX + (x - minX) * dieSize;
+      const py = offsetY + (maxY - y) * dieSize;
+      const cx = px + dieSize / 2;
+      const cy = py + dieSize / 2;
+
+      const dist = Math.sqrt((cx - centerX) ** 2 + (cy - centerY) ** 2);
+      if (dist > waferRadius + dieSize * 0.5) continue;
+
+      const gap = 1;
+      const ds = dieSize - gap;
+
+      if (!die) {
+        ctx.fillStyle = 'rgba(40, 44, 56, 0.4)';
+        ctx.fillRect(px + gap / 2, py + gap / 2, ds, ds);
+        continue;
+      }
+
+      let fillColor;
+      if (currentMode === 'bin') {
+        fillColor = BIN_COLORS[die.Bin] || '#6b7280';
+      } else {
+        const v = die[currentParam];
+        if (v === null || isNaN(v)) {
+          fillColor = '#2a2e3b';
+        } else {
+          const t = (maxV === minV) ? 0.5 : (v - minV) / (maxV - minV);
+          fillColor = COLOR_SCALES[currentScale](t);
+        }
+      }
+
+      ctx.fillStyle = fillColor;
+      ctx.fillRect(px + gap / 2, py + gap / 2, ds, ds);
+
+      if (currentMode === 'both') {
+        const binColor = BIN_COLORS[die.Bin];
+        if (binColor && die.Bin !== 1) {
+          ctx.strokeStyle = binColor;
+          ctx.lineWidth = 2;
+          ctx.strokeRect(px + gap / 2 + 1, py + gap / 2 + 1, ds - 2, ds - 2);
+        }
+      }
+
+      if (dist < dieSize && cy < centerY - waferRadius * 0.85) {
+        ctx.fillStyle = '#0f1117';
+        ctx.beginPath();
+        ctx.arc(cx, cy, dieSize * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  drawLegend(minV, maxV);
+
+  ctx.fillStyle = '#6b7280';
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'center';
+  for (let x = minX; x <= maxX; x += Math.ceil(rangeX / 10)) {
+    const px = offsetX + (x - minX) * dieSize + dieSize / 2;
+    ctx.fillText(x, px, size - 8);
+  }
+  ctx.textAlign = 'right';
+  for (let y = minY; y <= maxY; y += Math.ceil(rangeY / 10)) {
+    const py = offsetY + (maxY - y) * dieSize + dieSize / 2;
+    ctx.fillText(y, 22, py + 3);
+  }
+}
+
+function drawLegend(minV, maxV) {
+  const w = legendCanvas.width;
+  const h = legendCanvas.height;
+  legendCtx.clearRect(0, 0, w, h);
+  for (let i = 0; i < w; i++) {
+    const t = i / (w - 1);
+    legendCtx.fillStyle = COLOR_SCALES[currentScale](t);
+    legendCtx.fillRect(i, 0, 1, h);
+  }
+  document.getElementById('legendMin').textContent = minV.toFixed(2);
+  document.getElementById('legendMax').textContent = maxV.toFixed(2);
+}
+
+// ================== Interaction ==================
+canvas.addEventListener('mousemove', e => {
+  if (!rawData.length) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  const size = parseInt(canvas.style.width);
+  const xs = rawData.map(d => d.X);
+  const ys = rawData.map(d => d.Y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const rangeX = maxX - minX + 1;
+  const rangeY = maxY - minY + 1;
+  const padding = 30;
+  const drawSize = size - padding * 2;
+  const ds = Math.min(drawSize / rangeX, drawSize / rangeY);
+  const offX = (size - ds * rangeX) / 2;
+  const offY = (size - ds * rangeY) / 2;
+
+  const gx = Math.round((mx - offX) / ds + minX);
+  const gy = Math.round(maxY - (my - offY) / ds);
+
+  const die = dieMap.get(`${gx},${gy}`);
+  if (die) {
+    tooltip.style.opacity = '1';
+    tooltip.style.left = (e.pageX + 16) + 'px';
+    tooltip.style.top = (e.pageY + 16) + 'px';
+    document.getElementById('ttTitle').textContent = `Die (${die.Serial})`;
+    document.getElementById('ttXY').textContent = `${die.X}, ${die.Y}`;
+    document.getElementById('ttBin').textContent = `${die.Bin} (SBin ${die.SBin})`;
+    const v = die[currentParam];
+    document.getElementById('ttVal').textContent = v !== null ? v.toFixed(3) : 'N/A';
+    document.getElementById('ttVal').style.color = v !== null ? '#64b5f6' : '#6b7280';
+  } else {
+    tooltip.style.opacity = '0';
+  }
+});
+
+canvas.addEventListener('mouseleave', () => { tooltip.style.opacity = '0'; });
+window.addEventListener('resize', () => { if (rawData.length) draw(); });
+</script>
+</body>
+</html>

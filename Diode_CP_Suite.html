@@ -2143,6 +2143,7 @@
           <label class="fw-bold mb-1" style="font-size:0.85rem;">4. X-Axis</label>
           <select id="xAxisSelect" class="form-select form-select-sm">
             <option value="RUN_ON">RUN ON (Timeline)</option>
+            <option value="Test_Date">Test Date (Timeline)</option>
             <option value="Lot_No">Lot No (A→Z / 0→9)</option>
           </select>
         </div>
@@ -2317,7 +2318,7 @@
         <div class="fw-bold mb-1" style="color:#1a7a5e;">After loading</div>
         <ul style="padding-left:1.1rem; margin:0; line-height:1.7;">
           <li>Reads the <code>Yield Summary</code> sheet</li>
-          <li>Matches <strong>Lot No</strong> and appends <strong>CP Yield</strong></li>
+          <li>Matches <strong>Lot No</strong> and appends <strong>Test Date</strong>, <strong>CP Yield</strong></li>
           <li>Calculates <strong>Yield gap</strong> = WAT Yield − CP Yield</li>
           <li>Download filename: <code>ULLD_WAT_CP_Summary_yyyymmdd.xlsx</code></li>
         </ul>
@@ -2342,6 +2343,7 @@
           <select id="ulldXAxisSelect" class="form-select form-select-sm">
             <option value="Lot_No">Lot No</option>
             <option value="RUN_ON">RUN ON (Timeline)</option>
+            <option value="Test_Date">Test Date (Timeline)</option>
           </select>
         </div>
         <div class="col-6">
@@ -9721,6 +9723,7 @@ document.getElementById('dailyReportFile').addEventListener('change', function(e
             const iTypeA = headers.indexOf('Type(A)');
             const iTypeMV = headers.indexOf('Type(mV)');
             const iStation = headers.indexOf('Station');
+            const iTestDate = headers.indexOf('Test Date');
             if (iLot < 0 || iTypeA < 0 || iTypeMV < 0) {
                 throw new Error('DailyReport must have columns: Lot Num, Type(A), Type(mV)');
             }
@@ -9740,8 +9743,9 @@ document.getElementById('dailyReportFile').addEventListener('change', function(e
                 const typeMV = String(row[iTypeMV] || '').trim().replace(/MV$/i, 'mV');
                 const cpYield = iYield >= 0 ? String(row[iYield] || '').trim() : '';
                 const station = iStation >= 0 ? String(row[iStation] || '').trim() : '';
+                const testDate = iTestDate >= 0 ? tdToYMD(row[iTestDate]) : '';
                 if (!lotNum) continue;
-                dailyReportData.push({ lotNum, typeA, typeMV, cpYield, station });
+                dailyReportData.push({ lotNum, typeA, typeMV, cpYield, station, testDate });
             }
             const statusEl = document.getElementById('dailyReportStatus');
             statusEl.innerHTML = `✅ Loaded ${dailyReportData.length} rows from <b>${file.name}</b>`;
@@ -9888,6 +9892,7 @@ document.getElementById('btnGenerateSummary').addEventListener('click', async fu
         const cpYield  = parseFloat(cpYieldStr);
         const yieldGap = (!isNaN(watYield) && !isNaN(cpYield)) ? (watYield - cpYield).toFixed(2) : '';
         const row = { 'Lot no.': lot, 'RUN ON': qc9.runOn,
+                      'Test Date': drEntry2 ? (drEntry2.testDate || '') : '',
                       'WAT Yield': qc9.yieldPct, 'CP Yield': cpYieldStr, 'Yield gap': yieldGap,
                       'Station': drEntry2 ? (drEntry2.station || '') : '',
                       'Device Mapping': deviceMapping, 'Part No': qc9.partNo3, 'EPI': epi, 'BGBM': bgbm };
@@ -9928,7 +9933,7 @@ function buildSummaryXLSX(rows, filenameOverride) {
     // Header: CP Yield / Yield gap only when CP DailyReport is imported
     let headers;
     if (hasCp) {
-        headers = ['Lot no.','RUN ON','WAT Yield','CP Yield','Yield gap','Station','Device Mapping','Part No','EPI','BGBM',
+        headers = ['Lot no.','RUN ON','Test Date','WAT Yield','CP Yield','Yield gap','Station','Device Mapping','Part No','EPI','BGBM',
                    ...PARAM_COLS, ...waferCols];
     } else {
         headers = ['Lot no.','RUN ON','Yield(%)','Device Mapping','Part No','EPI','BGBM',
@@ -9953,7 +9958,7 @@ function buildSummaryXLSX(rows, filenameOverride) {
 
     // Column widths
     const fixedWidths = hasCp
-        ? [{wch:10},{wch:18},{wch:10},{wch:10},{wch:10},{wch:14},{wch:10},{wch:10},{wch:10}]
+        ? [{wch:10},{wch:18},{wch:14},{wch:10},{wch:10},{wch:10},{wch:14},{wch:10},{wch:10},{wch:10}]
         : [{wch:10},{wch:18},{wch:10},{wch:14},{wch:10},{wch:10},{wch:10}];
     ws['!cols'] = [
         ...fixedWidths,
@@ -9966,10 +9971,10 @@ function buildSummaryXLSX(rows, filenameOverride) {
     const greenFill   = { patternType: 'solid', fgColor: { rgb: 'E2EFDA' } };
 
     // Yellow cols: WAT Yield, CP Yield, Yield gap, Device Mapping (indices differ by mode)
-    const yieldColIdx  = 2;  // always col 2
-    const devMapIdx    = hasCp ? 6 : 3;
-    const cpYieldIdx   = hasCp ? 3 : -1;
-    const yieldGapIdx  = hasCp ? 4 : -1;
+    const yieldColIdx  = hasCp ? 3 : 2;  // WAT Yield shifts right by 1 (Test Date inserted at col C)
+    const devMapIdx    = hasCp ? 7 : 3;
+    const cpYieldIdx   = hasCp ? 4 : -1;
+    const yieldGapIdx  = hasCp ? 5 : -1;
     const waferStartIdx = headers.length - 25;
 
     for (let c = 0; c < headers.length; c++) {
@@ -10062,6 +10067,27 @@ document.getElementById('btnGenerateFTP').addEventListener('click', function() {
 });
 
 // ── Right panel: DailyReport CP loader ───────────────────────
+// Local helper (this script block has no access to the Generate-panel's toYMD)
+function tdToYMD(v) {
+    if (v === null || v === undefined || v === '') return '';
+    if (v instanceof Date && !isNaN(v)) {
+        const y = v.getFullYear(), m = String(v.getMonth() + 1).padStart(2, '0'), d = String(v.getDate()).padStart(2, '0');
+        return `${y}${m}${d}`;
+    }
+    if (typeof v === 'number') {
+        const dt = new Date(Math.round((v - 25569) * 86400 * 1000));
+        const y = dt.getUTCFullYear(), m = String(dt.getUTCMonth() + 1).padStart(2, '0'), d = String(dt.getUTCDate()).padStart(2, '0');
+        return `${y}${m}${d}`;
+    }
+    const s = String(v).trim();
+    let m = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+    if (m) return `${m[1]}${m[2].padStart(2, '0')}${m[3].padStart(2, '0')}`;
+    m = s.match(/^(\d{4})(\d{2})(\d{2})/);
+    if (m) return `${m[1]}${m[2]}${m[3]}`;
+    m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+    if (m) return `${m[3]}${m[1].padStart(2, '0')}${m[2].padStart(2, '0')}`;
+    return s;
+}
 function parseDailyReportArray(data) {
     // data = Uint8Array of xls/xlsx
     // DailyReport has 2-row header: row 0 = section titles, row 1 = actual column names
@@ -10079,6 +10105,7 @@ function parseDailyReportArray(data) {
     const iTypeA = headers.indexOf('Type(A)');
     const iTypeMV = headers.indexOf('Type(mV)');
     const iStation = headers.indexOf('Station');
+    const iTestDate = headers.indexOf('Test Date');
     if (iLot < 0 || iTypeA < 0 || iTypeMV < 0)
         throw new Error('DailyReport must have columns: Lot Num, Type(A), Type(mV)');
     // Find CP Yield column: 'Initial CP yield (%)' is the correct name in this report
@@ -10100,7 +10127,8 @@ function parseDailyReportArray(data) {
         const typeMV = String(row[iTypeMV] || '').trim().replace(/MV$/i, 'mV');
         const cpYield = iYield >= 0 ? String(row[iYield] || '').trim() : '';
         const station = iStation >= 0 ? String(row[iStation] || '').trim() : '';
-        result.push({ lotNum, typeA, typeMV, cpYield, station });
+        const testDate = iTestDate >= 0 ? tdToYMD(row[iTestDate]) : '';
+        result.push({ lotNum, typeA, typeMV, cpYield, station, testDate });
     }
     return result;
 }
@@ -10171,6 +10199,7 @@ document.getElementById('btnGenerateCP').addEventListener('click', function() {
         // Rebuild row with clean keys + updated yield columns
         const cleanRow = {};
         for (const k of Object.keys(s)) cleanRow[k.trim()] = s[k];
+        cleanRow['Test Date']      = drEntry ? (drEntry.testDate || '') : (cleanRow['Test Date'] || '');
         cleanRow['WAT Yield']      = watYieldStr;
         cleanRow['CP Yield']       = cpYieldStr;
         cleanRow['Yield gap']      = yieldGap;
@@ -10302,7 +10331,8 @@ document.getElementById('btnGenerate').addEventListener('click', function() {
     const yAxisCol = document.getElementById('yAxisSelect').value;
     const yAxisLabel = document.getElementById('yAxisSelect').options[document.getElementById('yAxisSelect').selectedIndex].text;
     const xMode = document.getElementById('xAxisSelect').value;
-    const isTimeX = xMode === 'RUN_ON';
+    const isTimeX = xMode === 'RUN_ON' || xMode === 'Test_Date';
+    const timeXCol = xMode === 'Test_Date' ? 'Test Date' : 'RUN ON';
     if (!dev || selectedParts.length === 0) { alert("Please select a Device and at least one Part No."); return; }
     const runOnFromVal = document.getElementById('runOnFromDate').value;
     const runOnToVal   = document.getElementById('runOnToDate').value;
@@ -10332,7 +10362,7 @@ document.getElementById('btnGenerate').addEventListener('click', function() {
             const yNum = parseFloat(yVal);
             if (isNaN(yNum)) return null;
             if (isTimeX) {
-                const xDate = parseDate(m['RUN ON']);
+                const xDate = parseDate(m[timeXCol]);
                 if (!xDate) return null;
                 if (runOnFrom && xDate < runOnFrom) return null;
                 if (runOnTo && xDate > runOnTo) return null;
@@ -12548,7 +12578,7 @@ document.getElementById('ulldBtnGenerate').addEventListener('click', function() 
   legendEl.innerHTML = '';
   const datasets = [];
   let globalMin = Infinity, globalMax = -Infinity;
-  const isTimeX   = xMode === 'RUN_ON';
+  const isTimeX   = xMode === 'RUN_ON' || xMode === 'Test_Date';
   const isOverlay = yCol === 'WAT+CP Yield';
   const isYield   = isOverlay || yCol === 'WAT Yield' || yCol === 'CP Yield' || yCol === 'Yield gap' || yCol === 'Yield(%)';
 
@@ -12565,7 +12595,8 @@ document.getElementById('ulldBtnGenerate').addEventListener('click', function() 
       const yVal = parseFloat(yRaw);
       if (isNaN(yVal)) return null;
       if (isTimeX) {
-        const xDate = ulldParseDate(m['RUN_ON']);
+        const dateSrc = xMode === 'Test_Date' ? (ulldTestDateMap[m['Lot_No']] || '') : m['RUN_ON'];
+        const xDate = ulldParseDate(dateSrc);
         if (!xDate) return null;
         if (ulldRunOnFrom && xDate < ulldRunOnFrom) return null;
         if (ulldRunOnTo && xDate > ulldRunOnTo) return null;
@@ -12635,7 +12666,7 @@ document.getElementById('ulldBtnGenerate').addEventListener('click', function() 
   }
 
   document.getElementById('ulldChartTitle').textContent = `ULLD WAT — ${yLabel}`;
-  ulldRenderChart(datasets, yLabel, isTimeX, isYield);
+  ulldRenderChart(datasets, yLabel, isTimeX, isYield, xMode);
 });
 
 function ulldParseDate(s) {
@@ -12649,7 +12680,7 @@ function ulldParseDate(s) {
   return isNaN(d.getTime()) ? null : d;
 }
 
-function ulldRenderChart(datasets, yLabel, isTimeX, isYield) {
+function ulldRenderChart(datasets, yLabel, isTimeX, isYield, xMode) {
   const ctx = document.getElementById('ulldChart').getContext('2d');
   if (ulldChartInst) ulldChartInst.destroy();
   const yScaleCfg = getAutoYScale(datasets, isYield);
@@ -12659,8 +12690,9 @@ function ulldRenderChart(datasets, yLabel, isTimeX, isYield) {
     if (maxVal !== null) yScaleCfg.max = maxVal;
   }
 
+  const timeXLabel = xMode === 'Test_Date' ? 'Test Date (Week)' : 'RUN ON (Week)';
   const xScaleCfg = isTimeX
-    ? { type:'time', time:{unit:'week'}, title:{display:true, text:'RUN ON (Week)', font:{size:12}} }
+    ? { type:'time', time:{unit:'week'}, title:{display:true, text:timeXLabel, font:{size:12}} }
     : { type:'category', title:{display:true, text:'Lot No', font:{size:12}},
         ticks:{maxRotation:45, minRotation:30} };
 
@@ -12723,7 +12755,26 @@ document.getElementById('ulldBtnExportPng').addEventListener('click', function()
 });
 
 // ── ULLD CP DataBase import ───────────────────────────────────
-let ulldCpMap = {};   // { [Lot_No]: cpYield }
+let ulldCpMap = {};       // { [Lot_No]: cpYield }
+let ulldTestDateMap = {}; // { [Lot_No]: 'YYYYMMDD HHMMSS' }  (same text format as RUN_ON)
+
+// Convert an Excel serial date/time (1899-12-30 epoch) into the same
+// compact "YYYYMMDD HHMMSS" text format already used by RUN_ON, so the
+// existing ulldParseDate()/Timeline logic can be reused as-is.
+function ulldSerialToRunOnStr(serial) {
+  const num = parseFloat(serial);
+  if (isNaN(num)) {
+    // Already a text/date value (not a numeric serial) — fall back to string as-is.
+    return serial ? String(serial).trim() : '';
+  }
+  const epoch = Date.UTC(1899, 11, 30); // Excel 1900-date-system epoch
+  const d = new Date(epoch + Math.round(num * 86400 * 1000));
+  if (isNaN(d.getTime())) return '';
+  const pad = n => String(n).padStart(2, '0');
+  const ymd = `${d.getUTCFullYear()}${pad(d.getUTCMonth()+1)}${pad(d.getUTCDate())}`;
+  const hms = `${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}`;
+  return `${ymd} ${hms}`;
+}
 
 document.getElementById('ulldDbFile').addEventListener('change', function(e) {
   const file = e.target.files[0]; if (!file) return;
@@ -12740,29 +12791,34 @@ document.getElementById('ulldDbFile').addEventListener('change', function(e) {
       // ULLD_DataBase "Yield Summary" layout (fixed):
       //   row 0: section headers (merged cells)
       //   row 1: sub-headers
-      //   row 2: column headers  col0="Lot Num #"  col9="CP  Yield " (merged, trailing spaces)
+      //   row 2: column headers  col0="Lot Num #"  col3="Test  Date"  col9="CP  Yield " (merged, trailing spaces)
       //   row 3+: data
-      // Because XLSX.read flattens merged cells, col9 header may appear empty in JS.
+      // Because XLSX.read flattens merged cells, col3/col9 headers may appear empty in JS.
       // We use fixed positions which match the known file structure.
-      const lotCol = 0, cpCol = 9, dataStartRow = 3;
-      ulldLog(`[ULLD-DB] Using fixed layout: lotCol=${lotCol}, cpCol=${cpCol}, dataStart=${dataStartRow}`);
+      const lotCol = 0, testDateCol = 3, cpCol = 9, dataStartRow = 3;
+      ulldLog(`[ULLD-DB] Using fixed layout: lotCol=${lotCol}, testDateCol=${testDateCol}, cpCol=${cpCol}, dataStart=${dataStartRow}`);
 
       ulldCpMap = {};
-      let count = 0;
+      ulldTestDateMap = {};
+      let count = 0, dateCount = 0;
       for (let i = dataStartRow; i < aoa.length; i++) {
         const row = aoa[i];
         const lot = String(row[lotCol]||'').trim();
-        const cpv = row[cpCol];
         if (!lot || lot === '' || !/^RP/i.test(lot)) continue;
+
+        const cpv = row[cpCol];
         const cpNum = parseFloat(cpv);
         if (!isNaN(cpNum)) { ulldCpMap[lot] = cpNum; count++; }
+
+        const tdStr = ulldSerialToRunOnStr(row[testDateCol]);
+        if (tdStr) { ulldTestDateMap[lot] = tdStr; dateCount++; }
       }
 
       document.getElementById('ulldDbStatus').textContent = `✅ Loaded ${count} lots from "${sheetName}" (${file.name})`;
-      document.getElementById('ulldDbSummaryText').textContent = `CP Yield loaded: ${count} lots`;
+      document.getElementById('ulldDbSummaryText').textContent = `CP Yield loaded: ${count} lots  |  Test Date loaded: ${dateCount} lots`;
       document.getElementById('ulldDbSummary').style.display = 'block';
       document.getElementById('ulldBtnClearDb').style.display = 'block';
-      ulldLog(`[ULLD-DB] Loaded ${count} CP Yield entries from ${file.name}`);
+      ulldLog(`[ULLD-DB] Loaded ${count} CP Yield / ${dateCount} Test Date entries from ${file.name}`);
       ulldUpdateDownloadBtnLabel();
     } catch(err) {
       document.getElementById('ulldDbStatus').textContent = `⚠ Load failed: ${err.message}`;
@@ -12774,6 +12830,7 @@ document.getElementById('ulldDbFile').addEventListener('change', function(e) {
 
 document.getElementById('ulldBtnClearDb').addEventListener('click', function() {
   ulldCpMap = {};
+  ulldTestDateMap = {};
   document.getElementById('ulldDbFile').value = '';
   document.getElementById('ulldDbStatus').textContent = 'No file loaded.';
   document.getElementById('ulldDbSummary').style.display = 'none';
@@ -12798,16 +12855,18 @@ document.getElementById('ulldBtnDownload').addEventListener('click', function() 
   const hasCpDb = Object.keys(ulldCpMap).length > 0;
 
   if (hasCpDb) {
-    // CP DataBase imported → add CP Yield (col4) and Yield gap (col5); col3 header = WAT Yield
+    // CP DataBase imported → insert Test Date at col C, then WAT Yield / CP Yield / Yield gap
     const waferCols = Array.from({length:25},(_,i)=>`#${i+1}`);
-    const headers = ['Lot_No','RUN_ON','WAT Yield','CP Yield','Yield gap','Part No',...ULLD_PARAMS,...waferCols];
+    const headers = ['Lot_No','RUN_ON','Test Date','WAT Yield','CP Yield','Yield gap','Part No',...ULLD_PARAMS,...waferCols];
     const wsData = [headers, ...ulldRawRows.map(r => {
       const watYield = (r['Yield(%)']!==undefined&&r['Yield(%)']!=='') ? parseFloat(r['Yield(%)']) : '';
+      const testDate = ulldTestDateMap[r['Lot_No']] !== undefined ? ulldTestDateMap[r['Lot_No']] : '';
       const cpYield  = ulldCpMap[r['Lot_No']] !== undefined ? ulldCpMap[r['Lot_No']] : '';
       const gap      = (watYield!==''&&cpYield!=='') ? parseFloat((watYield - cpYield).toFixed(4)) : '';
       return [
         r['Lot_No']   || '',
         r['RUN_ON']   || '',
+        testDate,
         watYield,
         cpYield,
         gap,
@@ -12818,10 +12877,10 @@ document.getElementById('ulldBtnDownload').addEventListener('click', function() 
     })];
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(wsData);
-    ws['!cols'] = [{wch:12},{wch:18},{wch:10},{wch:10},{wch:10},{wch:10},...ULLD_PARAMS.map(()=>({wch:13})),...waferCols.map(()=>({wch:7}))];
+    ws['!cols'] = [{wch:12},{wch:18},{wch:18},{wch:10},{wch:10},{wch:10},{wch:10},...ULLD_PARAMS.map(()=>({wch:13})),...waferCols.map(()=>({wch:7}))];
     XLSX.utils.book_append_sheet(wb, ws, 'WAT_CP_Summary');
     XLSX.writeFile(wb, `ULLD_WAT_CP_Summary_${ymd}.xlsx`);
-    ulldLog(`[ULLD] Downloaded ULLD_WAT_CP_Summary_${ymd}.xlsx (with CP Yield & Yield gap)`);
+    ulldLog(`[ULLD] Downloaded ULLD_WAT_CP_Summary_${ymd}.xlsx (with Test Date, CP Yield & Yield gap)`);
   } else {
     // No CP DataBase → original mode + #1~#25 wafer yields
     const waferCols = Array.from({length:25},(_,i)=>`#${i+1}`);

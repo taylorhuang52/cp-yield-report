@@ -452,7 +452,9 @@ function downloadMerged(res, outName){
   }
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, res.fA.sheetName || 'Merged');
-  XLSX.writeFile(wb, outName, {bookType:'xlsx'});
+  // compression:true 讓輸出的 xlsx 使用正常的 zip 壓縮(SheetJS 預設是不壓縮,
+  // 會導致檔案異常肥大),可縮小約 60~70% 檔案大小且內容完全不受影響
+  XLSX.writeFile(wb, outName, {bookType:'xlsx', compression:true});
 }
 </script>
 </body>

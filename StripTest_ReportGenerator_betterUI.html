@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Strip Test Report Generator</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+  :root {
+    --bg-0:#0a0e1a; --bg-1:#0f1525; --surface:#141b30; --surface-2:#1a2340;
+    --border:rgba(148,180,255,.10); --border-strong:rgba(148,180,255,.22);
+    --text-1:#e8edf8; --text-2:#9aa8c7; --text-3:#5d6b8c;
+    --accent:#38bdf8; --accent-2:#818cf8;
+    --green:#22c55e; --yellow:#facc15; --red:#ef4444;
+    --radius:14px; --shadow:0 8px 32px rgba(0,0,0,.45);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    font-family:"Inter","Segoe UI","Microsoft JhengHei",system-ui,sans-serif;
+    background:
+      radial-gradient(1200px 600px at 80% -10%,rgba(56,189,248,.08),transparent 60%),
+      radial-gradient(900px 500px at 10% 110%,rgba(129,140,248,.07),transparent 60%),
+      linear-gradient(180deg,var(--bg-0),var(--bg-1));
+    color:var(--text-1);min-height:100vh;padding-bottom:60px;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:linear-gradient(rgba(148,180,255,.03) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(148,180,255,.03) 1px,transparent 1px);
+    background-size:44px 44px;
+  }
+
+  /* ===== Header ===== */
+  header{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px);
+    background:rgba(10,14,26,.75);border-bottom:1px solid var(--border);}
+  .header-inner{max-width:1200px;margin:0 auto;padding:16px 28px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+  .logo-dot{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-size:19px;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));box-shadow:0 0 22px rgba(56,189,248,.45);}
+  h1{font-size:19px;font-weight:700;letter-spacing:.4px;background:linear-gradient(90deg,#e8edf8,#93c5fd);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+  .mode-badge{font-size:11.5px;font-weight:600;padding:5px 12px;border-radius:999px;color:#7dd3fc;
+    background:rgba(56,189,248,.10);border:1px solid rgba(56,189,248,.30);letter-spacing:.5px;}
+  .status-pill{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-2);
+    padding:6px 14px;border-radius:999px;background:var(--surface);border:1px solid var(--border);}
+  .status-pill .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite;}
+  @keyframes pulse{50%{opacity:.4}}
+
+  main{position:relative;z-index:1;max-width:1200px;margin:28px auto 0;padding:0 28px;display:flex;flex-direction:column;gap:22px;}
+  .card{background:linear-gradient(180deg,var(--surface),rgba(20,27,48,.7));border:1px solid var(--border);
+    border-radius:var(--radius);box-shadow:var(--shadow);animation:rise .5s ease both;}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  .card-head{display:flex;align-items:center;gap:10px;padding:16px 22px;border-bottom:1px solid var(--border);
+    font-size:14px;font-weight:600;letter-spacing:.3px;flex-wrap:wrap;}
+  .card-head .sub{margin-left:auto;font-size:12px;font-weight:400;color:var(--text-3);}
+  .lot-name{font-size:15px;font-weight:700;color:#bae6fd;}
+
+  /* ===== 上傳區 ===== */
+  .dropzone{margin:20px 22px;padding:40px 24px;border:1.5px dashed var(--border-strong);border-radius:12px;
+    text-align:center;cursor:pointer;transition:all .25s ease;background:rgba(56,189,248,.02);}
+  .dropzone:hover{border-color:var(--accent);background:rgba(56,189,248,.05);}
+  .dz-icon{width:58px;height:58px;margin:0 auto 14px;border-radius:16px;display:grid;place-items:center;font-size:26px;
+    background:linear-gradient(135deg,rgba(56,189,248,.18),rgba(129,140,248,.18));border:1px solid rgba(56,189,248,.3);transition:transform .25s;}
+  .dropzone:hover .dz-icon{transform:translateY(-4px);}
+  .dz-title{font-size:15px;font-weight:600;margin-bottom:6px;}
+  .dz-sub{font-size:12.5px;color:var(--text-3);}
+
+  .file-list{display:flex;flex-wrap:wrap;gap:8px;padding:0 22px 8px;}
+  .file-chip{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;padding:7px 12px;
+    background:var(--surface-2);border:1px solid var(--border);border-radius:999px;animation:rise .3s ease both;}
+  .file-chip .size{color:var(--text-3);font-size:11px;}
+  .file-chip .x{cursor:pointer;color:var(--text-3);font-style:normal;padding:0 2px;transition:color .15s;}
+  .file-chip .x:hover{color:var(--red);}
+
+  .toolbar{display:flex;gap:12px;flex-wrap:wrap;padding:14px 22px 20px;}
+  .btn{display:inline-flex;align-items:center;gap:8px;font-family:inherit;font-size:13.5px;font-weight:600;
+    padding:11px 20px;border-radius:10px;border:1px solid transparent;cursor:pointer;transition:all .2s ease;letter-spacing:.3px;}
+  .btn:active{transform:translateY(1px) scale(.98);}
+  .btn:disabled{opacity:.38;cursor:not-allowed;transform:none;}
+  .btn-primary{color:#06121f;background:linear-gradient(135deg,var(--accent),var(--accent-2));box-shadow:0 4px 18px rgba(56,189,248,.3);}
+  .btn-primary:not(:disabled):hover{box-shadow:0 6px 26px rgba(56,189,248,.5);transform:translateY(-2px);}
+  .btn-ghost{color:var(--text-1);background:var(--surface-2);border-color:var(--border-strong);}
+  .btn-ghost:not(:disabled):hover{border-color:var(--accent);color:var(--accent);transform:translateY(-2px);}
+  .btn-demo{margin-left:auto;color:var(--text-2);background:transparent;border:1px dashed var(--border-strong);}
+  .btn-demo:hover{color:var(--accent);border-color:var(--accent);}
+
+  /* ===== 統計 ===== */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;padding:20px 22px;}
+  .stat{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px 18px;}
+  .stat .label{font-size:11px;color:var(--text-3);letter-spacing:1px;text-transform:uppercase;}
+  .stat .value{font-size:22px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums;}
+
+  .bin-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:0 22px 8px;}
+  .bin-row-title{font-size:12px;color:var(--text-3);letter-spacing:.5px;}
+  .bin-chip{display:inline-flex;align-items:center;font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;
+    background:rgba(239,68,68,.12);color:#fca5a5;border:1px solid rgba(239,68,68,.35);}
+
+  /* ===== Heatmap ===== */
+  .hm-scroll{overflow-x:auto;}
+  .hm-wrap{padding:18px 22px;}
+  .hm-grid{display:grid;gap:6px;grid-template-columns:repeat(var(--cols),54px);justify-content:center;}
+  .hm-cell{width:54px;height:54px;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:2px;font-weight:700;color:rgba(6,15,25,.82);cursor:default;position:relative;
+    transition:transform .15s,box-shadow .15s;animation:cellIn .4s ease both;}
+  @keyframes cellIn{from{opacity:0;transform:scale(.6)}}
+  .hm-cell:hover{transform:scale(1.15);z-index:5;box-shadow:0 4px 18px rgba(0,0,0,.55);}
+  .hm-cell .sn{font-size:15px;line-height:1;}
+  .hm-cell .yv{font-size:9.5px;opacity:.85;font-variant-numeric:tabular-nums;}
+  .hm-empty{background:rgba(148,180,255,.04);border:1px dashed var(--border);color:var(--text-3);opacity:.55;}
+  .yield-red{background:linear-gradient(135deg,#f87171,var(--red));}
+  .yield-yellow{background:linear-gradient(135deg,#fde047,var(--yellow));}
+  .yield-green{background:linear-gradient(135deg,#4ade80,var(--green));}
+  .yield-badge{font-size:15px;font-weight:800;padding:6px 16px;border-radius:999px;color:#08111f;font-variant-numeric:tabular-nums;}
+
+  .legend{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:14px 22px;border-top:1px solid var(--border);font-size:12.5px;color:var(--text-2);}
+  .legend .bar{flex:1;min-width:140px;height:8px;border-radius:99px;background:linear-gradient(90deg,var(--red),var(--yellow),var(--green));}
+  .legend .item{display:inline-flex;align-items:center;gap:7px;}
+  .legend .swatch{width:12px;height:12px;border-radius:4px;}
+  .legend .bin-note{color:var(--text-3);font-size:11.5px;border-left:1px solid var(--border-strong);padding-left:14px;}
+
+  /* ===== 表格 ===== */
+  .tbl-wrap{overflow-x:auto;padding:0 22px 8px;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th,td{padding:9px 12px;text-align:left;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  th{color:var(--text-3);font-size:11px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border-strong);
+    position:sticky;top:0;background:var(--surface);z-index:2;}
+  td{border-bottom:1px solid var(--border);}
+  tr:hover td{background:rgba(56,189,248,.04);}
+  .mono{font-family:ui-monospace,Consolas,monospace;color:var(--text-2);}
+  .dim{color:var(--text-3);}
+  .badge{padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;}
+  .b-red{background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.4);}
+  .b-yellow{background:rgba(250,204,21,.12);color:#fde047;border:1px solid rgba(250,204,21,.35);}
+  .b-green{background:rgba(34,197,94,.12);color:#4ade80;border:1px solid rgba(34,197,94,.35);}
+
+  .lot-actions{display:flex;gap:12px;flex-wrap:wrap;padding:12px 22px 20px;}
+  .hm-placeholder{padding:60px 20px;text-align:center;color:var(--text-3);font-size:13.5px;}
+  .hm-placeholder .big{font-size:40px;margin-bottom:12px;opacity:.5;}
+
+  /* ===== 全視窗拖曳遮罩 ===== */
+  #dropOverlay{
+    position:fixed;inset:0;z-index:9999;display:none;place-items:center;
+    background:rgba(8,12,22,.85);backdrop-filter:blur(8px);
+  }
+  body.is-dragging #dropOverlay{display:grid;}
+  #dropOverlay .box{
+    padding:60px 90px;border-radius:20px;border:3px dashed var(--accent);
+    background:rgba(56,189,248,.06);text-align:center;animation:pulseBox 1.2s ease infinite;
+  }
+  @keyframes pulseBox{50%{box-shadow:0 0 60px rgba(56,189,248,.35);}}
+  #dropOverlay .big{font-size:44px;margin-bottom:12px;}
+  #dropOverlay .t1{font-size:20px;font-weight:700;margin-bottom:6px;}
+  #dropOverlay .t2{font-size:13px;color:var(--text-2);}
+
+  /* ===== Toast ===== */
+  #toast{position:fixed;right:24px;bottom:24px;z-index:10000;display:flex;align-items:center;gap:10px;
+    padding:13px 20px;border-radius:12px;background:var(--surface-2);border:1px solid var(--border-strong);
+    box-shadow:var(--shadow);font-size:13.5px;transform:translateY(90px);opacity:0;
+    transition:all .35s cubic-bezier(.2,.9,.3,1.2);}
+  #toast.show{transform:none;opacity:1;}
+  @media (max-width:640px){.header-inner{padding:14px 18px;}main{padding:0 16px;}.btn-demo{margin-left:0;}#dropOverlay .box{padding:40px 30px;}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo-dot">⬢</div>
+    <h1>Strip Test Report Generator</h1>
+    <span class="mode-badge">模式：LoggerData 專用 ｜ 分母：Input Die ｜ Bin 1–2 = Pass</span>
+    <div class="status-pill"><span class="dot"></span><span id="statusText">就緒</span></div>
+  </div>
+</header>
+
+<main>
+  <section class="card">
+    <div class="card-head"><span>📂</span> 數據載入 <span class="sub">支援 .xls / .xlsx / .zip，可多檔混批、拖曳至視窗任意位置</span></div>
+    <div class="dropzone" id="dropzone">
+      <div class="dz-icon">📥</div>
+      <div class="dz-title">拖曳 Log 檔至此（或整個視窗任意處），或<b style="color:var(--accent)">點擊選取</b></div>
+      <div class="dz-sub">Poworld 格式：Serial / Bin / X / Y / … / Remark（自動識別；Bin 1–2 良品、Bin ≥3 失敗）</div>
+      <input type="file" id="fileInput" multiple accept=".xls,.xlsx,.zip" hidden>
+    </div>
+    <div class="file-list" id="fileList"></div>
+    <div class="toolbar">
+      <button class="btn btn-primary" id="btnParse">⚡ 解析數據</button>
+      <button class="btn btn-ghost" id="btnClear">🧹 清空</button>
+      <button class="btn btn-demo" id="btnDemo">✦ 載入示範數據</button>
+    </div>
+  </section>
+
+  <div id="results" style="display:flex;flex-direction:column;gap:22px"></div>
+</main>
+
+<div id="dropOverlay">
+  <div class="box">
+    <div class="big">📥</div>
+    <div class="t1">放開以加入 Log 檔</div>
+    <div class="t2">.xls / .xlsx / .zip，可多檔</div>
+  </div>
+</div>
+
+<div id="toast"><span id="toastIcon">✅</span><span id="toastMsg"></span></div>
+
+<script>
+/* =========================================================
+   常態與工具
+   ★ Bin 定義：Bin 1 / Bin 2 = 良品分檔；Bin ≥ 3 = Fail
+   ★ 色階 3 段：<75% 紅 ｜ 75–90% 黃 ｜ >90% 綠
+========================================================= */
+const BIN_NAMES = {1:'Pass', 2:'Bin2 (good grade)', 3:'GET VTH', 4:'VFSD', 5:'BVDSS/Delta3', 6:'IPD-10V', 7:'IDSS'};
+const state = { files: [] };
+const $ = id => document.getElementById(id);
+
+let toastTimer;
+function toast(msg, icon = '✅') {
+  $('toastMsg').textContent = msg; $('toastIcon').textContent = icon;
+  $('toast').classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $('toast').classList.remove('show'), 3000);
+}
+const setStatus = t => $('statusText').textContent = t;
+const yieldClass = y => y < 75 ? 'yield-red' : y <= 90 ? 'yield-yellow' : 'yield-green';
+
+function placeholderHTML() {
+  return `<section class="card"><div class="hm-placeholder"><div class="big">⬡</div>
+    尚無數據 — 上傳 Log 檔並點擊「解析數據」，或點擊「載入示範數據」預覽效果</div></section>`;
+}
+$('results').innerHTML = placeholderHTML();
+
+/* =========================================================
+   檔案選取 ＋ 視窗級拖曳
+========================================================= */
+const dz = $('dropzone'), fi = $('fileInput');
+dz.addEventListener('click', () => fi.click());
+fi.addEventListener('change', () => { addFiles(fi.files); fi.value = ''; });
+
+const hasFiles = e => e.dataTransfer &&
+  Array.prototype.indexOf.call(e.dataTransfer.types, 'Files') !== -1;
+let dragDepth = 0;
+
+window.addEventListener('dragenter', e => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  dragDepth++;
+  document.body.classList.add('is-dragging');
+});
+window.addEventListener('dragover', e => {
+  if (hasFiles(e)) e.preventDefault();
+});
+window.addEventListener('dragleave', e => {
+  if (!hasFiles(e)) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) document.body.classList.remove('is-dragging');
+});
+window.addEventListener('drop', e => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  dragDepth = 0;
+  document.body.classList.remove('is-dragging');
+  if (e.dataTransfer.files && e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+});
+
+function addFiles(list) {
+  let added = 0;
+  for (const f of list) {
+    if (!/\.(xlsx?|zip)$/i.test(f.name)) { toast(`不支援的格式：${f.name}`, '⚠️'); continue; }
+    if (state.files.some(x => x.name === f.name && x.size === f.size)) continue;
+    state.files.push(f); added++;
+  }
+  renderFileList();
+  if (added) toast(`已加入 ${added} 個檔案，點「⚡ 解析數據」`, '📂');
+}
+function renderFileList() {
+  $('fileList').innerHTML = state.files.map((f, i) =>
+    `<span class="file-chip">📄 ${f.name}<span class="size">${(f.size/1024).toFixed(0)} KB</span>
+     <i class="x" onclick="removeFile(${i})">✕</i></span>`).join('');
+}
+window.removeFile = i => { state.files.splice(i, 1); renderFileList(); };
+
+$('btnClear').addEventListener('click', () => {
+  state.files = []; renderFileList();
+  $('results').innerHTML = placeholderHTML();
+  setStatus('就緒'); toast('已清空', '🧹');
+});
+
+/* =========================================================
+   解析（結構識別：Serial / Bin / X / Y … Remark）
+========================================================= */
+$('btnParse').addEventListener('click', parseAll);
+
+async function parseAll() {
+  if (!state.files.length) return toast('請先加入 Log 檔', '⚠️');
+  if (typeof XLSX === 'undefined') return toast('無法載入 XLSX 函式庫，請檢查網路連線', '❌');
+  $('btnParse').disabled = true; setStatus('解析中…');
+  await new Promise(r => setTimeout(r, 30));
+
+  const lots = new Map(), errors = [];
+  let dieRows = 0;
+  for (const f of state.files) {
+    try {
+      const entries = await expandFile(f);
+      let n = 0;
+      for (const e of entries) {
+        try {
+          const wb = XLSX.read(e.buf, { type: 'array' });
+          n += parseWorkbook(wb, e.name, lots);
+        } catch (err) { errors.push(`${e.name}：${err.message}`); }
+      }
+      if (!n) errors.push(`${f.name}：找不到測試數據`);
+      dieRows += n;
+    } catch (err) { errors.push(`${f.name}：${err.message}`); }
+  }
+
+  $('btnParse').disabled = false;
+  if (!lots.size) { setStatus('就緒'); return toast(errors[0] || '解析失敗', '❌'); }
+
+  lots.forEach(finalizeLot);
+  renderResults(lots);
+  const nStrips = [...lots.values()].reduce((a, l) => a + l.stripsArr.length, 0);
+  setStatus(`${lots.size} Lot ｜ ${nStrips} Strips ｜ ${dieRows.toLocaleString()} die`);
+  toast(`解析完成：${dieRows.toLocaleString()} 筆 die 數據`, '🎉');
+  if (errors.length) setTimeout(() => toast(`${errors.length} 個檔案無法解析（已跳過）`, '⚠️'), 3200);
+}
+
+async function expandFile(f) {
+  if (!/\.zip$/i.test(f.name)) return [{ name: f.name, buf: await f.arrayBuffer() }];
+  if (typeof JSZip === 'undefined') throw new Error('zip 需網路載入 JSZip');
+  const out = [], zip = await JSZip.loadAsync(await f.arrayBuffer());
+  for (const [path, entry] of Object.entries(zip.files)) {
+    if (entry.dir || !/\.(xls|xlsx)$/i.test(path)) continue;
+    out.push({ name: path.split('/').pop(), buf: await entry.async('arraybuffer') });
+  }
+  return out;
+}
+
+function parseWorkbook(wb, fileName, lots) {
+  let count = 0;
+  const fallbackLot = fileName.replace(/\.(xls|xlsx)$/i, '');
+  for (const sn of wb.SheetNames) {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: null, raw: true });
+    for (const r of rows) {
+      const die = readDieRow(r, fallbackLot);
+      if (!die) continue;
+      let lot = lots.get(die.lot);
+      if (!lot) { lot = { lot: die.lot, strips: new Map() }; lots.set(die.lot, lot); }
+      let strip = lot.strips.get(die.slot);
+      if (!strip) { strip = { slot: die.slot, stripId: die.stripId, dies: new Map() }; lot.strips.set(die.slot, strip); }
+      strip.dies.set(die.serial, die.bin);   // 重複 Serial 以最後一次為準
+      count++;
+    }
+  }
+  return count;
+}
+
+function readDieRow(r, fallbackLot) {
+  if (!Array.isArray(r) || r.length < 8) return null;
+  const num = v => (typeof v === 'number' ? v
+    : (v != null && String(v).trim() !== '' && isFinite(+String(v).trim()) ? +String(v).trim() : NaN));
+  const serial = num(r[0]), bin = num(r[1]), x = num(r[2]), y = num(r[3]);
+  if (![serial, bin, x, y].every(Number.isFinite)) return null;
+  if (!Number.isInteger(bin) || bin < 0 || bin > 99 || serial <= 0 || serial > 1e6) return null;
+
+  // Remark = 最後一個非空儲存格，形如 "T126232002A 0314"
+  let remark = null;
+  for (let i = r.length - 1; i >= 4; i--) {
+    const v = r[i];
+    if (v === null || v === undefined || String(v).trim() === '') continue;
+    if (typeof v === 'number') return null;      // 結尾是數字 → 非 die 資料列
+    remark = String(v).trim();
+    break;
+  }
+  if (!remark) return null;
+  const m = remark.match(/^(.*?)\s*(\d{3,4})$/);
+  let lot, stripCode;
+  if (m && m[1]) { lot = m[1].trim(); stripCode = m[2]; }
+  else if (/\d{3,4}$/.test(remark)) { lot = fallbackLot; stripCode = remark.match(/(\d{3,4})$/)[1]; }
+  else return null;
+  if (fallbackLot.toUpperCase().startsWith(lot.toUpperCase())) lot = fallbackLot;
+  return { serial, bin, lot, stripId: stripCode, slot: parseInt(stripCode.slice(-2), 10) };
+}
+
+function finalizeLot(lot) {
+  lot.stripsArr = [...lot.strips.values()].sort((a, b) => a.slot - b.slot);
+  lot.stripsArr.forEach(st => {
+    st.input = st.dies.size;
+    st.bins = {};
+    st.dies.forEach(b => { st.bins[b] = (st.bins[b] || 0) + 1; });
+    st.pass = (st.bins[1] || 0) + (st.bins[2] || 0);   // Bin 1+2 = Pass
+    st.fail = st.input - st.pass;                       // Bin ≥3 = Fail
+    st.yield = st.input ? st.pass / st.input * 100 : 0; // 分母 = Input Die
+  });
+  lot.input = lot.stripsArr.reduce((a, s) => a + s.input, 0);
+  lot.pass  = lot.stripsArr.reduce((a, s) => a + s.pass, 0);
+  lot.fail  = lot.input - lot.pass;
+  lot.yield = lot.input ? lot.pass / lot.input * 100 : 0;
+  lot.lotBins = {};
+  lot.stripsArr.forEach(st => Object.entries(st.bins).forEach(([b, c]) => {
+    if (+b > 2) lot.lotBins[b] = (lot.lotBins[b] || 0) + c;
+  }));
+}
+
+/* =========================================================
+   渲染（每個 Lot 一張卡片）
+========================================================= */
+function renderResults(lots) {
+  const box = $('results'); box.innerHTML = '';
+  lots.forEach(lot => box.appendChild(buildLotCard(lot)));
+}
+
+function buildLotCard(lot) {
+  const card = document.createElement('section');
+  card.className = 'card';
+  const maxSlot = Math.max(...lot.stripsArr.map(s => s.slot));
+  const cols = Math.min(maxSlot, 13);
+  const stripMap = new Map(lot.stripsArr.map(s => [s.slot, s]));
+
+  let cells = '';
+  for (let s = 1; s <= maxSlot; s++) {
+    const st = stripMap.get(s);
+    if (st) {
+      const fails = Object.entries(st.bins).filter(([b]) => +b > 2).map(([b, c]) => `B${b}×${c}`).join('、');
+      const tip = `Slot ${s}（${st.stripId}）&#10;Yield ${st.yield.toFixed(2)}% ｜ Pass ${st.pass} / Input ${st.input}`
+        + (st.fail ? `&#10;Fail：${fails}` : '');
+      cells += `<div class="hm-cell ${yieldClass(st.yield)}" style="animation-delay:${s * 18}ms" title="${tip}">
+        <span class="sn">${s}</span><span class="yv">${st.yield.toFixed(1)}%</span></div>`;
+    } else {
+      cells += `<div class="hm-cell hm-empty" title="Slot ${s}：無數據"><span class="sn">${s}</span></div>`;
+    }
+  }
+
+  const failChips = Object.entries(lot.lotBins).sort((a, b) => b[1] - a[1])
+    .map(([b, c]) => `<span class="bin-chip">B${b} ${BIN_NAMES[b] || ''} × ${c}</span>`).join('');
+
+  const rowsHTML = lot.stripsArr.map(st => {
+    const chips = Object.entries(st.bins).filter(([b]) => +b > 2)
+      .map(([b, c]) => `<span class="bin-chip">B${b}×${c}</span>`).join('') || '<span class="dim">—</span>';
+    const cls = yieldClass(st.yield);
+    const label = st.yield < 75 ? 'Critical' : st.yield <= 90 ? 'Watch' : 'OK';
+    return `<tr><td><b>${st.slot}</b></td><td class="mono">${st.stripId}</td><td>${st.input}</td><td>${st.pass}</td>
+      <td style="color:${st.fail ? '#fca5a5' : 'var(--text-3)'}">${st.fail}</td>
+      <td><b>${st.yield.toFixed(2)}%</b></td><td>${chips}</td>
+      <td><span class="badge ${cls.replace('yield-', 'b-')}">${label}</span></td></tr>`;
+  }).join('');
+
+  const minYield = Math.min(...lot.stripsArr.map(s => s.yield));
+  const failBinRow = lot.fail
+    ? `<div class="bin-row"><span class="bin-row-title">Fail Bin 分佈</span>${failChips}</div>` : '';
+
+  card.innerHTML = `
+    <div class="card-head">
+      <span>🧩</span><span class="lot-name">${lot.lot}</span>
+      <span class="sub">${lot.stripsArr.length} Strips ｜ ${lot.input.toLocaleString()} Input Die</span>
+      <span class="yield-badge ${yieldClass(lot.yield)}">${lot.yield.toFixed(2)}%</span>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="label">Strip 數</div><div class="value">${lot.stripsArr.length}</div></div>
+      <div class="stat"><div class="label">Input Die</div><div class="value">${lot.input.toLocaleString()}</div></div>
+      <div class="stat"><div class="label">Pass Die (Bin1+2)</div><div class="value" style="color:var(--green)">${lot.pass.toLocaleString()}</div></div>
+      <div class="stat"><div class="label">Fail Die (Bin≥3)</div><div class="value" style="color:${lot.fail ? 'var(--red)' : 'var(--text-3)'}">${lot.fail.toLocaleString()}</div></div>
+      <div class="stat"><div class="label">最低 Strip Yield</div><div class="value" style="color:var(--yellow)">${minYield.toFixed(2)}%</div></div>
+    </div>
+    ${failBinRow}
+    <div class="hm-scroll"><div class="hm-wrap">
+      <div class="hm-grid" style="--cols:${cols}">${cells}</div>
+    </div></div>
+    <div class="legend">
+      <span style="color:var(--text-3)">低</span><div class="bar"></div><span style="color:var(--text-3)">高 (100%)</span>
+      <span class="item"><span class="swatch yield-red"></span>&lt;75%</span>
+      <span class="item"><span class="swatch yield-yellow"></span>75–90%</span>
+      <span class="item"><span class="swatch yield-green"></span>&gt;90%</span>
+      <span class="bin-note">Bin 1–2 = Pass（分檔良品）｜ Bin ≥3 = Fail</span>
+    </div>
+    <div class="tbl-wrap" style="max-height:300px;overflow-y:auto">
+      <table><thead><tr><th>Slot</th><th>Strip ID</th><th>Input</th><th>Pass</th><th>Fail</th><th>Yield</th><th>Fail Bin</th><th>等級</th></tr></thead>
+      <tbody>${rowsHTML}</tbody></table>
+    </div>
+    <div class="lot-actions">
+      <button class="btn btn-ghost act-xlsx">📊 導出匯總表</button>
+      <button class="btn btn-ghost act-png">🔥 下載 Fail Heatmap</button>
+    </div>`;
+  card.querySelector('.act-xlsx').addEventListener('click', () => exportXlsx(lot));
+  card.querySelector('.act-png').addEventListener('click', () => exportPng(lot));
+  return card;
+}
+
+/* =========================================================
+   導出
+========================================================= */
+function exportXlsx(lot) {
+  const rows = lot.stripsArr.map(st => {
+    const o = { 'Lot': lot.lot, 'Slot': st.slot, 'Strip ID': st.stripId,
+      'Input Die': st.input, 'Pass Die (Bin1+2)': st.pass, 'Fail Die (Bin>=3)': st.fail, 'Yield(%)': +st.yield.toFixed(2) };
+    for (let b = 3; b <= 7; b++) o[`Bin${b} ${BIN_NAMES[b] || ''}`] = st.bins[b] || 0;
+    return o;
+  });
+  rows.push({ 'Lot': 'Total', 'Slot': '', 'Strip ID': '', 'Input Die': lot.input,
+    'Pass Die (Bin1+2)': lot.pass, 'Fail Die (Bin>=3)': lot.fail, 'Yield(%)': +lot.yield.toFixed(2) });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Strip Summary');
+  const binRows = Object.entries(lot.lotBins).map(([b, c]) =>
+    ({ 'Bin': +b, 'Name': BIN_NAMES[b] || '', 'Count': c, 'Percent(%)': +(c / lot.input * 100).toFixed(2) }));
+  if (binRows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(binRows), 'Fail Bins');
+  XLSX.writeFile(wb, `${lot.lot.replace(/\s+/g, '_')}_Summary.xlsx`);
+  toast('匯總表已導出', '📊');
+}
+
+function rr(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function exportPng(lot) {
+  const cell = 56, gap = 8, pad = 48;
+  const maxSlot = Math.max(...lot.stripsArr.map(s => s.slot));
+  const cols = Math.min(maxSlot, 13), rowsN = Math.ceil(maxSlot / cols);
+  const W = pad * 2 + cols * (cell + gap) - gap;
+  const H = pad * 2 + rowsN * (cell + gap) + 66;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#0f1525'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#e8edf8'; ctx.font = 'bold 16px sans-serif';
+  ctx.fillText(`Strip Test Fail Heatmap — ${lot.lot}`, pad, 30);
+  ctx.fillStyle = '#9aa8c7'; ctx.font = '12px sans-serif';
+  ctx.fillText(`Yield ${lot.yield.toFixed(2)}% ｜ Input ${lot.input} ｜ Fail ${lot.fail} ｜ ${new Date().toLocaleString()}`, pad, 50);
+
+  const colors = { 'yield-red': '#ef4444', 'yield-yellow': '#facc15', 'yield-green': '#22c55e' };
+  const map = new Map(lot.stripsArr.map(s => [s.slot, s]));
+  const y0 = 66;
+  for (let s = 1; s <= maxSlot; s++) {
+    const cx = pad + ((s - 1) % cols) * (cell + gap), cy = y0 + Math.floor((s - 1) / cols) * (cell + gap);
+    const st = map.get(s);
+    ctx.textAlign = 'center';
+    if (st) {
+      ctx.fillStyle = colors[yieldClass(st.yield)]; rr(ctx, cx, cy, cell, cell, 8); ctx.fill();
+      ctx.fillStyle = 'rgba(6,15,25,.85)';
+      ctx.font = 'bold 15px sans-serif'; ctx.fillText(String(s), cx + cell / 2, cy + cell / 2 - 2);
+      ctx.font = 'bold 10px sans-serif';
+      ctx.fillText(st.fail ? `${st.fail} fail` : `${st.yield.toFixed(1)}%`, cx + cell / 2, cy + cell / 2 + 14);
+    } else {
+      ctx.strokeStyle = 'rgba(148,180,255,.18)'; ctx.setLineDash([4, 4]);
+      rr(ctx, cx, cy, cell, cell, 8); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(148,180,255,.3)'; ctx.font = '12px sans-serif';
+      ctx.fillText(String(s), cx + cell / 2, cy + cell / 2 + 4);
+    }
+  }
+  const ly = y0 + rowsN * (cell + gap) + 20;
+  ctx.textAlign = 'left'; ctx.font = '11px sans-serif';
+  let lx = pad;
+  [['#ef4444', '<75%'], ['#facc15', '75-90%'], ['#22c55e', '>90%']].forEach(([c, t]) => {
+    ctx.fillStyle = c; rr(ctx, lx, ly, 12, 12, 3); ctx.fill();
+    ctx.fillStyle = '#9aa8c7'; ctx.fillText(t, lx + 17, ly + 10);
+    lx += 17 + ctx.measureText(t).width + 18;
+  });
+  const a = document.createElement('a');
+  a.download = `FailHeatmap_${lot.lot.replace(/\s+/g, '_')}.png`;
+  a.href = cv.toDataURL('image/png'); a.click();
+  toast('Fail Heatmap 已下載', '🔥');
+}
+
+/* =========================================================
+   示範數據
+========================================================= */
+$('btnDemo').addEventListener('click', () => {
+  const lots = new Map();
+  const mk = (lotName, spec) => {
+    const prefix = (lotName.match(/\s(\d{2})/) || [, '03'])[1];
+    const L = { lot: lotName, strips: new Map() };
+    spec.forEach(([slot, nFail, nBin2]) => {
+      const dies = new Map(), fb = [3, 3, 5, 6, 7];
+      for (let i = 0; i < nFail; i++) {
+        let s; do { s = 1 + Math.floor(Math.random() * 169); } while (dies.has(s));
+        dies.set(s, fb[Math.floor(Math.random() * fb.length)]);
+      }
+      for (let i = 0; i < (nBin2 || 0); i++) {
+        let s; do { s = 1 + Math.floor(Math.random() * 169); } while (dies.has(s));
+        dies.set(s, 2);   // Bin2 = 良品分檔
+      }
+      for (let s = 1; s <= 169; s++) if (!dies.has(s)) dies.set(s, 1);
+      L.strips.set(slot, { slot, stripId: prefix + String(slot).padStart(2, '0'), dies });
+    });
+    lots.set(lotName, L);
+  };
+  mk('T126205004A 03AC', [[6, 0, 40], [7, 2, 60], [11, 25, 30], [12, 0, 80], [17, 45, 50], [18, 3, 20], [22, 0, 70]]);
+  mk('T126232002A 03AC', [[13, 1, 90], [14, 0, 120], [19, 48, 10]]);
+  lots.forEach(finalizeLot);
+  renderResults(lots);
+  setStatus('示範數據');
+  toast('已載入示範數據（含 Bin2 分檔良品）', '✦');
+});
+</script>
+</body>
+</html>

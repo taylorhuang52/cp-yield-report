@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VZ0 / IR0 / VF0 Relationship Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0a0d0e;
+    --bg-grid: #10161a;
+    --panel: #12181a;
+    --panel-2: #161d20;
+    --line: #232b2e;
+    --line-strong: #34403f;
+    --text: #e7eef0;
+    --text-dim: #8ea0a3;
+    --text-faint: #566264;
+    --amber: #ffb020;
+    --amber-dim: #6b5322;
+    --teal: #46e0b5;
+    --teal-dim: #1c4c40;
+    --red: #ff5d5d;
+    --red-dim: #4a2323;
+    --blue: #5fb3ff;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse at top left, #0d1416 0%, var(--bg) 55%);
+    color:var(--text);
+    font-family:'JetBrains Mono', ui-monospace, monospace;
+    min-height:100vh;
+    padding:28px 20px 60px;
+  }
+  .wrap{max-width:1240px;margin:0 auto;}
+
+  /* header */
+  .topbar{
+    display:flex; justify-content:space-between; align-items:flex-end;
+    border-bottom:1px solid var(--line-strong);
+    padding-bottom:16px; margin-bottom:22px; gap:16px; flex-wrap:wrap;
+  }
+  .brand{display:flex; align-items:center; gap:12px;}
+  .brand-mark{
+    width:36px; height:36px; border:1.5px solid var(--amber); border-radius:4px;
+    display:flex; align-items:center; justify-content:center; position:relative;
+    color:var(--amber); flex:none;
+  }
+  .brand-mark svg{width:20px;height:20px;}
+  h1{
+    font-family:'Space Grotesk', sans-serif; font-weight:700;
+    font-size:20px; letter-spacing:0.02em; margin:0; color:var(--text);
+  }
+  .sub{font-size:11.5px; color:var(--text-dim); margin-top:3px; letter-spacing:0.03em;}
+  .status-chip{
+    font-size:10.5px; color:var(--text-faint); border:1px solid var(--line-strong);
+    padding:5px 10px; border-radius:20px; letter-spacing:0.06em; text-transform:uppercase;
+    display:flex; align-items:center; gap:6px;
+  }
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--text-faint);}
+  .dot.live{background:var(--teal); box-shadow:0 0 6px var(--teal);}
+
+  /* upload zone */
+  .panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:8px;
+  }
+  .dropzone{
+    border:1.5px dashed var(--line-strong); border-radius:8px;
+    padding:26px 20px; text-align:center; cursor:pointer;
+    transition:border-color .15s, background .15s;
+    background:var(--panel);
+  }
+  .dropzone:hover, .dropzone.drag{
+    border-color:var(--amber); background:#151b16;
+  }
+  .dropzone .icon{color:var(--text-faint); margin-bottom:8px;}
+  .dropzone .icon svg{width:26px;height:26px;}
+  .dz-title{font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:600; color:var(--text);}
+  .dz-sub{font-size:11px; color:var(--text-faint); margin-top:4px;}
+  input[type=file]{display:none;}
+
+  .filebar{
+    display:flex; flex-wrap:wrap; gap:8px; margin-top:14px;
+  }
+  .filechip{
+    font-size:11px; background:var(--panel-2); border:1px solid var(--line);
+    border-radius:5px; padding:5px 9px; color:var(--text-dim);
+    display:flex; align-items:center; gap:7px;
+  }
+  .filechip .n{color:var(--teal); font-weight:600;}
+  .filechip .err{color:var(--red);}
+
+  .toprow{display:grid; grid-template-columns: 1.3fr 1fr; gap:16px; margin-bottom:16px;}
+  @media (max-width:860px){ .toprow{grid-template-columns:1fr;} }
+
+  /* controls */
+  .controls{padding:16px 18px;}
+  .controls-title{
+    font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:600;
+    color:var(--text-dim); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:12px;
+  }
+  .ctrl-row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:9px 0; border-bottom:1px solid var(--line);
+  }
+  .ctrl-row:last-child{border-bottom:none;}
+  .ctrl-label{font-size:12.5px; color:var(--text);}
+  .ctrl-hint{font-size:10.5px; color:var(--text-faint); margin-top:2px;}
+
+  .switch{
+    position:relative; width:38px; height:20px; flex:none; cursor:pointer;
+  }
+  .switch input{display:none;}
+  .switch .track{
+    position:absolute; inset:0; background:var(--panel-2); border:1px solid var(--line-strong);
+    border-radius:20px; transition:.15s;
+  }
+  .switch .thumb{
+    position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%;
+    background:var(--text-faint); transition:.15s;
+  }
+  .switch input:checked + .track{background:var(--amber-dim); border-color:var(--amber);}
+  .switch input:checked + .track + .thumb{transform:translateX(18px); background:var(--amber);}
+
+  select{
+    background:var(--panel-2); color:var(--text); border:1px solid var(--line-strong);
+    border-radius:5px; font-family:inherit; font-size:11.5px; padding:5px 8px;
+  }
+
+  .stat-mini{display:flex; gap:14px; margin-top:4px;}
+  .stat-mini div{font-size:10.5px; color:var(--text-faint);}
+  .stat-mini b{color:var(--teal); font-size:14px; display:block; font-family:'Space Grotesk',sans-serif;}
+
+  /* summary panel */
+  .summary{padding:16px 18px;}
+  table.sumtable{width:100%; border-collapse:collapse; font-size:11.5px;}
+  table.sumtable th{
+    text-align:left; color:var(--text-faint); font-weight:500; text-transform:uppercase;
+    font-size:9.5px; letter-spacing:0.06em; padding:4px 6px; border-bottom:1px solid var(--line-strong);
+  }
+  table.sumtable td{padding:6px 6px; border-bottom:1px solid var(--line); color:var(--text);}
+  table.sumtable tr:last-child td{border-bottom:none;}
+  .r2-bar-wrap{width:60px; height:6px; background:var(--panel-2); border-radius:3px; overflow:hidden; display:inline-block; vertical-align:middle; margin-right:6px;}
+  .r2-bar{height:100%; background:var(--teal);}
+
+  /* charts grid */
+  .charts{display:grid; grid-template-columns:repeat(3, 1fr); gap:16px;}
+  @media (max-width:980px){ .charts{grid-template-columns:1fr;} }
+  .chart-card{padding:16px 16px 12px;}
+  .chart-head{margin-bottom:2px;}
+  .chart-title{font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:600; color:var(--text);}
+  .chart-eq{font-size:11px; color:var(--amber); margin-top:3px; letter-spacing:0.01em;}
+  .chart-stats{display:flex; gap:12px; margin-top:6px; margin-bottom:8px;}
+  .chart-stats span{font-size:10px; color:var(--text-faint);}
+  .chart-stats b{color:var(--text-dim);}
+  canvas{width:100%; display:block; border-radius:4px;}
+  .axis-note{font-size:9.5px; color:var(--text-faint); text-align:center; margin-top:4px;}
+  .legend{display:flex; gap:12px; margin-top:8px; flex-wrap:wrap;}
+  .legend span{font-size:9.5px; color:var(--text-faint); display:flex; align-items:center; gap:5px;}
+  .legend i{width:8px; height:8px; border-radius:50%; display:inline-block;}
+
+  .empty-state{
+    padding:60px 20px; text-align:center; color:var(--text-faint);
+  }
+  .empty-state svg{width:40px;height:40px; opacity:.35; margin-bottom:10px;}
+  .empty-state .t1{font-family:'Space Grotesk',sans-serif; font-size:14px; color:var(--text-dim); margin-bottom:4px;}
+  .empty-state .t2{font-size:11px;}
+
+  .footnote{
+    margin-top:20px; padding:16px 18px; font-size:11px; color:var(--text-dim); line-height:1.7;
+  }
+  .footnote b{color:var(--teal);}
+  .footnote .tag{
+    display:inline-block; font-size:9.5px; color:var(--text-faint); border:1px solid var(--line-strong);
+    border-radius:4px; padding:1px 6px; margin-right:4px;
+  }
+
+  button.reset-btn{
+    background:var(--panel-2); color:var(--text-dim); border:1px solid var(--line-strong);
+    border-radius:5px; font-family:inherit; font-size:10.5px; padding:6px 10px; cursor:pointer;
+  }
+  button.reset-btn:hover{border-color:var(--red); color:var(--red);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 14h4l2-8 4 16 3-11 2 6h5"/></svg>
+      </div>
+      <div>
+        <h1>VZ0 / IR0 / VF0 Relationship Analyzer</h1>
+        <div class="sub">Zener dlogTDO test-log correlation tool &middot; local, in-browser parsing</div>
+      </div>
+    </div>
+    <div class="status-chip"><span class="dot" id="statusDot"></span><span id="statusText">no data loaded</span></div>
+  </div>
+
+  <div class="panel" style="padding:18px 18px; margin-bottom:16px;">
+    <div class="dropzone" id="dropzone">
+      <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg></div>
+      <div class="dz-title">拖曳 dlogTDO .csv 檔案到這裡，或點擊選擇檔案</div>
+      <div class="dz-sub">可一次匯入多個檔案／多個 lot，只擷取 Bin#1（良品）的 VZ0(7) / IR0(8) / VF0(10)</div>
+    </div>
+    <input type="file" id="fileInput" multiple accept=".csv,.txt">
+    <div class="filebar" id="filebar"></div>
+  </div>
+
+  <div class="toprow">
+    <div class="panel controls">
+      <div class="controls-title">Controls</div>
+      <div class="ctrl-row">
+        <div>
+          <div class="ctrl-label">排除離群值 Exclude outliers</div>
+          <div class="ctrl-hint">以各關係迴歸殘差的 robust z-score 判斷（|z| &gt; threshold）</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="outlierToggle">
+          <span class="track"></span>
+          <span class="thumb"></span>
+        </label>
+      </div>
+      <div class="ctrl-row" id="thresholdRow" style="opacity:.4; pointer-events:none;">
+        <div>
+          <div class="ctrl-label">Outlier threshold</div>
+          <div class="ctrl-hint">robust z-score (modified Z, MAD-based)</div>
+        </div>
+        <select id="thresholdSelect">
+          <option value="4">寬鬆 &middot; |z| &gt; 4.0</option>
+          <option value="3.5" selected>建議 &middot; |z| &gt; 3.5</option>
+          <option value="2.5">嚴格 &middot; |z| &gt; 2.5</option>
+        </select>
+      </div>
+      <div class="ctrl-row">
+        <div>
+          <div class="ctrl-label">清除全部資料</div>
+          <div class="ctrl-hint">重新開始匯入</div>
+        </div>
+        <button class="reset-btn" id="resetBtn">CLEAR</button>
+      </div>
+    </div>
+
+    <div class="panel summary">
+      <div class="controls-title">Sample summary</div>
+      <div class="stat-mini">
+        <div><b id="statN">0</b>Bin#1 samples</div>
+        <div><b id="statFiles">0</b>files loaded</div>
+        <div><b id="statExcluded">0</b>excluded (outliers)</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="mainArea">
+    <div class="panel empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
+      <div class="t1">尚未匯入資料</div>
+      <div class="t2">匯入 dlogTDO test log 後，這裡會自動產生 VZ0 / IR0 / VF0 三組關係圖與迴歸統計</div>
+    </div>
+  </div>
+
+  <div class="panel footnote">
+    <span class="tag">PHYSICS</span>
+    VF0（正向壓降）與 IR0（反向漏電流）符合蕭克利二極體方程式：<b>VF0 ≈ A − n·V_T·ln(IR0)</b>，斜率換算出的理想因子 n 越接近 1，代表接面越接近理想 PN 接面。VZ0（崩潰電壓）由摻雜濃度主導的累增/齊納機制決定，物理機制與正向擴散電流不同，因此通常與 IR0 / VF0 相關性較弱。<br>
+    <span class="tag">SCOPE</span>
+    僅使用 Bin#1（良品）資料；離群值排除為每張圖獨立計算（各關係的迴歸殘差各自判斷），不影響其他兩張圖的資料集。
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- state ----------
+  let allRows = [];        // {vz0, ir0, vf0, src}
+  let loadedFiles = [];     // {name, count, error}
+
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const filebar = document.getElementById('filebar');
+  const mainArea = document.getElementById('mainArea');
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+  const outlierToggle = document.getElementById('outlierToggle');
+  const thresholdRow = document.getElementById('thresholdRow');
+  const thresholdSelect = document.getElementById('thresholdSelect');
+  const resetBtn = document.getElementById('resetBtn');
+  const statN = document.getElementById('statN');
+  const statFiles = document.getElementById('statFiles');
+  const statExcluded = document.getElementById('statExcluded');
+
+  // ---------- parsing ----------
+  function parseLog(text, sourceName){
+    const rawLines = text.split(/\r\n|\n|\r/);
+    let headerIdx = -1, dataLabelIdx = -1;
+    for (let i = 0; i < rawLines.length; i++){
+      if (headerIdx === -1 && rawLines[i].indexOf('VZ0(5)') !== -1) headerIdx = i;
+      if (rawLines[i].indexOf('Serial#') === 0) dataLabelIdx = i;
+    }
+    if (headerIdx === -1 || dataLabelIdx === -1){
+      return { error: '找不到欄位標頭（非 dlogTDO 格式？）', rows: [] };
+    }
+    const headerTokens = rawLines[headerIdx].split(',');
+    const labelTokens = rawLines[dataLabelIdx].split(',');
+    const binIdx = labelTokens.indexOf('Bin#');
+    const vz0Idx = headerTokens.indexOf('VZ0(7)');
+    const ir0Idx = headerTokens.indexOf('IR0(8)');
+    const vf0Idx = headerTokens.indexOf('VF0(10)');
+    if ([binIdx, vz0Idx, ir0Idx, vf0Idx].some(v => v === -1)){
+      return { error: '欄位對應失敗（缺少 VZ0(7)/IR0(8)/VF0(10)/Bin#）', rows: [] };
+    }
+    const rows = [];
+    for (let i = dataLabelIdx + 1; i < rawLines.length; i++){
+      const line = rawLines[i];
+      if (!line || !line.trim()) continue;
+      const cols = line.split(',');
+      const bin = parseInt(cols[binIdx], 10);
+      const vz0 = parseFloat(cols[vz0Idx]);
+      const ir0 = parseFloat(cols[ir0Idx]);
+      const vf0 = parseFloat(cols[vf0Idx]);
+      if (bin === 1 && isFinite(vz0) && isFinite(ir0) && isFinite(vf0) && ir0 > 0){
+        rows.push({ vz0, ir0, vf0, src: sourceName });
+      }
+    }
+    return { error: null, rows };
+  }
+
+  // ---------- stats ----------
+  function linreg(xs, ys){
+    const n = xs.length;
+    if (n < 2) return null;
+    let sx=0, sy=0, sxx=0, syy=0, sxy=0;
+    for (let i=0;i<n;i++){ sx+=xs[i]; sy+=ys[i]; sxx+=xs[i]*xs[i]; syy+=ys[i]*ys[i]; sxy+=xs[i]*ys[i]; }
+    const mx = sx/n, my = sy/n;
+    const covxy = sxy/n - mx*my;
+    const varx = sxx/n - mx*mx;
+    const vary = syy/n - my*my;
+    const slope = covxy/varx;
+    const intercept = my - slope*mx;
+    const r = covxy / Math.sqrt(varx*vary);
+    return { slope, intercept, r, r2: r*r, n };
+  }
+
+  function robustOutlierMask(xs, ys, reg, threshold){
+    const res = xs.map((x,i) => ys[i] - (reg.slope*x + reg.intercept));
+    const sorted = res.slice().sort((a,b)=>a-b);
+    const median = sorted[Math.floor(sorted.length/2)];
+    const absDev = res.map(r => Math.abs(r - median)).sort((a,b)=>a-b);
+    let mad = absDev[Math.floor(absDev.length/2)];
+    if (mad === 0) mad = 1e-9;
+    return res.map(r => Math.abs(0.6745*(r-median)/mad) > threshold);
+  }
+
+  // ---------- rendering ----------
+  function fmt(v, d){ return (Math.abs(v) >= 1000 || (Math.abs(v)<0.001 && v!==0)) ? v.toExponential(2) : v.toFixed(d===undefined?3:d); }
+
+  function niceTicks(min, max, count){
+    const range = max - min || 1;
+    const rough = range / count;
+    const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+    const norm = rough / mag;
+    let step;
+    if (norm < 1.5) step = 1*mag;
+    else if (norm < 3) step = 2*mag;
+    else if (norm < 7) step = 5*mag;
+    else step = 10*mag;
+    const niceMin = Math.floor(min/step)*step;
+    const niceMax = Math.ceil(max/step)*step;
+    const ticks = [];
+    for (let v = niceMin; v <= niceMax + step*0.001; v += step) ticks.push(Math.round(v*1e6)/1e6);
+    return ticks;
+  }
+
+  function drawChart(canvas, points, opts){
+    // points: [{x,y,outlier}]  opts: {xLabel,yLabel,logX,reg,color}
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = canvas.clientWidth;
+    const cssH = 230;
+    canvas.width = cssW*dpr; canvas.height = cssH*dpr;
+    canvas.style.height = cssH+'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr,dpr);
+    ctx.clearRect(0,0,cssW,cssH);
+
+    const padL = 46, padR = 14, padT = 10, padB = 30;
+    const plotW = cssW - padL - padR;
+    const plotH = cssH - padT - padB;
+
+    const xs = points.map(p=>p.x), ys = points.map(p=>p.y);
+    let xMin = Math.min(...xs), xMax = Math.max(...xs);
+    let yMin = Math.min(...ys), yMax = Math.max(...ys);
+    const xPad = (xMax-xMin)*0.06 || (opts.logX ? xMax*0.1 : 1);
+    const yPad = (yMax-yMin)*0.08 || 1;
+    if (!opts.logX){ xMin -= xPad; xMax += xPad; }
+    yMin -= yPad; yMax += yPad;
+
+    function sx(x){
+      if (opts.logX){
+        const lx = Math.log(Math.max(x, 1e-9));
+        const l0 = Math.log(Math.max(xMin*0.9, 1e-9)), l1 = Math.log(xMax*1.05);
+        return padL + (lx-l0)/(l1-l0)*plotW;
+      }
+      return padL + (x-xMin)/(xMax-xMin)*plotW;
+    }
+    function sy(y){ return padT + plotH - (y-yMin)/(yMax-yMin)*plotH; }
+
+    // grid (oscilloscope graticule)
+    ctx.strokeStyle = '#1b2224';
+    ctx.lineWidth = 1;
+    const yTicks = niceTicks(yMin, yMax, 5);
+    yTicks.forEach(t=>{
+      const py = sy(t);
+      if (py < padT-2 || py > padT+plotH+2) return;
+      ctx.beginPath(); ctx.moveTo(padL, py); ctx.lineTo(padL+plotW, py); ctx.stroke();
+      ctx.fillStyle = '#566264'; ctx.font = '9px JetBrains Mono, monospace'; ctx.textAlign='right'; ctx.textBaseline='middle';
+      ctx.fillText(fmt(t, Math.abs(t)<10?2:0), padL-6, py);
+    });
+    let xTicks;
+    if (opts.logX){
+      xTicks = [];
+      const l0 = Math.floor(Math.log10(Math.max(xMin,0.01)));
+      const l1 = Math.ceil(Math.log10(xMax));
+      for (let e=l0; e<=l1; e++) xTicks.push(Math.pow(10,e));
+    } else {
+      xTicks = niceTicks(xMin, xMax, 5);
+    }
+    xTicks.forEach(t=>{
+      const px = sx(t);
+      if (px < padL-2 || px > padL+plotW+2) return;
+      ctx.strokeStyle = '#1b2224';
+      ctx.beginPath(); ctx.moveTo(px, padT); ctx.lineTo(px, padT+plotH); ctx.stroke();
+      ctx.fillStyle = '#566264'; ctx.font = '9px JetBrains Mono, monospace'; ctx.textAlign='center'; ctx.textBaseline='top';
+      ctx.fillText(opts.logX ? (t>=1?t.toFixed(0):t.toFixed(2)) : fmt(t, Math.abs(t)<10?2:0), px, padT+plotH+6);
+    });
+
+    // axes
+    ctx.strokeStyle = '#34403f'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, padT+plotH); ctx.lineTo(padL+plotW, padT+plotH); ctx.stroke();
+
+    // points
+    points.forEach(p=>{
+      const px = sx(p.x), py = sy(p.y);
+      ctx.beginPath();
+      if (p.outlier){
+        ctx.strokeStyle = '#ff5d5d';
+        ctx.lineWidth = 1.2;
+        const s=3;
+        ctx.moveTo(px-s,py-s); ctx.lineTo(px+s,py+s);
+        ctx.moveTo(px+s,py-s); ctx.lineTo(px-s,py+s);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = opts.color + '55';
+        ctx.arc(px, py, 1.6, 0, Math.PI*2);
+        ctx.fill();
+      }
+    });
+
+    // regression line
+    if (opts.reg){
+      ctx.strokeStyle = '#ffb020';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      const steps = 60;
+      for (let i=0;i<=steps;i++){
+        let xv;
+        if (opts.logX){
+          const l0 = Math.log(Math.max(xMin*0.9,1e-9)), l1 = Math.log(xMax*1.05);
+          xv = Math.exp(l0 + (l1-l0)*i/steps);
+        } else {
+          xv = xMin + (xMax-xMin)*i/steps;
+        }
+        const xInput = opts.logX ? Math.log(xv) : xv;
+        const yv = opts.reg.slope*xInput + opts.reg.intercept;
+        const px = sx(xv), py = sy(yv);
+        if (i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      }
+      ctx.stroke();
+    }
+
+    // axis labels
+    ctx.fillStyle = '#8ea0a3'; ctx.font = '10px JetBrains Mono, monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline='alphabetic';
+    ctx.fillText(opts.xLabel, padL+plotW/2, cssH-2);
+    ctx.save();
+    ctx.translate(11, padT+plotH/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.textAlign='center';
+    ctx.fillText(opts.yLabel, 0, 0);
+    ctx.restore();
+  }
+
+  function buildChartCard(id, title, colorVar){
+    return `
+    <div class="panel chart-card">
+      <div class="chart-head">
+        <div class="chart-title">${title}</div>
+        <div class="chart-eq" id="${id}-eq">—</div>
+      </div>
+      <div class="chart-stats">
+        <span>N=<b id="${id}-n">0</b></span>
+        <span>R=<b id="${id}-r">—</b></span>
+        <span>R&sup2;=<b id="${id}-r2">—</b></span>
+        <span id="${id}-extra"></span>
+      </div>
+      <canvas id="${id}-canvas"></canvas>
+      <div class="legend">
+        <span><i style="background:${colorVar}"></i>資料點</span>
+        <span><i style="background:#ffb020"></i>迴歸線</span>
+        <span><i style="background:#ff5d5d;border-radius:2px;"></i>離群值</span>
+      </div>
+    </div>`;
+  }
+
+  function render(){
+    const nTotal = allRows.length;
+    statN.textContent = nTotal;
+    statFiles.textContent = loadedFiles.filter(f=>!f.error).length;
+
+    if (nTotal === 0){
+      mainArea.innerHTML = `
+        <div class="panel empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
+          <div class="t1">尚未匯入資料</div>
+          <div class="t2">匯入 dlogTDO test log 後，這裡會自動產生 VZ0 / IR0 / VF0 三組關係圖與迴歸統計</div>
+        </div>`;
+      statusDot.className = 'dot';
+      statusText.textContent = 'no data loaded';
+      statExcluded.textContent = '0';
+      return;
+    }
+
+    statusDot.className = 'dot live';
+    statusText.textContent = nTotal.toLocaleString() + ' bin#1 samples';
+
+    const excludeOn = outlierToggle.checked;
+    const threshold = parseFloat(thresholdSelect.value);
+
+    mainArea.innerHTML = `
+      <div class="charts">
+        ${buildChartCard('c1', 'IR0 vs VZ0', '#46e0b5')}
+        ${buildChartCard('c2', 'VF0 vs VZ0', '#5fb3ff')}
+        ${buildChartCard('c3', 'VF0 vs ln(IR0)', '#ffb020')}
+      </div>
+    `;
+
+    let totalExcluded = 0;
+
+    // ---- chart 1: IR0 vs VZ0 ----
+    totalExcluded += renderRelation({
+      cardId:'c1', xs: allRows.map(r=>r.vz0), ys: allRows.map(r=>r.ir0),
+      xLabel:'VZ0 (V)', yLabel:'IR0 (uA)', logX:false, color:'#46e0b5',
+      excludeOn, threshold,
+      eqFmt:(reg)=> `IR0 = ${reg.slope.toFixed(3)}&middot;VZ0 ${reg.intercept>=0?'+':'-'} ${Math.abs(reg.intercept).toFixed(2)}`
+    });
+
+    // ---- chart 2: VF0 vs VZ0 ----
+    totalExcluded += renderRelation({
+      cardId:'c2', xs: allRows.map(r=>r.vz0), ys: allRows.map(r=>r.vf0),
+      xLabel:'VZ0 (V)', yLabel:'VF0 (mV)', logX:false, color:'#5fb3ff',
+      excludeOn, threshold,
+      eqFmt:(reg)=> `VF0 = ${reg.slope.toFixed(2)}&middot;VZ0 ${reg.intercept>=0?'+':'-'} ${Math.abs(reg.intercept).toFixed(1)}`
+    });
+
+    // ---- chart 3: VF0 vs ln(IR0) [physical diode relation] ----
+    totalExcluded += renderRelation({
+      cardId:'c3', xs: allRows.map(r=>r.ir0), ys: allRows.map(r=>r.vf0),
+      xLabel:'IR0 (uA, log scale)', yLabel:'VF0 (mV)', logX:true, color:'#ffb020',
+      excludeOn, threshold,
+      transformX: (x)=>Math.log(x),
+      eqFmt:(reg)=>{
+        const VT = 0.02585; // V, ~300K
+        const n = Math.abs(reg.slope)/1000/VT;
+        return `VF0 = ${reg.slope.toFixed(2)}&middot;ln(IR0) + ${reg.intercept.toFixed(1)}   <span style="color:#8ea0a3">(n&asymp;${n.toFixed(2)})</span>`;
+      }
+    });
+
+    statExcluded.textContent = totalExcluded;
+  }
+
+  function renderRelation(cfg){
+    const rawXs = cfg.xs, ys = cfg.ys;
+    const fitXs = cfg.transformX ? rawXs.map(cfg.transformX) : rawXs;
+
+    // first pass regression (on full data) to compute residual-based outlier mask
+    const regFull = linreg(fitXs, ys);
+    let outlierMask = new Array(rawXs.length).fill(false);
+    if (cfg.excludeOn && regFull){
+      outlierMask = robustOutlierMask(fitXs, ys, regFull, cfg.threshold);
+    }
+
+    const keptFitXs = [], keptYs = [], allPoints = [];
+    for (let i=0;i<rawXs.length;i++){
+      allPoints.push({ x: rawXs[i], y: ys[i], outlier: outlierMask[i] });
+      if (!outlierMask[i]){ keptFitXs.push(fitXs[i]); keptYs.push(ys[i]); }
+    }
+    const reg = cfg.excludeOn ? linreg(keptFitXs, keptYs) : regFull;
+    const excludedCount = outlierMask.filter(Boolean).length;
+
+    document.getElementById(cfg.cardId+'-eq').innerHTML = reg ? cfg.eqFmt(reg) : 'insufficient data';
+    document.getElementById(cfg.cardId+'-n').textContent = (rawXs.length - excludedCount).toLocaleString() + (excludedCount? ' (-'+excludedCount+')':'');
+    document.getElementById(cfg.cardId+'-r').textContent = reg ? reg.r.toFixed(3) : '—';
+    document.getElementById(cfg.cardId+'-r2').textContent = reg ? reg.r2.toFixed(3) : '—';
+
+    const canvas = document.getElementById(cfg.cardId+'-canvas');
+    // when excluded, don't plot outlier points as regular dots but still show as x marks;
+    // if user hasn't enabled exclusion, there's simply no outlier flag (all false)
+    drawChart(canvas, cfg.excludeOn ? allPoints : allPoints.map(p=>({...p, outlier:false})), {
+      xLabel: cfg.xLabel, yLabel: cfg.yLabel, logX: cfg.logX, reg: reg, color: cfg.color
+    });
+
+    return excludedCount;
+  }
+
+  // ---------- file handling ----------
+  function handleFiles(fileList){
+    const files = Array.from(fileList).filter(f => /\.(csv|txt)$/i.test(f.name));
+    if (files.length === 0) return;
+    let pending = files.length;
+    files.forEach(file=>{
+      const reader = new FileReader();
+      reader.onload = function(e){
+        const text = e.target.result;
+        const { error, rows } = parseLog(text, file.name);
+        loadedFiles.push({ name: file.name, count: rows.length, error });
+        if (!error) allRows = allRows.concat(rows);
+        pending--;
+        if (pending === 0){ renderFileBar(); render(); }
+      };
+      reader.onerror = function(){
+        loadedFiles.push({ name: file.name, count:0, error:'讀取失敗' });
+        pending--;
+        if (pending === 0){ renderFileBar(); render(); }
+      };
+      reader.readAsText(file, 'ISO-8859-1');
+    });
+  }
+
+  function renderFileBar(){
+    filebar.innerHTML = loadedFiles.map(f=>{
+      if (f.error) return `<div class="filechip"><span class="err">&#9888; ${f.name}</span><span class="err">${f.error}</span></div>`;
+      return `<div class="filechip">${f.name}<span class="n">+${f.count}</span></div>`;
+    }).join('');
+  }
+
+  dropzone.addEventListener('click', ()=> fileInput.click());
+  fileInput.addEventListener('change', (e)=> handleFiles(e.target.files));
+  ['dragenter','dragover'].forEach(evt=>{
+    dropzone.addEventListener(evt, e=>{ e.preventDefault(); dropzone.classList.add('drag'); });
+  });
+  ['dragleave','drop'].forEach(evt=>{
+    dropzone.addEventListener(evt, e=>{ e.preventDefault(); dropzone.classList.remove('drag'); });
+  });
+  dropzone.addEventListener('drop', e=>{
+    if (e.dataTransfer && e.dataTransfer.files) handleFiles(e.dataTransfer.files);
+  });
+
+  outlierToggle.addEventListener('change', ()=>{
+    thresholdRow.style.opacity = outlierToggle.checked ? '1' : '.4';
+    thresholdRow.style.pointerEvents = outlierToggle.checked ? 'auto' : 'none';
+    render();
+  });
+  thresholdSelect.addEventListener('change', render);
+
+  resetBtn.addEventListener('click', ()=>{
+    allRows = []; loadedFiles = [];
+    fileInput.value = '';
+    renderFileBar();
+    render();
+  });
+
+  window.addEventListener('resize', ()=>{ if (allRows.length) render(); });
+
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>半導體參數關聯性分析工具</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+  min-height: 100vh;
+}
+.tab-nav {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border-bottom: 1px solid #334155;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 20px 28px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tab-btn:hover { color: #e2e8f0; background: rgba(56,189,248,0.05); }
+.tab-btn.active {
+  color: #38bdf8;
+  border-bottom-color: #38bdf8;
+  background: rgba(56,189,248,0.08);
+}
+.tab-btn .badge {
+  background: #1e40af;
+  color: #93c5fd;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+.tab-btn.active .badge { background: #0ea5e9; color: white; }
+.page { display: none; padding: 24px; max-width: 1800px; margin: 0 auto; }
+.page.active { display: block; }
+.page-header {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border: 1px solid #334155;
+  border-radius: 16px;
+  padding: 24px 28px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.page-header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  background: linear-gradient(90deg, #38bdf8, #818cf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.page-header .badge {
+  background: #1e40af;
+  color: #93c5fd;
+  font-size: 11px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+.page-header .desc {
+  color: #64748b;
+  font-size: 13px;
+  margin-left: auto;
+  max-width: 500px;
+}
+.upload-section {
+  background: #1e293b;
+  border: 2px dashed #475569;
+  border-radius: 16px;
+  padding: 36px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-bottom: 24px;
+}
+.upload-section:hover, .upload-section.dragover {
+  border-color: #38bdf8;
+  background: #1e3a5f;
+}
+.upload-section svg { width: 48px; height: 48px; margin-bottom: 12px; color: #64748b; }
+.upload-section p { color: #94a3b8; font-size: 14px; margin-top: 8px; }
+.upload-section .main-text { color: #e2e8f0; font-size: 16px; font-weight: 600; }
+.controls {
+  background: #1e293b;
+  border-radius: 12px;
+  padding: 18px 22px;
+  margin-bottom: 22px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: center;
+  border: 1px solid #334155;
+}
+.control-group { display: flex; align-items: center; gap: 10px; }
+.control-group label { font-size: 13px; color: #94a3b8; font-weight: 500; white-space: nowrap; }
+.toggle {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background: #475569;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+.toggle.active { background: #3b82f6; }
+.toggle::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  background: white;
+  border-radius: 50%;
+  top: 3px;
+  left: 3px;
+  transition: transform 0.3s;
+}
+.toggle.active::after { transform: translateX(20px); }
+select, input[type="number"] {
+  background: #0f172a;
+  border: 1px solid #475569;
+  color: #e2e8f0;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+}
+select:focus, input[type="number"]:focus { border-color: #3b82f6; }
+input[type="number"] { width: 70px; }
+.btn {
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-success { background: #10b981; color: white; }
+.btn-success:hover { background: #059669; }
+.btn-danger { background: #ef4444; color: white; }
+.btn-danger:hover { background: #dc2626; }
+.stats-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.stat-card {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 14px 18px;
+  text-align: center;
+}
+.stat-card .stat-value { font-size: 24px; font-weight: 700; color: #38bdf8; }
+.stat-card .stat-label {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.matrix-section {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 22px;
+  margin-bottom: 22px;
+}
+.matrix-section h2 { font-size: 16px; font-weight: 700; margin-bottom: 14px; color: #e2e8f0; }
+.matrix-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.matrix-table th, .matrix-table td {
+  padding: 8px 12px;
+  text-align: center;
+  border: 1px solid #334155;
+}
+.matrix-table th { background: #0f172a; color: #94a3b8; font-weight: 600; }
+.matrix-table td { font-weight: 600; }
+.matrix-table td.positive { color: #34d399; }
+.matrix-table td.negative { color: #f87171; }
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(640px, 640px));
+  gap: 20px;
+  margin-bottom: 22px;
+  justify-content: center;
+}
+.chart-card {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 18px;
+  position: relative;
+  width: 640px;
+  height: 520px;
+  overflow: hidden;
+}
+.chart-card h3 { font-size: 14px; font-weight: 600; color: #cbd5e1; margin-bottom: 4px; }
+.chart-card .chart-stats { font-size: 12px; color: #64748b; margin-bottom: 8px; }
+.chart-card .chart-stats span { margin-right: 14px; }
+.chart-card .chart-stats .r2 { color: #34d399; font-weight: 600; }
+.chart-card .chart-stats .slope-val { color: #fbbf24; }
+.chart-card canvas { width: 600px !important; height: 360px !important; display: block; }
+.export-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: #334155;
+  border: none;
+  color: #94a3b8;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.export-btn:hover { background: #475569; color: #e2e8f0; }
+.histogram-section {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 22px;
+  margin-bottom: 22px;
+}
+.histogram-section h2 { font-size: 16px; font-weight: 700; margin-bottom: 14px; }
+.histogram-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(490px, 490px));
+  gap: 16px;
+  justify-content: center;
+}
+.hist-card {
+  background: #0f172a;
+  border-radius: 10px;
+  padding: 14px;
+  position: relative;
+  width: 490px;
+  height: 360px;
+  overflow: hidden;
+}
+.hist-card h4 { font-size: 13px; color: #94a3b8; margin-bottom: 8px; }
+.hist-card canvas { width: 460px !important; height: 280px !important; display: block; }
+.empty-state { text-align: center; padding: 60px 20px; color: #475569; }
+.empty-state svg { width: 64px; height: 64px; margin-bottom: 16px; }
+.empty-state p { font-size: 15px; }
+.file-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.file-tag {
+  background: #1e40af;
+  color: #93c5fd;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.file-tag .remove { cursor: pointer; opacity: 0.7; font-size: 14px; }
+.file-tag .remove:hover { opacity: 1; }
+.regression-info {
+  background: #0f172a;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.8;
+}
+.regression-info code {
+  color: #38bdf8;
+  background: #1e293b;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'SF Mono', monospace;
+}
+.info-box {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 22px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #cbd5e1;
+}
+.info-box h3 {
+  color: #38bdf8;
+  font-size: 14px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.info-box p { margin-bottom: 8px; }
+.info-box .muted { color: #64748b; font-size: 12px; }
+.info-box .col-map {
+  background: #0f172a;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: #94a3b8;
+  font-family: 'SF Mono', monospace;
+  line-height: 1.6;
+}
+@media (max-width: 768px) {
+  .charts-grid { grid-template-columns: 640px; }
+  .controls { flex-direction: column; align-items: flex-start; }
+}
+</style>
+</head>
+<body>
+
+<nav class="tab-nav">
+  <button class="tab-btn active" data-page="page1" onclick="switchPage('page1')">
+    📊 VZ / IR / VF Analyzer
+    <span class="badge">VZ0·IR0·VF0 · VZ1·IR2_1·VF1</span>
+  </button>
+  <button class="tab-btn" data-page="page2" onclick="switchPage('page2')">
+    🔬 VTH2 / IGSS2F / IDSS2 / BVDSS Analyzer
+    <span class="badge">MOSFET Parameters</span>
+  </button>
+</nav>
+
+<!-- PAGE 1: VZ/IR/VF -->
+<section id="page1" class="page active">
+  <div class="page-header">
+    <h1>📊 VZ0/IR0/VF0 · VZ1/IR2_1/VF1 Relationship Analyzer</h1>
+    <span class="badge">Zener dlogTDO</span>
+    <span class="desc">應力前 (VZ0/IR0/VF0) 與應力後 (VZ1/IR2_1/VF1) 之參數關聯性分析</span>
+  </div>
+
+  <div class="info-box">
+    <h3>⚛️ PHYSICS</h3>
+    <p>VF0（正向壓降）與 IR0（反向漏電流）符合蕭克利二極體方程式：<b>VF0 ≈ A − n·V<sub>T</sub>·ln(IR0)</b>，斜率換算出的理想因子 n 越接近 1，代表接面越接近理想 PN 接面。VZ0（崩潰電壓）由摻雜濃度主導的累增/齊納機制決定，物理機制與正向擴散電流不同，因此通常與 IR0 / VF0 相關性較弱。</p>
+    <p>同樣的物理關係也適用於應力後複測：<b>VF1 ≈ A' − n'·V<sub>T</sub>·ln(IR2_1)</b>，可用來比較應力前後理想因子 n 的變化，作為接面劣化 / 缺陷增加的指標。</p>
+    <p class="muted">📌 SCOPE：僅使用 Bin#1（良品）資料；離群值排除為每張圖獨立計算（各關係的迴歸殘差各自判斷），不影響其他圖的資料集。若匯入的檔案沒有 VZ1/IR2_1/VF1 欄位，只會顯示應力前三張圖。每張圖右上角都有 📥 PNG 匯出按鈕。</p>
+    <div class="col-map">
+      📋 CSV Column Mapping (0-based index):<br>
+      VZ0(7) → col 12 &nbsp;|&nbsp; IR0(8) → col 13 &nbsp;|&nbsp; VF0(10) → col 15<br>
+      VZ1(11) → col 16 &nbsp;|&nbsp; IR2_1(14) → col 19 &nbsp;|&nbsp; VF1(17) → col 22
+    </div>
+  </div>
+
+  <div class="upload-section" id="upload1">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M12 16V4m0 0L8 8m4-4l4 4M4 14v4a2 2 0 002 2h12a2 2 0 002-2v-4"/>
+    </svg>
+    <p class="main-text">拖曳 dlogTDO .csv 檔案到這裡，或點擊選擇檔案</p>
+    <p>可一次匯入多個檔案／多個 lot，只擷取 Bin#1（良品）的 VZ0(7)/IR0(8)/VF0(10)（應力前）與 VZ1(11)/IR2_1(14)/VF1(17)（應力後）</p>
+    <input type="file" id="fileInput1" multiple accept=".csv" style="display:none">
+    <div class="file-list" id="fileList1"></div>
+  </div>
+
+  <div class="controls" id="controls1" style="display:none;">
+    <div class="control-group">
+      <label>排除離群值：</label>
+      <div class="toggle active" id="outlierToggle1" onclick="Page1.toggleOutlier()"></div>
+    </div>
+    <div class="control-group">
+      <label>Robust Z threshold：</label>
+      <select id="zThreshold1" onchange="Page1.rebuild()">
+        <option value="4.0">寬鬆 · |z| > 4.0</option>
+        <option value="3.5" selected>建議 · |z| > 3.5</option>
+        <option value="2.5">嚴格 · |z| > 2.5</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>回歸方式：</label>
+      <select id="regType1" onchange="Page1.rebuild()">
+        <option value="linear">線性回歸</option>
+        <option value="log">對數 (VF vs ln IR)</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>散點大小：</label>
+      <input type="number" id="dotSize1" value="3" min="1" max="8" step="1" onchange="Page1.rebuild()">
+    </div>
+    <button class="btn btn-success" onclick="Page1.exportAll()">📥 全部匯出 PNG</button>
+    <button class="btn btn-danger" onclick="Page1.clear()">🗑️ 清除資料</button>
+  </div>
+
+  <div class="stats-bar" id="statsBar1" style="display:none;">
+    <div class="stat-card"><div class="stat-value" id="p1StatTotal">0</div><div class="stat-label">Bin#1 Samples</div></div>
+    <div class="stat-card"><div class="stat-value" id="p1StatFiles">0</div><div class="stat-label">Files Loaded</div></div>
+    <div class="stat-card"><div class="stat-value" id="p1StatPre">0</div><div class="stat-label">Pre-stress valid</div></div>
+    <div class="stat-card"><div class="stat-value" id="p1StatPost">0</div><div class="stat-label">Post-stress valid</div></div>
+    <div class="stat-card"><div class="stat-value" id="p1StatExcluded">0</div><div class="stat-label">Excluded (outliers)</div></div>
+  </div>
+
+  <div id="matrixSection1" style="display:none;"></div>
+  <div class="charts-grid" id="chartsGrid1"></div>
+  <div id="histSection1" style="display:none;"></div>
+
+  <div class="empty-state" id="emptyState1">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+    </svg>
+    <p>尚未匯入資料 — 匯入 dlogTDO test log 後，這裡會自動產生 VZ0 / IR0 / VF0 三組關係圖與迴歸統計</p>
+  </div>
+</section>
+
+<!-- PAGE 2: VTH2/IGSS2F/IDSS2/BVDSS -->
+<section id="page2" class="page">
+  <div class="page-header">
+    <h1>🔬 半導體參數關聯性分析工具</h1>
+    <span class="badge">VTH2 · IGSS2F · IDSS2 · BVDSS_100mA</span>
+    <span class="desc">MOSFET 關鍵參數之相互關聯性分析</span>
+  </div>
+
+  <div class="upload-section" id="upload2">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M12 16V4m0 0L8 8m4-4l4 4M4 14v4a2 2 0 002 2h12a2 2 0 002-2v-4"/>
+    </svg>
+    <p class="main-text">點擊或拖曳 CSV 測試日誌檔案到此處</p>
+    <p>支援 _dlogTDO.csv 格式，可同時匯入多個 Wafer 檔案</p>
+    <input type="file" id="fileInput2" multiple accept=".csv" style="display:none">
+    <div class="file-list" id="fileList2"></div>
+  </div>
+
+  <div class="controls" id="controls2" style="display:none;">
+    <div class="control-group">
+      <label>排除 Outlier：</label>
+      <div class="toggle active" id="outlierToggle2" onclick="Page2.toggleOutlier()"></div>
+    </div>
+    <div class="control-group">
+      <label>IQR 倍數：</label>
+      <input type="number" id="iqrMult2" value="1.5" min="0.5" max="5" step="0.1" onchange="Page2.rebuild()">
+    </div>
+    <div class="control-group">
+      <label>回歸方式：</label>
+      <select id="regType2" onchange="Page2.rebuild()">
+        <option value="linear">線性回歸</option>
+        <option value="poly2">二次多項式</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>散點大小：</label>
+      <input type="number" id="dotSize2" value="3" min="1" max="8" step="1" onchange="Page2.rebuild()">
+    </div>
+    <button class="btn btn-success" onclick="Page2.exportAll()">📥 全部匯出 PNG</button>
+    <button class="btn btn-danger" onclick="Page2.clear()">🗑️ 清除資料</button>
+  </div>
+
+  <div class="stats-bar" id="statsBar2" style="display:none;">
+    <div class="stat-card"><div class="stat-value" id="p2StatTotal">0</div><div class="stat-label">總測試數</div></div>
+    <div class="stat-card"><div class="stat-value" id="p2StatValid">0</div><div class="stat-label">有效數據</div></div>
+    <div class="stat-card"><div class="stat-value" id="p2StatOutlier">0</div><div class="stat-label">Outlier 數</div></div>
+    <div class="stat-card"><div class="stat-value" id="p2StatWafer">0</div><div class="stat-label">Wafer 數</div></div>
+    <div class="stat-card"><div class="stat-value" id="p2StatPass">-</div><div class="stat-label">Pass Rate</div></div>
+  </div>
+
+  <div id="matrixSection2" style="display:none;"></div>
+  <div class="charts-grid" id="chartsGrid2"></div>
+  <div id="histSection2" style="display:none;"></div>
+
+  <div class="empty-state" id="emptyState2">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+    </svg>
+    <p>請匯入 CSV 測試日誌以開始分析</p>
+  </div>
+</section>
+
+<script>
+/* ============================================================ */
+/* ==================== SHARED UTILITIES ======================= */
+/* ============================================================ */
+function switchPage(pageId) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(pageId).classList.add('active');
+  document.querySelector(`.tab-btn[data-page="${pageId}"]`).classList.add('active');
+}
+
+function linearRegression(xs, ys) {
+  const n = xs.length;
+  let sumX=0, sumY=0, sumXY=0, sumX2=0;
+  for (let i=0; i<n; i++) {
+    sumX+=xs[i]; sumY+=ys[i];
+    sumXY+=xs[i]*ys[i]; sumX2+=xs[i]*xs[i];
+  }
+  const slope = (n*sumXY - sumX*sumY) / (n*sumX2 - sumX*sumX);
+  const intercept = (sumY - slope*sumX) / n;
+  const meanY = sumY/n;
+  let ssTot=0, ssRes=0;
+  for (let i=0; i<n; i++) {
+    ssTot += (ys[i]-meanY)**2;
+    ssRes += (ys[i]-(slope*xs[i]+intercept))**2;
+  }
+  const r2 = 1 - ssRes/ssTot;
+  const r = Math.sqrt(Math.max(0, r2)) * (slope >= 0 ? 1 : -1);
+  return { slope, intercept, r2, r };
+}
+
+function poly2Regression(xs, ys) {
+  const n = xs.length;
+  let s0=n, s1=0, s2=0, s3=0, s4=0, t0=0, t1=0, t2=0;
+  for (let i=0; i<n; i++) {
+    const x=xs[i], y=ys[i], x2=x*x;
+    s1+=x; s2+=x2; s3+=x2*x; s4+=x2*x2;
+    t0+=y; t1+=x*y; t2+=x2*y;
+  }
+  const det = s4*(s2*s0-s1*s1) - s3*(s3*s0-s1*s2) + s2*(s3*s1-s2*s2);
+  if (Math.abs(det) < 1e-15) return linearRegression(xs, ys);
+  const a = (t2*(s2*s0-s1*s1) - s3*(t1*s0-t0*s1) + s2*(t1*s1-t0*s2)) / det;
+  const b = (s4*(t1*s0-t0*s1) - t2*(s3*s0-s2*s1) + s2*(s3*t0-s2*t1)) / det;
+  const c = (s4*(s2*t0-s1*t1) - s3*(s3*t0-s2*t1) + t2*(s3*s1-s2*s2)) / det;
+  const meanY = t0/n;
+  let ssTot=0, ssRes=0;
+  for (let i=0; i<n; i++) {
+    ssTot += (ys[i]-meanY)**2;
+    ssRes += (ys[i]-(a*xs[i]*xs[i]+b*xs[i]+c))**2;
+  }
+  const r2 = 1 - ssRes/ssTot;
+  return { a, b, c, r2, type: 'poly2' };
+}
+
+function exportChartPNG(canvas, filename) {
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = canvas.width * 2;
+  tempCanvas.height = canvas.height * 2;
+  const ctx = tempCanvas.getContext('2d');
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+  ctx.drawImage(canvas, 0, 0, tempCanvas.width, tempCanvas.height);
+  const link = document.createElement('a');
+  link.download = filename + '.png';
+  link.href = tempCanvas.toDataURL('image/png', 1.0);
+  link.click();
+}
+
+/* ============================================================ */
+/* ===================== PAGE 1: VZ/IR/VF ===================== */
+/* ============================================================ */
+const Page1 = (() => {
+  // ============================================================
+  // CORRECTED Column Mapping (0-based index)
+  // CSV header structure for Zener dlogTDO:
+  //   col 0: Serial#
+  //   col 1: Site#
+  //   col 2: Bin#
+  //   col 3: SBin#
+  //   col 4: XAdr
+  //   col 5: YAdr
+  //   col 6: Contact(1)
+  //   col 7: Contact(2)
+  //   col 8: Contact(3)
+  //   col 9: Contact(4)
+  //   col 10: VZ0(5)
+  //   col 11: VZ0(6)
+  //   col 12: VZ0(7)    ← VZ0
+  //   col 13: IR0(8)    ← IR0 (uA)
+  //   col 14: DIR0(9)
+  //   col 15: VF0(10)   ← VF0 (mV)
+  //   col 16: VZ1(11)   ← VZ1
+  //   col 17: VZ2(12)
+  //   col 18: DVZ(13)
+  //   col 19: IR2_1(14) ← IR2_1 (uA)
+  //   col 20: IR2_1_1(15)
+  //   col 21: DIR2_1(16)
+  //   col 22: VF1(17)   ← VF1 (mV)
+  //   col 23: IR2_2(18)
+  //   col 24: VZ3(19)
+  // ============================================================
+  const PARAMS_PRE = {
+    'VZ0':  { col: 12, label: 'VZ0 (V)',    unit: 'V', color: '#f87171' },
+    'IR0':  { col: 13, label: 'IR0 (uA)',   unit: 'uA', color: '#34d399' },
+    'VF0':  { col: 15, label: 'VF0 (mV)',   unit: 'mV', color: '#60a5fa' }
+  };
+  const PARAMS_POST = {
+    'VZ1':    { col: 16, label: 'VZ1 (V)',    unit: 'V', color: '#f472b6' },
+    'IR2_1':  { col: 19, label: 'IR2_1 (uA)', unit: 'uA', color: '#fbbf24' },
+    'VF1':    { col: 22, label: 'VF1 (mV)',   unit: 'mV', color: '#a78bfa' }
+  };
+  const PAIRS_PRE = [
+    ['VZ0','IR0'], ['VZ0','VF0'], ['IR0','VF0']
+  ];
+  const PAIRS_POST = [
+    ['VZ1','IR2_1'], ['VZ1','VF1'], ['IR2_1','VF1']
+  ];
+
+  let allData = [];
+  let fileCount = 0;
+  let excludeOutlier = true;
+  let chartInstances = {};
+  let histInstances = {};
+
+  function init() {
+    const upload = document.getElementById('upload1');
+    const fileInput = document.getElementById('fileInput1');
+    upload.addEventListener('click', (e) => {
+      if (e.target.tagName !== 'SPAN' || !e.target.classList.contains('remove')) fileInput.click();
+    });
+    upload.addEventListener('dragover', e => { e.preventDefault(); upload.classList.add('dragover'); });
+    upload.addEventListener('dragleave', () => upload.classList.remove('dragover'));
+    upload.addEventListener('drop', e => {
+      e.preventDefault();
+      upload.classList.remove('dragover');
+      handleFiles(e.dataTransfer.files);
+    });
+    fileInput.addEventListener('change', e => handleFiles(e.target.files));
+  }
+
+  function handleFiles(files) {
+    const csvFiles = Array.from(files).filter(f => f.name.endsWith('.csv'));
+    if (csvFiles.length === 0) return;
+    const fileList = document.getElementById('fileList1');
+    csvFiles.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const parsed = parseCSV(e.target.result, file.name);
+          allData = allData.concat(parsed);
+          fileCount++;
+          const tag = document.createElement('div');
+          tag.className = 'file-tag';
+          tag.innerHTML = `${file.name} (${parsed.length}) <span class="remove" onclick="this.parentElement.remove()">✕</span>`;
+          fileList.appendChild(tag);
+          rebuild();
+        } catch(err) {
+          console.error('Parse error:', file.name, err);
+          alert(`解析 ${file.name} 失敗: ${err.message}`);
+        }
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  function parseCSV(text, filename) {
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const results = [];
+    let dataStart = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const parts = lines[i].split(',');
+      if (parts.length > 6 && !isNaN(parseInt(parts[0])) && parts[0] !== 'Serial#') {
+        dataStart = i;
+        break;
+      }
+    }
+    if (dataStart === -1) throw new Error('找不到數據起始行');
+
+    let waferId = filename.replace(/.*[\/\\]/, '').replace('.csv', '');
+    for (let i = 0; i < Math.min(dataStart, 20); i++) {
+      if (lines[i].includes('Wafer ID')) {
+        const match = lines[i].match(/:\s*(.+)/);
+        if (match) waferId = match[1].trim();
+      }
+    }
+
+    for (let i = dataStart; i < lines.length; i++) {
+      const parts = lines[i].split(',');
+      if (parts.length < 6) continue;
+      const serial = parseInt(parts[0]);
+      if (isNaN(serial)) continue;
+      const bin = parseInt(parts[2]);
+      // 只取 Bin#1
+      if (bin !== 1) continue;
+
+      const record = { serial, bin, waferId, filename, pre: {}, post: {} };
+      let preValid = true, postValid = true;
+      for (const [key, cfg] of Object.entries(PARAMS_PRE)) {
+        if (parts.length <= cfg.col) { preValid = false; break; }
+        const val = parseFloat(parts[cfg.col]);
+        if (isNaN(val)) { preValid = false; break; }
+        record.pre[key] = val;
+      }
+      for (const [key, cfg] of Object.entries(PARAMS_POST)) {
+        if (parts.length <= cfg.col) { postValid = false; break; }
+        const val = parseFloat(parts[cfg.col]);
+        if (isNaN(val)) { postValid = false; break; }
+        record.post[key] = val;
+      }
+      if (preValid || postValid) results.push(record);
+    }
+    return results;
+  }
+
+  function filterByRobustZ(pairs, paramsObj, data, keyPrePost) {
+    const threshold = parseFloat(document.getElementById('zThreshold1').value) || 3.5;
+    const excludedIdx = new Set();
+    pairs.forEach(([k1, k2]) => {
+      const validData = data.filter(d => d[keyPrePost][k1] !== undefined && d[keyPrePost][k2] !== undefined);
+      const xs = validData.map(d => d[keyPrePost][k1]);
+      const ys = validData.map(d => d[keyPrePost][k2]);
+      if (xs.length < 4) return;
+      const reg = linearRegression(xs, ys);
+      const residuals = xs.map((x, i) => ys[i] - (reg.slope * x + reg.intercept));
+      const sorted = [...residuals].sort((a,b) => a-b);
+      const med = sorted[Math.floor(sorted.length/2)];
+      const absDevs = residuals.map(r => Math.abs(r - med)).sort((a,b)=>a-b);
+      const mad = Math.max(1e-12, absDevs[Math.floor(absDevs.length/2)]);
+      
+      // Map back to original data indices
+      let validIdx = 0;
+      for (let i = 0; i < data.length; i++) {
+        if (data[i][keyPrePost][k1] !== undefined && data[i][keyPrePost][k2] !== undefined) {
+          const x = data[i][keyPrePost][k1];
+          const y = data[i][keyPrePost][k2];
+          const r = y - (reg.slope * x + reg.intercept);
+          const z = Math.abs(r - med) / (mad * 1.4826);
+          if (z > threshold) excludedIdx.add(i);
+          validIdx++;
+        }
+      }
+    });
+    return data.filter((_, i) => !excludedIdx.has(i));
+  }
+
+  function rebuild() {
+    if (allData.length === 0) return;
+    document.getElementById('emptyState1').style.display = 'none';
+    document.getElementById('controls1').style.display = 'flex';
+    document.getElementById('statsBar1').style.display = 'grid';
+
+    const preData = allData.filter(d => Object.keys(d.pre).length > 0);
+    const postData = allData.filter(d => Object.keys(d.post).length > 0);
+
+    const preFiltered = excludeOutlier ? filterByRobustZ(PAIRS_PRE, PARAMS_PRE, preData, 'pre') : preData;
+    const postFiltered = excludeOutlier ? filterByRobustZ(PAIRS_POST, PARAMS_POST, postData, 'post') : postData;
+
+    const preExcluded = preData.length - preFiltered.length;
+    const postExcluded = postData.length - postFiltered.length;
+
+    document.getElementById('p1StatTotal').textContent = allData.length;
+    document.getElementById('p1StatFiles').textContent = fileCount;
+    document.getElementById('p1StatPre').textContent = preFiltered.length;
+    document.getElementById('p1StatPost').textContent = postFiltered.length;
+    document.getElementById('p1StatExcluded').textContent = preExcluded + postExcluded;
+
+    buildCharts(preFiltered, postFiltered);
+    buildHistograms(preFiltered, postFiltered);
+  }
+
+  function buildCharts(preData, postData) {
+    const grid = document.getElementById('chartsGrid1');
+    grid.innerHTML = '';
+    Object.values(chartInstances).forEach(c => c.destroy());
+    chartInstances = {};
+
+    const regType = document.getElementById('regType1').value;
+    const dotSize = parseInt(document.getElementById('dotSize1').value) || 3;
+
+    if (preData.length > 0) {
+      const sectionTitle = document.createElement('div');
+      sectionTitle.style.cssText = 'grid-column: 1/-1; color:#38bdf8; font-size:16px; font-weight:700; padding:8px 0;';
+      sectionTitle.textContent = '▸ Pre-stress (VZ0 / IR0 / VF0)';
+      grid.appendChild(sectionTitle);
+      PAIRS_PRE.forEach(([k1, k2], idx) => buildOneChart(grid, k1, k2, PARAMS_PRE, preData, `pre_${idx}`, dotSize, regType, 'pre'));
+    }
+
+    if (postData.length > 0) {
+      const sectionTitle = document.createElement('div');
+      sectionTitle.style.cssText = 'grid-column: 1/-1; color:#f472b6; font-size:16px; font-weight:700; padding:8px 0; margin-top:12px;';
+      sectionTitle.textContent = '▸ Post-stress (VZ1 / IR2_1 / VF1)';
+      grid.appendChild(sectionTitle);
+      PAIRS_POST.forEach(([k1, k2], idx) => buildOneChart(grid, k1, k2, PARAMS_POST, postData, `post_${idx}`, dotSize, regType, 'post'));
+    }
+  }
+
+  function buildOneChart(grid, k1, k2, paramsObj, data, chartId, dotSize, regType, dataKey) {
+    const card = document.createElement('div');
+    card.className = 'chart-card';
+    
+    const xs = data.map(d => d[dataKey][k1]);
+    const ys = data.map(d => d[dataKey][k2]);
+
+    let xData, yData, xLabel, yLabel, regResult, regLabel, formulaHtml;
+    
+    const isIR_VF_pair = (k1.includes('IR') && k2.includes('VF')) || (k2.includes('IR') && k1.includes('VF'));
+    
+    if (regType === 'log' && isIR_VF_pair) {
+      const irKey = k1.includes('IR') ? k1 : k2;
+      const vfKey = k1.includes('IR') ? k2 : k1;
+      const irVals = data.map(d => d[dataKey][irKey]);
+      const vfVals = data.map(d => d[dataKey][vfKey]);
+      const lnIR = irVals.map(v => Math.log(Math.max(1e-12, Math.abs(v))));
+      xData = lnIR;
+      yData = vfVals;
+      xLabel = `ln(${paramsObj[irKey].label})`;
+      yLabel = paramsObj[vfKey].label;
+      regResult = linearRegression(lnIR, vfVals);
+      regLabel = `R² = ${regResult.r2.toFixed(4)}`;
+      const n_ideal = -regResult.slope * 0.02585;
+      formulaHtml = `<code>${paramsObj[vfKey].label}</code> = <code>${regResult.intercept.toFixed(4)}</code> + <code>${regResult.slope.toFixed(4)}</code> · ln(${paramsObj[irKey].label}) &nbsp;|&nbsp; 理想因子 n ≈ <code>${n_ideal.toFixed(3)}</code>`;
+    } else {
+      xData = xs;
+      yData = ys;
+      xLabel = paramsObj[k1].label;
+      yLabel = paramsObj[k2].label;
+      regResult = linearRegression(xs, ys);
+      regLabel = `R² = ${regResult.r2.toFixed(4)}, r = ${regResult.r.toFixed(4)}`;
+      formulaHtml = `<code>${paramsObj[k2].label}</code> = <code>${regResult.slope.toExponential(3)}</code> × <code>${paramsObj[k1].label}</code> + <code>${regResult.intercept.toFixed(4)}</code>`;
+    }
+
+    card.innerHTML = `
+      <button class="export-btn" onclick="Page1.exportOne('${chartId}')">📥 PNG</button>
+      <h3>${paramsObj[k1].label} vs ${paramsObj[k2].label}</h3>
+      <div class="chart-stats">
+        <span class="r2">${regLabel}</span>
+        <span>N = ${data.length}</span>
+      </div>
+      <canvas id="${chartId}" width="600" height="360"></canvas>
+      <div class="regression-info">${formulaHtml}</div>
+    `;
+    grid.appendChild(card);
+
+    const xMin = Math.min(...xData), xMax = Math.max(...xData);
+    const lineXs = [], lineYs = [];
+    for (let i = 0; i <= 100; i++) {
+      const x = xMin + (xMax - xMin) * i / 100;
+      lineXs.push(x);
+      lineYs.push(regResult.slope * x + regResult.intercept);
+    }
+
+    const ctx = document.getElementById(chartId).getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'scatter',
+      data: {
+        datasets: [
+          {
+            label: 'Data',
+            data: xData.map((x, i) => ({ x, y: yData[i] })),
+            backgroundColor: `${paramsObj[k1].color}66`,
+            borderColor: `${paramsObj[k1].color}99`,
+            pointRadius: dotSize,
+          },
+          {
+            label: 'Regression',
+            data: lineXs.map((x, i) => ({ x, y: lineYs[i] })),
+            type: 'line',
+            borderColor: '#f472b6',
+            borderWidth: 2,
+            pointRadius: 0,
+            borderDash: [6, 3],
+            fill: false,
+          }
+        ]
+      },
+      options: {
+        responsive: false,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: {
+            title: { display: true, text: xLabel, color: '#94a3b8' },
+            ticks: { color: '#64748b' },
+            grid: { color: '#1e293b' }
+          },
+          y: {
+            title: { display: true, text: yLabel, color: '#94a3b8' },
+            ticks: { color: '#64748b' },
+            grid: { color: '#1e293b' }
+          }
+        }
+      }
+    });
+    chartInstances[chartId] = chart;
+  }
+
+  function buildHistograms(preData, postData) {
+    const section = document.getElementById('histSection1');
+    section.innerHTML = '';
+    Object.values(histInstances).forEach(c => c.destroy());
+    histInstances = {};
+
+    if (preData.length === 0 && postData.length === 0) return;
+    section.style.display = 'block';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'histogram-section';
+    wrapper.innerHTML = '<h2>📈 參數分佈直方圖</h2>';
+    const grid = document.createElement('div');
+    grid.className = 'histogram-grid';
+    wrapper.appendChild(grid);
+    section.appendChild(wrapper);
+
+    const allParams = {...PARAMS_PRE, ...PARAMS_POST};
+    Object.entries(allParams).forEach(([key, cfg]) => {
+      const isPre = key in PARAMS_PRE;
+      const dataArr = isPre ? preData : postData;
+      const vals = dataArr.map(d => (isPre ? d.pre : d.post)[key]).filter(v => v !== undefined && !isNaN(v));
+      if (vals.length === 0) return;
+
+      const card = document.createElement('div');
+      card.className = 'hist-card';
+      const canvasId = `hist1_${key}`;
+      card.innerHTML = `
+        <button class="export-btn" onclick="Page1.exportOne('${canvasId}')">📥 PNG</button>
+        <h4>${cfg.label} ${isPre ? '(pre-stress)' : '(post-stress)'}</h4>
+        <canvas id="${canvasId}" width="460" height="280"></canvas>
+      `;
+      grid.appendChild(card);
+
+      const min = Math.min(...vals), max = Math.max(...vals);
+      const binCount = 40;
+      const binWidth = (max - min) / binCount || 1;
+      const bins = new Array(binCount).fill(0);
+      const labels = [];
+      for (let i = 0; i < binCount; i++) labels.push((min + binWidth * (i + 0.5)).toFixed(3));
+      vals.forEach(v => {
+        let idx = Math.floor((v - min) / binWidth);
+        if (idx >= binCount) idx = binCount - 1;
+        if (idx < 0) idx = 0;
+        bins[idx]++;
+      });
+      const mean = vals.reduce((a,b)=>a+b,0)/vals.length;
+      const std = Math.sqrt(vals.reduce((a,b)=>a+(b-mean)**2,0)/vals.length);
+
+      const ctx = document.getElementById(canvasId).getContext('2d');
+      const chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{ data: bins, backgroundColor: cfg.color + '88', borderColor: cfg.color, borderWidth: 1 }]
+        },
+        options: {
+          responsive: false,
+          maintainAspectRatio: false,
+          animation: false,
+          plugins: {
+            legend: { display: false },
+            subtitle: {
+              display: true,
+              text: `μ = ${mean.toFixed(4)}, σ = ${std.toFixed(4)}, N = ${vals.length}`,
+              color: '#64748b',
+              font: { size: 11 }
+            }
+          },
+          scales: {
+            x: { ticks: { color: '#64748b', maxTicksLimit: 8, font: { size: 10 } }, grid: { display: false } },
+            y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, title: { display: true, text: 'Count', color: '#64748b' } }
+          }
+        }
+      });
+      histInstances[canvasId] = chart;
+    });
+  }
+
+  function toggleOutlier() {
+    excludeOutlier = !excludeOutlier;
+    document.getElementById('outlierToggle1').classList.toggle('active', excludeOutlier);
+    rebuild();
+  }
+
+  function exportOne(id) {
+    const chart = chartInstances[id] || histInstances[id];
+    if (chart) exportChartPNG(chart.canvas, id);
+  }
+
+  function exportAll() {
+    let i = 0;
+    Object.keys(chartInstances).forEach(id => setTimeout(() => exportOne(id), i++ * 200));
+    Object.keys(histInstances).forEach(id => setTimeout(() => exportOne(id), i++ * 200));
+  }
+
+  function clear() {
+    allData = [];
+    fileCount = 0;
+    Object.values(chartInstances).forEach(c => c.destroy());
+    Object.values(histInstances).forEach(c => c.destroy());
+    chartInstances = {};
+    histInstances = {};
+    document.getElementById('chartsGrid1').innerHTML = '';
+    document.getElementById('histSection1').innerHTML = '';
+    document.getElementById('fileList1').innerHTML = '';
+    document.getElementById('statsBar1').style.display = 'none';
+    document.getElementById('controls1').style.display = 'none';
+    document.getElementById('emptyState1').style.display = 'block';
+    document.getElementById('fileInput1').value = '';
+  }
+
+  init();
+  return { rebuild, toggleOutlier, exportOne, exportAll, clear };
+})();
+
+/* ============================================================ */
+/* ============== PAGE 2: VTH2/IGSS2F/IDSS2/BVDSS ============= */
+/* ============================================================ */
+const Page2 = (() => {
+  // ============================================================
+  // Column Mapping for MOSFET dlogTDO (0-based index):
+  //   col 0: Serial#
+  //   col 1: Site#
+  //   col 2: Bin#
+  //   col 3: SBin#
+  //   col 4: XAdr
+  //   col 5: YAdr
+  //   col 6: Test Time(0)
+  //   col 7: B6_Contact1(1)
+  //   col 8: B7_Contact2(2)
+  //   col 9: B8_Contact3(3)
+  //   col 10: B9_Contact4(4)
+  //   col 11: B10_Contact5(5)
+  //   col 12: B13_IGSS2F(6)    ← IGSS2F
+  //   col 13: B26_IGSS3(7)
+  //   col 14: B14_IGSS2R(8)
+  //   col 15: B20_IDSS2(9)     ← IDSS2
+  //   col 16: B38_RIDSS2(10)
+  //   col 17: B18_VFSDS1(11)
+  //   col 18: B40_BVDSS_100uA(12)
+  //   col 19: B21_BVDSS2(13)
+  //   col 20: B22_BVDSS3(14)
+  //   col 21: B39_BVDSS_100mA(15) ← BVDSS_100mA
+  //   col 22: B23_Delta1(16)
+  //   col 23: B15_VTH1(17)
+  //   col 24: B16_VTH2(18)     ← VTH2
+  // ============================================================
+  const PARAMS = {
+    'IGSS2F': { col: 12, label: 'IGSS2F (nA)', unit: 'nA', color: '#f87171' },
+    'IDSS2':  { col: 15, label: 'IDSS2 (nA)', unit: 'nA', color: '#34d399' },
+    'BVDSS_100mA': { col: 21, label: 'BVDSS@100mA (V)', unit: 'V', color: '#60a5fa' },
+    'VTH2':   { col: 24, label: 'VTH2 @2mA (V)', unit: 'V', color: '#fbbf24' }
+  };
+  const PAIRS = [
+    ['VTH2', 'IGSS2F'],
+    ['VTH2', 'IDSS2'],
+    ['VTH2', 'BVDSS_100mA'],
+    ['IGSS2F', 'IDSS2'],
+    ['IGSS2F', 'BVDSS_100mA'],
+    ['IDSS2', 'BVDSS_100mA']
+  ];
+
+  let allData = [];
+  let excludeOutlier = true;
+  let chartInstances = {};
+  let histInstances = {};
+
+  function init() {
+    const upload = document.getElementById('upload2');
+    const fileInput = document.getElementById('fileInput2');
+    upload.addEventListener('click', (e) => {
+      if (e.target.tagName !== 'SPAN' || !e.target.classList.contains('remove')) fileInput.click();
+    });
+    upload.addEventListener('dragover', e => { e.preventDefault(); upload.classList.add('dragover'); });
+    upload.addEventListener('dragleave', () => upload.classList.remove('dragover'));
+    upload.addEventListener('drop', e => {
+      e.preventDefault();
+      upload.classList.remove('dragover');
+      handleFiles(e.dataTransfer.files);
+    });
+    fileInput.addEventListener('change', e => handleFiles(e.target.files));
+  }
+
+  function handleFiles(files) {
+    const csvFiles = Array.from(files).filter(f => f.name.endsWith('.csv'));
+    if (csvFiles.length === 0) return;
+    const fileList = document.getElementById('fileList2');
+    csvFiles.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const parsed = parseCSV(e.target.result, file.name);
+          allData = allData.concat(parsed);
+          const tag = document.createElement('div');
+          tag.className = 'file-tag';
+          tag.innerHTML = `${file.name} (${parsed.length}) <span class="remove" onclick="this.parentElement.remove()">✕</span>`;
+          fileList.appendChild(tag);
+          rebuild();
+        } catch(err) {
+          console.error('Parse error:', file.name, err);
+          alert(`解析 ${file.name} 失敗: ${err.message}`);
+        }
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  function parseCSV(text, filename) {
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const results = [];
+    let dataStart = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const parts = lines[i].split(',');
+      if (parts.length > 10 && !isNaN(parseInt(parts[0])) && parts[0] !== 'Serial#') {
+        dataStart = i;
+        break;
+      }
+    }
+    if (dataStart === -1) throw new Error('找不到數據起始行');
+
+    let waferId = filename.replace(/.*[\/\\]/, '').replace('.csv', '');
+    for (let i = 0; i < Math.min(dataStart, 20); i++) {
+      if (lines[i].includes('Wafer ID')) {
+        const match = lines[i].match(/:\s*(.+)/);
+        if (match) waferId = match[1].trim();
+      }
+    }
+
+    for (let i = dataStart; i < lines.length; i++) {
+      const parts = lines[i].split(',');
+      if (parts.length < 25) continue;
+      const serial = parseInt(parts[0]);
+      if (isNaN(serial)) continue;
+      const bin = parseInt(parts[2]);
+
+      const record = { serial, bin, waferId, filename, params: {} };
+      let valid = true;
+      for (const [key, cfg] of Object.entries(PARAMS)) {
+        const val = parseFloat(parts[cfg.col]);
+        if (isNaN(val) || parts[cfg.col].trim() === '') { valid = false; break; }
+        record.params[key] = val;
+      }
+      if (valid) results.push(record);
+    }
+    return results;
+  }
+
+  function detectOutliers(values, multiplier) {
+    const sorted = [...values].sort((a, b) => a - b);
+    const n = sorted.length;
+    if (n < 4) return { lower: -Infinity, upper: Infinity };
+    const q1 = sorted[Math.floor(n * 0.25)];
+    const q3 = sorted[Math.floor(n * 0.75)];
+    const iqr = q3 - q1;
+    return { lower: q1 - multiplier * iqr, upper: q3 + multiplier * iqr };
+  }
+
+  function filterData(data) {
+    if (!excludeOutlier) return data;
+    const mult = parseFloat(document.getElementById('iqrMult2').value) || 1.5;
+    const bounds = {};
+    for (const key of Object.keys(PARAMS)) {
+      bounds[key] = detectOutliers(data.map(d => d.params[key]), mult);
+    }
+    return data.filter(d => {
+      for (const key of Object.keys(PARAMS)) {
+        const v = d.params[key];
+        if (v < bounds[key].lower || v > bounds[key].upper) return false;
+      }
+      return true;
+    });
+  }
+
+  function rebuild() {
+    if (allData.length === 0) return;
+    document.getElementById('emptyState2').style.display = 'none';
+    document.getElementById('controls2').style.display = 'flex';
+    document.getElementById('statsBar2').style.display = 'grid';
+
+    const filtered = filterData(allData);
+    document.getElementById('p2StatTotal').textContent = allData.length;
+    document.getElementById('p2StatValid').textContent = filtered.length;
+    document.getElementById('p2StatOutlier').textContent = allData.length - filtered.length;
+    document.getElementById('p2StatWafer').textContent = new Set(allData.map(d => d.waferId)).size;
+    const passCount = allData.filter(d => d.bin === 1).length;
+    document.getElementById('p2StatPass').textContent = (passCount / allData.length * 100).toFixed(1) + '%';
+
+    buildCorrelationMatrix(filtered);
+    buildScatterCharts(filtered);
+    buildHistograms(filtered);
+  }
+
+  function buildCorrelationMatrix(data) {
+    const section = document.getElementById('matrixSection2');
+    section.style.display = 'block';
+    const keys = Object.keys(PARAMS);
+    let html = `<div class="matrix-section"><h2>📊 相關性矩陣 (Pearson Correlation)</h2><table class="matrix-table"><tr><th></th>`;
+    keys.forEach(k => html += `<th>${PARAMS[k].label}</th>`);
+    html += '</tr>';
+    keys.forEach((k1, i) => {
+      html += `<tr><th>${PARAMS[k1].label}</th>`;
+      keys.forEach((k2, j) => {
+        if (i === j) {
+          html += '<td style="background:#1e40af;color:#93c5fd;">1.000</td>';
+        } else {
+          const xs = data.map(d => d.params[k1]);
+          const ys = data.map(d => d.params[k2]);
+          const reg = linearRegression(xs, ys);
+          const r = reg.r;
+          const absR = Math.abs(r);
+          let cls = r >= 0 ? 'positive' : 'negative';
+          const bg = absR > 0.7 ? (r > 0 ? 'rgba(52,211,153,0.15)' : 'rgba(248,113,113,0.15)') :
+                     absR > 0.4 ? (r > 0 ? 'rgba(52,211,153,0.08)' : 'rgba(248,113,113,0.08)') : 'transparent';
+          html += `<td class="${cls}" style="background:${bg}">${r.toFixed(4)}</td>`;
+        }
+      });
+      html += '</tr>';
+    });
+    html += '</table></div>';
+    section.innerHTML = html;
+  }
+
+  function buildScatterCharts(data) {
+    const grid = document.getElementById('chartsGrid2');
+    grid.innerHTML = '';
+    Object.values(chartInstances).forEach(c => c.destroy());
+    chartInstances = {};
+
+    const dotSize = parseInt(document.getElementById('dotSize2').value) || 3;
+    const regType = document.getElementById('regType2').value;
+
+    PAIRS.forEach(([k1, k2], idx) => {
+      const card = document.createElement('div');
+      card.className = 'chart-card';
+      const xs = data.map(d => d.params[k1]);
+      const ys = data.map(d => d.params[k2]);
+
+      let regResult, regLabel;
+      if (regType === 'poly2') {
+        regResult = poly2Regression(xs, ys);
+        regLabel = `R² = ${regResult.r2.toFixed(4)}`;
+      } else {
+        regResult = linearRegression(xs, ys);
+        regLabel = `R² = ${regResult.r2.toFixed(4)}, r = ${regResult.r.toFixed(4)}`;
+      }
+
+      card.innerHTML = `
+        <button class="export-btn" onclick="Page2.exportOne('scatter2_${idx}')">📥 PNG</button>
+        <h3>${PARAMS[k1].label} vs ${PARAMS[k2].label}</h3>
+        <div class="chart-stats">
+          <span class="r2">${regLabel}</span>
+          ${regType === 'linear' ? `<span class="slope-val">y = ${regResult.slope.toExponential(3)}x + ${regResult.intercept.toFixed(4)}</span>` : ''}
+          <span>N = ${data.length}</span>
+        </div>
+        <canvas id="scatter2_${idx}" width="600" height="360"></canvas>
+        <div class="regression-info">
+          ${regType === 'linear' ?
+            `<code>${PARAMS[k2].label}</code> = <code>${regResult.slope.toExponential(4)}</code> × <code>${PARAMS[k1].label}</code> + <code>${regResult.intercept.toFixed(4)}</code>` :
+            `<code>${PARAMS[k2].label}</code> = <code>${regResult.a?.toExponential(3) || 'N/A'}</code>x² + <code>${regResult.b?.toExponential(3) || 'N/A'}</code>x + <code>${regResult.c?.toFixed(4) || 'N/A'}</code>`
+          }
+        </div>
+      `;
+      grid.appendChild(card);
+
+      const xMin = Math.min(...xs), xMax = Math.max(...xs);
+      const lineXs = [], lineYs = [];
+      for (let i = 0; i <= 100; i++) {
+        const x = xMin + (xMax - xMin) * i / 100;
+        lineXs.push(x);
+        if (regType === 'poly2') lineYs.push(regResult.a * x * x + regResult.b * x + regResult.c);
+        else lineYs.push(regResult.slope * x + regResult.intercept);
+      }
+
+      const ctx = document.getElementById(`scatter2_${idx}`).getContext('2d');
+      const chart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+          datasets: [
+            {
+              label: 'Data',
+              data: xs.map((x, i) => ({ x, y: ys[i] })),
+              backgroundColor: `${PARAMS[k1].color}66`,
+              borderColor: `${PARAMS[k1].color}99`,
+              pointRadius: dotSize,
+            },
+            {
+              label: 'Regression',
+              data: lineXs.map((x, i) => ({ x, y: lineYs[i] })),
+              type: 'line',
+              borderColor: '#f472b6',
+              borderWidth: 2,
+              pointRadius: 0,
+              borderDash: [6, 3],
+              fill: false,
+            }
+          ]
+        },
+        options: {
+          responsive: false,
+          maintainAspectRatio: false,
+          animation: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { title: { display: true, text: PARAMS[k1].label, color: '#94a3b8' }, ticks: { color: '#64748b' }, grid: { color: '#1e293b' } },
+            y: { title: { display: true, text: PARAMS[k2].label, color: '#94a3b8' }, ticks: { color: '#64748b' }, grid: { color: '#1e293b' } }
+          }
+        }
+      });
+      chartInstances[`scatter2_${idx}`] = chart;
+    });
+  }
+
+  function buildHistograms(data) {
+    const section = document.getElementById('histSection2');
+    section.innerHTML = '';
+    Object.values(histInstances).forEach(c => c.destroy());
+    histInstances = {};
+    section.style.display = 'block';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'histogram-section';
+    wrapper.innerHTML = '<h2>📈 參數分佈直方圖</h2>';
+    const grid = document.createElement('div');
+    grid.className = 'histogram-grid';
+    wrapper.appendChild(grid);
+    section.appendChild(wrapper);
+
+    Object.entries(PARAMS).forEach(([key, cfg]) => {
+      const vals = data.map(d => d.params[key]);
+      const card = document.createElement('div');
+      card.className = 'hist-card';
+      const canvasId = `hist2_${key}`;
+      card.innerHTML = `
+        <button class="export-btn" onclick="Page2.exportOne('${canvasId}')">📥 PNG</button>
+        <h4>${cfg.label}</h4>
+        <canvas id="${canvasId}" width="460" height="280"></canvas>
+      `;
+      grid.appendChild(card);
+
+      const min = Math.min(...vals), max = Math.max(...vals);
+      const binCount = 40;
+      const binWidth = (max - min) / binCount || 1;
+      const bins = new Array(binCount).fill(0);
+      const labels = [];
+      for (let i = 0; i < binCount; i++) labels.push((min + binWidth * (i + 0.5)).toFixed(3));
+      vals.forEach(v => {
+        let idx = Math.floor((v - min) / binWidth);
+        if (idx >= binCount) idx = binCount - 1;
+        if (idx < 0) idx = 0;
+        bins[idx]++;
+      });
+      const mean = vals.reduce((a,b)=>a+b,0)/vals.length;
+      const std = Math.sqrt(vals.reduce((a,b)=>a+(b-mean)**2,0)/vals.length);
+
+      const ctx = document.getElementById(canvasId).getContext('2d');
+      const chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{ data: bins, backgroundColor: cfg.color + '88', borderColor: cfg.color, borderWidth: 1 }]
+        },
+        options: {
+          responsive: false,
+          maintainAspectRatio: false,
+          animation: false,
+          plugins: {
+            legend: { display: false },
+            subtitle: {
+              display: true,
+              text: `μ = ${mean.toFixed(4)}, σ = ${std.toFixed(4)}, Min = ${min.toFixed(4)}, Max = ${max.toFixed(4)}`,
+              color: '#64748b',
+              font: { size: 11 }
+            }
+          },
+          scales: {
+            x: { ticks: { color: '#64748b', maxTicksLimit: 8, font: { size: 10 } }, grid: { display: false } },
+            y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, title: { display: true, text: 'Count', color: '#64748b' } }
+          }
+        }
+      });
+      histInstances[canvasId] = chart;
+    });
+  }
+
+  function toggleOutlier() {
+    excludeOutlier = !excludeOutlier;
+    document.getElementById('outlierToggle2').classList.toggle('active', excludeOutlier);
+    rebuild();
+  }
+
+  function exportOne(id) {
+    const chart = chartInstances[id] || histInstances[id];
+    if (chart) exportChartPNG(chart.canvas, id);
+  }
+
+  function exportAll() {
+    let i = 0;
+    Object.keys(chartInstances).forEach(id => setTimeout(() => exportOne(id), i++ * 200));
+    Object.keys(histInstances).forEach(id => setTimeout(() => exportOne(id), i++ * 200));
+  }
+
+  function clear() {
+    allData = [];
+    Object.values(chartInstances).forEach(c => c.destroy());
+    Object.values(histInstances).forEach(c => c.destroy());
+    chartInstances = {};
+    histInstances = {};
+    document.getElementById('chartsGrid2').innerHTML = '';
+    document.getElementById('histSection2').innerHTML = '';
+    document.getElementById('matrixSection2').innerHTML = '';
+    document.getElementById('fileList2').innerHTML = '';
+    document.getElementById('statsBar2').style.display = 'none';
+    document.getElementById('controls2').style.display = 'none';
+    document.getElementById('emptyState2').style.display = 'block';
+    document.getElementById('fileInput2').value = '';
+  }
+
+  init();
+  return { rebuild, toggleOutlier, exportOne, exportAll, clear };
+})();
+</script>
+</body>
+</html>
